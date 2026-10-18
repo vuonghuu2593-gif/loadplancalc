@@ -1,0 +1,70 @@
+---
+import ToolPage from '../layouts/ToolPage.astro';
+import LoadPlanner from '../components/LoadPlanner.astro';
+import data from '../data/containers.json';
+const hc = data.containers.find((c) => c.id === '40hc')!;
+const defaults = {
+  cont: { preset: hc.id, L: hc.L, W: hc.W, H: hc.H, doorW: hc.doorW, doorH: hc.doorH, maxWeight: hc.payload },
+  priority: false,
+  items: [
+    { name: 'Carton A', l: 600, w: 400, h: 400, weight: 12, qty: 400, rotation: 'any', stackable: true },
+    { name: 'Carton B', l: 500, w: 300, h: 300, weight: 6, qty: 500, rotation: 'upright', stackable: true },
+  ],
+};
+const n = (v: number) => v.toLocaleString('en-US');
+---
+<ToolPage
+  title="Container Loading Calculator (Free 3D Load Plan)"
+  description="Free 3D container loading calculator: enter your cartons and see how many fit in a 20ft, 40ft or 40ft high cube container, the space and payload used, and a step-by-step loading plan."
+  h1="Container loading calculator"
+  name="Container loading calculator"
+  lede={`Enter your carton sizes, weights and quantities to see how many fit in a 20', 40', 40' high cube or 45' container, with a 3D plan you can step through. For example, 600 × 400 × 400 mm cartons: <strong>660 fit in a 40' high cube</strong> (inside ${n(hc.L)} × ${n(hc.W)} × ${n(hc.H)} mm) — 30 rows along the length, each row 22 cartons: three columns of six lying 600 mm across plus one column of four standing 600 mm tall.`}
+>
+  <LoadPlanner mode="container" defaults={defaults} />
+
+  <section class="prose">
+    <h2>How the calculator works</h2>
+    <p>The planner fills the container from the back wall toward the door. At each step it takes the empty space nearest the back and the floor, and fills its corner with the best block of identical cartons — a set of rows, columns and layers in one orientation. What is left of that space is cut into smaller spaces, and the process repeats until nothing more fits or every carton is loaded. This is the “block building” method used in container loading research (Eley, 2002; Fanslau and Bortfeldt, 2010).</p>
+    <p>The planner tries many variations — different ways of scoring blocks and cutting the leftover space, plus seeded random choices — and keeps the plan that loads the most cargo volume. The same inputs always give the same plan, so a shared link shows exactly what you saw.</p>
+    <p>Before a plan is shown, an independent check confirms that no two cartons overlap, every carton is inside the container and fits through the door opening in the way it is stowed, “this side up” cartons are not tipped, every carton stands fully on the floor or on cartons below it, nothing is stacked on a carton marked as not stackable, and the payload limit is not exceeded.</p>
+    <ul class="plain">
+      <li><strong>Any side can face down:</strong> the carton may be stowed in any of its six orientations.</li>
+      <li><strong>This side up:</strong> the carton keeps its height vertical; it can only be turned flat (length and width swapped).</li>
+      <li><strong>Can carry boxes on top:</strong> untick for fragile cartons or crates that must not be stacked on.</li>
+      <li><strong>Load in list order:</strong> by default the planner loads whatever combination uses the most space. Tick this when the first box type must go in before the others.</li>
+    </ul>
+  </section>
+
+  <section class="prose">
+    <h2>Container sizes used in the presets</h2>
+    <p>Inside dimensions, door openings and payloads below are Hapag-Lloyd's published figures. Hapag-Lloyd notes that its figures are examples and that containers vary by manufacturer, so check your own unit's data plate or booking when the fit is tight, and pick “Custom size” to enter it.</p>
+    <div class="tablebox">
+      <table>
+        <thead><tr><th>Container</th><th class="num">Inside L × W × H (mm)</th><th class="num">Door W × H (mm)</th><th class="num">Max payload (kg)</th></tr></thead>
+        <tbody>
+          {data.containers.map((c) => <tr><td><a href={c.url} rel="noopener">{c.name}</a></td><td class="num">{n(c.L)} × {n(c.W)} × {n(c.H)}</td><td class="num">{n(c.doorW)} × {n(c.doorH)}</td><td class="num">{n(c.payload)}</td></tr>)}
+        </tbody>
+      </table>
+    </div>
+    <p class="small">Source: Hapag-Lloyd container specification pages (linked), checked {data.source.checked}. More detail on <a href="/shipping-container-dimensions/">shipping container dimensions</a>.</p>
+  </section>
+
+  <section class="prose">
+    <h2>Getting a plan that works on the dock</h2>
+    <ul class="plain">
+      <li>Measure cartons as packed, at the widest point. Bulging cartons are often a few millimetres bigger than the printed size, and a few millimetres per carton add up over 30 rows.</li>
+      <li>Leave room for dunnage, airbags and the door: a plan that uses every millimetre is a plan that will not close.</li>
+      <li>The payload limit is the most the container may carry, but road weight limits where the container travels can be lower. Check with your trucker for the inland leg.</li>
+      <li>Put heavy cartons low and spread the weight along the floor. The planner shows the centre of gravity of the cargo along the length so you can see if the load leans toward one end.</li>
+      <li>The <a href="https://www.imo.org/en/ourwork/safety/pages/ctu-code.aspx" rel="noopener">IMO/ILO/UNECE Code of Practice for Packing of Cargo Transport Units (CTU Code)</a> is the international guidance on packing, securing and weight distribution in containers.</li>
+    </ul>
+  </section>
+
+  <section class="prose">
+    <h2>Related</h2>
+    <div class="chips">
+      <a href="/shipping-container-dimensions/">Shipping container dimensions</a>
+      <a href="/how-we-calculate/">How we calculate</a>
+    </div>
+  </section>
+</ToolPage>

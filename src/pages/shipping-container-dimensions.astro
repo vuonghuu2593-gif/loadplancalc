@@ -1,0 +1,67 @@
+---
+import Base from '../layouts/Base.astro';
+import data from '../data/containers.json';
+const n = (v: number, d = 0) => v.toLocaleString('en-US', { maximumFractionDigits: d });
+const ftin = (mm: number) => { const tin = mm / 25.4; const ft = Math.floor(tin / 12); const inch = tin - ft * 12; return `${ft}′ ${n(inch, 1)}″`; };
+const cbm = (c: any) => (c.L * c.W * c.H) / 1e9;
+const cuft = (c: any) => (c.L * c.W * c.H) / (304.8 ** 3);
+const lb = (kg: number) => kg / 0.45359237;
+const hc = data.containers.find((c) => c.id === '40hc')!;
+const s20 = data.containers.find((c) => c.id === '20dv')!;
+const url = new URL('/shipping-container-dimensions/', 'https://loadplancalc.com').href;
+const schema = { '@context': 'https://schema.org', '@type': 'Article', headline: 'Shipping container dimensions', dateModified: data.source.checked, mainEntityOfPage: url };
+---
+<Base title="Shipping Container Dimensions: 20ft, 40ft, High Cube" description="Inside dimensions, door openings, volume and payload of 20ft, 40ft, 40ft high cube and 45ft high cube dry containers, in mm and feet, from Hapag-Lloyd's published specifications." schema={schema}>
+  <section class="prose">
+    <h1>Shipping container dimensions</h1>
+    <p class="lede">A 20' standard container measures {n(s20.L)} × {n(s20.W)} × {n(s20.H)} mm inside ({ftin(s20.L)} × {ftin(s20.W)} × {ftin(s20.H)}), and a 40' high cube {n(hc.L)} × {n(hc.W)} × {n(hc.H)} mm ({ftin(hc.L)} × {ftin(hc.W)} × {ftin(hc.H)}), according to Hapag-Lloyd's specifications. The tables below give the inside size, door opening, volume and weights of the four common dry containers.</p>
+  </section>
+
+  <section class="prose">
+    <h2>Inside dimensions and door openings</h2>
+    <div class="tablebox">
+      <table>
+        <thead><tr><th>Container</th><th class="num">Inside length</th><th class="num">Inside width</th><th class="num">Inside height</th><th class="num">Door width</th><th class="num">Door height</th></tr></thead>
+        <tbody>
+          {data.containers.map((c) => <tr><td><a href={c.url} rel="noopener">{c.name}</a></td>
+            <td class="num">{n(c.L)} mm<br><span class="small">{ftin(c.L)}</span></td><td class="num">{n(c.W)} mm<br><span class="small">{ftin(c.W)}</span></td><td class="num">{n(c.H)} mm<br><span class="small">{ftin(c.H)}</span></td>
+            <td class="num">{n(c.doorW)} mm<br><span class="small">{ftin(c.doorW)}</span></td><td class="num">{n(c.doorH)} mm<br><span class="small">{ftin(c.doorH)}</span></td></tr>)}
+        </tbody>
+      </table>
+    </div>
+    <p class="small">Millimetre figures are Hapag-Lloyd's; feet and inches are converted from them (1 in = 25.4 mm) and rounded to 0.1 inch.</p>
+  </section>
+
+  <section class="prose">
+    <h2>Volume and weight</h2>
+    <div class="tablebox">
+      <table>
+        <thead><tr><th>Container</th><th class="num">Inside volume</th><th class="num">Tare</th><th class="num">Max payload</th><th class="num">Max gross</th></tr></thead>
+        <tbody>
+          {data.containers.map((c) => <tr><td>{c.name}</td>
+            <td class="num">{n(cbm(c), 1)} m³<br><span class="small">{n(cuft(c))} ft³</span></td>
+            <td class="num">{n(c.tare)} kg<br><span class="small">{n(lb(c.tare))} lb</span></td>
+            <td class="num">{n(c.payload)} kg<br><span class="small">{n(lb(c.payload))} lb</span></td>
+            <td class="num">{n(c.gross)} kg<br><span class="small">{n(lb(c.gross))} lb</span></td></tr>)}
+        </tbody>
+      </table>
+    </div>
+    <p class="small">Inside volume is length × width × height of the figures above. Hapag-Lloyd lists the capacity as 33.2 m³ (20'), 67.7 m³ (40'), and 86.0 m³ (45' high cube). Pounds are converted from kilograms (1 lb = 0.45359237 kg).</p>
+  </section>
+
+  <section class="prose">
+    <h2>What the numbers mean</h2>
+    <ul class="plain">
+      <li><strong>Tare</strong> is the empty container's own weight. <strong>Max payload</strong> is the most cargo it may carry, and <strong>max gross</strong> is tare plus payload: the most the loaded container may weigh.</li>
+      <li>A high cube is about 30 cm (one foot) taller inside than a standard container of the same length: here {n(hc.H)} mm against {n(s20.H)} mm.</li>
+      <li>The door opening is smaller than the inside, so the door — not the inside — limits the largest item you can load.</li>
+      <li>These are one carrier's figures. Containers from other owners and manufacturing series differ by a few millimetres or kilograms; the data plate on the container door and your booking confirmation give the figures for your unit.</li>
+    </ul>
+  </section>
+
+  <section class="prose">
+    <h2>How many cartons fit?</h2>
+    <p>Use the <a href="/container-loading-calculator/">container loading calculator</a> with these sizes as presets: enter your carton sizes and quantities to get a 3D loading plan.</p>
+    <p class="small">Source: Hapag-Lloyd container specification pages for the <a href={s20.url} rel="noopener">20' standard</a>, <a href={data.containers[1].url} rel="noopener">40' standard</a>, <a href={hc.url} rel="noopener">40' high cube</a> and <a href={data.containers[3].url} rel="noopener">45' high cube</a>, checked {data.source.checked}.</p>
+  </section>
+</Base>

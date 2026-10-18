@@ -1,0 +1,41 @@
+---
+import Base from '../layouts/Base.astro';
+import data from '../data/containers.json';
+---
+<Base title="How We Calculate" description="The load planning method, the checks every plan passes, and the sources behind every figure on Load Plan Calc.">
+  <section class="prose">
+    <h1>How we calculate</h1>
+    <p class="lede">Every plan is built in your browser by the same engine, checked independently before it is shown, and based on figures we can link to.</p>
+  </section>
+  <section class="prose">
+    <h2>The method</h2>
+    <p>Load planning — fitting boxes into a larger box — is a hard optimisation problem with no fast method that is always optimal. We use block building, a well-studied heuristic for container loading (Eley, M. (2002) “Solving container loading problems by block arrangement”, European Journal of Operational Research 141; Fanslau, T. and Bortfeldt, A. (2010) “A tree search algorithm for solving the container loading problem”, INFORMS Journal on Computing 22). The container is filled from the back wall, one block of identical boxes at a time, with a look-ahead that scores each block by how well the space left over can still be filled. Many variants are run and the plan that loads the most volume is kept.</p>
+    <p>Because it is a heuristic, a plan may occasionally fit a few boxes fewer than the best possible arrangement. It will never show an arrangement that is physically impossible: the checks below make sure of that.</p>
+  </section>
+  <section class="prose">
+    <h2>Checks on every plan</h2>
+    <ul class="plain">
+      <li>No two boxes overlap, and every box is inside the load space.</li>
+      <li>Each box is stowed in one of its allowed orientations; “this side up” boxes keep their height vertical.</li>
+      <li>In a container, each box fits through the door opening in the way it is stowed.</li>
+      <li>Every box stands fully on the floor or on boxes below it, and nothing stands on a box marked as not stackable.</li>
+      <li>The total weight is within the limit you entered, and no more boxes are placed than you entered.</li>
+    </ul>
+    <p>The engine's test suite also checks hand-calculated cases (for example, 8 cubes of 500 mm in a 1 m cube, and 660 cartons of 600 × 400 × 400 mm in a 40' high cube) and 40 random cases on every change.</p>
+  </section>
+  <section class="prose">
+    <h2>Units</h2>
+    <p>Everything is calculated in millimetres and kilograms. Inches and pounds use the exact definitions 1 in = 25.4 mm and 1 lb = 0.45359237 kg.</p>
+  </section>
+  <section class="prose">
+    <h2>Sources</h2>
+    <div class="tablebox"><table>
+      <thead><tr><th>Figure</th><th>Source</th><th>Checked</th></tr></thead>
+      <tbody>
+        {data.containers.map((c) => <tr><td>{c.name}: inside size, door, tare, payload, gross</td><td><a href={c.url} rel="noopener">Hapag-Lloyd</a></td><td>{data.source.checked}</td></tr>)}
+        <tr><td>Packing, securing and weight distribution guidance</td><td><a href="https://www.imo.org/en/ourwork/safety/pages/ctu-code.aspx" rel="noopener">IMO/ILO/UNECE CTU Code</a></td><td>2026-10-18</td></tr>
+      </tbody>
+    </table></div>
+    <p>Found an error? <a href="/contact/">Tell us</a> — we check and correct the figures regularly.</p>
+  </section>
+</Base>

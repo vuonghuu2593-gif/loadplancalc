@@ -1,0 +1,17 @@
+{
+  "source": {
+    "publisher": "Hapag-Lloyd",
+    "note": "Hapag-Lloyd states its figures are examples; containers vary by manufacturer and series.",
+    "checked": "2026-10-18"
+  },
+  "containers": [
+    { "id": "20dv", "name": "20' Standard", "iso": "22G1", "L": 5900, "W": 2352, "H": 2395, "doorW": 2340, "doorH": 2292, "tare": 2350, "payload": 28130, "gross": 30480, "cbm": "33.2",
+      "url": "https://www.hapag-lloyd.com/en/services-information/cargo-fleet/container/20-standard.html" },
+    { "id": "40dv", "name": "40' Standard", "iso": "42G1", "L": 12032, "W": 2352, "H": 2395, "doorW": 2340, "doorH": 2292, "tare": 3750, "payload": 28750, "gross": 32500, "cbm": "67.7",
+      "url": "https://www.hapag-lloyd.com/en/services-information/cargo-fleet/container/40-standard.html" },
+    { "id": "40hc", "name": "40' High Cube", "iso": null, "L": 12032, "W": 2350, "H": 2700, "doorW": 2340, "doorH": 2597, "tare": 3900, "payload": 28600, "gross": 32500, "cbm": null,
+      "url": "https://www.hapag-lloyd.com/en/services-information/cargo-fleet/container/40-standard-high-cube.html" },
+    { "id": "45hc", "name": "45' High Cube", "iso": "L5G1", "L": 13556, "W": 2352, "H": 2700, "doorW": 2340, "doorH": 2597, "tare": 4800, "payload": 27700, "gross": 32500, "cbm": "86.0",
+      "url": "https://www.hapag-lloyd.com/en/services-information/cargo-fleet/container/45-standard-high-cube.html" }
+  ]
+}

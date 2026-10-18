@@ -1,0 +1,20 @@
+---
+import Base from './Base.astro';
+interface Props { title: string; description: string; h1: string; lede: string; name: string; crumb?: { name: string; href: string } }
+const { title, description, h1, lede, name, crumb = { name: 'Tools', href: '/' } } = Astro.props;
+const url = new URL(Astro.url.pathname, Astro.site).href;
+const schema = [
+  { '@context': 'https://schema.org', '@type': 'WebApplication', name, url, applicationCategory: 'BusinessApplication', operatingSystem: 'Any', offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' } },
+  { '@context': 'https://schema.org', '@type': 'BreadcrumbList', itemListElement: [
+    { '@type': 'ListItem', position: 1, name: crumb.name, item: new URL(crumb.href, Astro.site).href },
+    { '@type': 'ListItem', position: 2, name, item: url } ] },
+];
+---
+<Base title={title} description={description} schema={schema}>
+  <section class="prose">
+    <nav class="crumbs" aria-label="Breadcrumb"><a href={crumb.href}>{crumb.name}</a><span aria-hidden="true">›</span><span>{name}</span></nav>
+    <h1>{h1}</h1>
+    <p class="lede" set:html={lede} />
+  </section>
+  <slot />
+</Base>
