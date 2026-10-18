@@ -28,6 +28,16 @@ const fullTitle = title === SITE_NAME ? title : `${title} | ${SITE_NAME}`;
   <meta name="theme-color" content="#0F1E33">
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   {schema && <script type="application/ld+json" set:html={JSON.stringify(schema)} />}
+  <!-- Google Analytics 4 with Consent Mode v2: no analytics or ad cookies in the EEA, UK and Switzerland until consent -->
+  <script is:inline>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('consent', 'default', { ad_storage: 'denied', ad_user_data: 'denied', ad_personalization: 'denied', analytics_storage: 'denied', region: ['AT','BE','BG','HR','CY','CZ','DK','EE','FI','FR','DE','GR','HU','IE','IT','LV','LT','LU','MT','NL','PL','PT','RO','SK','SI','ES','SE','IS','LI','NO','GB','CH'] });
+    gtag('consent', 'default', { ad_storage: 'granted', ad_user_data: 'granted', ad_personalization: 'granted', analytics_storage: 'granted' });
+    gtag('js', new Date());
+    gtag('config', 'G-TCZ4ZWR5MG');
+  </script>
+  <script is:inline async src="https://www.googletagmanager.com/gtag/js?id=G-TCZ4ZWR5MG"></script>
 </head>
 <body>
   <header class="site-header">
