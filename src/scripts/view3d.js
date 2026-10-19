@@ -15,6 +15,50 @@ export function createView(host) {
   const sun = new THREE.DirectionalLight(0xffffff, 1.6); sun.position.set(-0.6, 1, 0.8); scene.add(sun);
   let group = new THREE.Group(); scene.add(group);
   let meshes = [], order = [], size = { L: 1, W: 1, H: 1 }, view = '3d';
+  // hand editing: a highlighted box, green free spots, and taps reported to the page
+  const extra = new THREE.Group(); scene.add(extra);
+  let ghostMesh = null, ghostList = [], selObj = null, pickCb = null;
+  const ray = new THREE.Raycaster(); const ptr = new THREE.Vector2();
+  let down = null;
+  renderer.domElement.addEventListener('pointerdown', (e) => { down = { x: e.clientX, y: e.clientY, t: Date.now() }; });
+  renderer.domElement.addEventListener('pointerup', (e) => {
+    if (!down || !pickCb) return;
+    const moved = Math.hypot(e.clientX - down.x, e.clientY - down.y); const quick = Date.now() - down.t < 600; down = null;
+    if (moved > 6 || !quick) return;
+    const r = renderer.domElement.getBoundingClientRect();
+    ptr.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+    ray.setFromCamera(ptr, camera);
+    if (ghostMesh) { const h = ray.intersectObject(ghostMesh, false)[0]; if (h && h.instanceId != null) { pickCb({ kind: 'spot', index: h.instanceId }); return; } }
+    const hit = ray.intersectObjects(meshes.map((m) => m.mesh), false)[0];
+    if (hit && hit.instanceId != null) { const m = meshes.find((x) => x.mesh === hit.object); pickCb({ kind: 'box', index: m.idxs[hit.instanceId] }); return; }
+    pickCb(null);
+  });
+  function paintExtra() {
+    extra.traverse((o) => { if (o !== extra) { o.geometry?.dispose(); o.material?.dispose?.(); } });
+    extra.clear(); ghostMesh = null;
+    if (selObj) {
+      const b = selObj;
+      const box = new THREE.Mesh(new THREE.BoxGeometry(b.dx + 16, b.dz + 16, b.dy + 16), new THREE.MeshBasicMaterial({ color: 0xffe14d, transparent: true, opacity: 0.35, depthWrite: false }));
+      box.position.set(b.x + b.dx / 2, b.z + b.dz / 2, b.y + b.dy / 2); extra.add(box);
+      const ed = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(b.dx + 16, b.dz + 16, b.dy + 16)), new THREE.LineBasicMaterial({ color: 0xffe14d }));
+      ed.position.copy(box.position); extra.add(ed);
+    }
+    if (ghostList.length) {
+      ghostMesh = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial({ color: 0x3fd47a, transparent: true, opacity: 0.32, depthWrite: false }), ghostList.length);
+      const m = new THREE.Matrix4(), q = new THREE.Quaternion(), s = new THREE.Vector3(), p = new THREE.Vector3();
+      ghostList.forEach((b, j) => { const g = Math.min(12, Math.min(b.dx, b.dy, b.dz) * 0.04); s.set(b.dx - g, b.dz - g, b.dy - g); p.set(b.x + b.dx / 2, b.z + b.dz / 2, b.y + b.dy / 2); m.compose(p, q, s); ghostMesh.setMatrixAt(j, m); });
+      extra.add(ghostMesh);
+      const pts = []; // outline the spots so they read as boxes
+      for (const b of ghostList.slice(0, 600)) {
+        const x0 = b.x, x1 = b.x + b.dx, y0 = b.z, y1 = b.z + b.dz, z0 = b.y, z1 = b.y + b.dy;
+        const c = [[x0, y0, z0], [x1, y0, z0], [x1, y0, z1], [x0, y0, z1], [x0, y1, z0], [x1, y1, z0], [x1, y1, z1], [x0, y1, z1]];
+        for (const [a, d] of [[0, 1], [1, 2], [2, 3], [3, 0], [4, 5], [5, 6], [6, 7], [7, 4], [0, 4], [1, 5], [2, 6], [3, 7]]) pts.push(...c[a], ...c[d]);
+      }
+      const lg = new THREE.BufferGeometry(); lg.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
+      extra.add(new THREE.LineSegments(lg, new THREE.LineBasicMaterial({ color: 0x3fd47a })));
+    }
+    draw();
+  }
   const draw = () => renderer.render(scene, camera);
   controls.addEventListener('change', draw);
 
@@ -39,7 +83,8 @@ export function createView(host) {
     controls.target.copy(c); controls.update(); draw();
   }
 
-  function setPlan({ cont, boxes, colors }) {
+  function setPlan({ cont, boxes, colors, keepCamera }) {
+    const same = keepCamera && size.L === cont.L && size.W === cont.W && size.H === cont.H;
     scene.remove(group); group.traverse((o) => { o.geometry?.dispose(); o.material?.dispose?.(); });
     group = new THREE.Group(); scene.add(group); meshes = []; order = [];
     size = { L: cont.L, W: cont.W, H: cont.H };
@@ -65,7 +110,7 @@ export function createView(host) {
       });
       mesh.count = idxs.length; group.add(mesh); meshes.push({ mesh, idxs });
     }
-    aim(view);
+    if (same) draw(); else aim(view);
   }
 
   // show only the first n boxes in loading order
@@ -78,5 +123,10 @@ export function createView(host) {
     draw();
   }
 
-  return { setPlan, setStep, aim, draw, snapshot: () => renderer.domElement.toDataURL('image/png') };
+  return {
+    setPlan, setStep, aim, draw, snapshot: () => renderer.domElement.toDataURL('image/png'),
+    onPick: (fn) => { pickCb = fn; },
+    setSelected: (b) => { selObj = b; paintExtra(); },
+    setSpots: (list) => { ghostList = list || []; paintExtra(); },
+  };
 }

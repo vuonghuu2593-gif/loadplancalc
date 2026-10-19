@@ -15,7 +15,7 @@ const n = (v: number) => v.toLocaleString('en-US');
 ---
 <ToolPage
   title="Container Loading Calculator (Free 3D Load Plan)"
-  description="Free 3D container loading calculator: see how many cartons fit in a 20ft, 40ft or 40ft high cube container. Fully automatic or semi-automatic loading steps, with carton orientation you can choose."
+  description="Free 3D container loading calculator: see how many cartons fit in a 20ft, 40ft or 40ft high cube. Automatic plans, loading steps, carton orientation and hand editing in 3D."
   h1="Container loading calculator"
   name="Container loading calculator"
   lede={`Enter your carton sizes, weights and quantities to see how many fit in a 20', 40', 40' high cube or 45' container, with a 3D plan you can step through. For example, 600 × 400 × 400 mm cartons: <strong>660 fit in a 40' high cube</strong> (inside ${n(hc.L)} × ${n(hc.W)} × ${n(hc.H)} mm) — 30 rows along the length, each row 22 cartons: three columns of six lying 600 mm across plus one column of four standing 600 mm tall.`}
@@ -55,6 +55,19 @@ const n = (v: number) => v.toLocaleString('en-US');
       <li><strong>Start a new section:</strong> the step begins in front of everything already loaded, so later cargo is not tucked into gaps behind it. Use this to keep orders, destinations or stops together.</li>
     </ul>
     <p>Steps run in order from the back wall toward the door, and you can move or delete them. With “Then load whatever is left automatically” ticked, the planner finishes with the cartons no step took. The step table shows how many cartons each step asked for and how many it loaded, and the loading-step slider under the 3D view tells you which step each carton belongs to. Every semi-automatic plan passes the same independent check as an automatic one, plus checks that each step used only its own box type, kept its fixed position, and that new sections start in front of earlier cargo.</p>
+  </section>
+
+  <section class="prose">
+    <h2>Editing the plan by hand</h2>
+    <p>Under the 3D view, <strong>Edit this plan by hand</strong> turns any plan into one you can adjust, and <strong>Load by hand from empty</strong> starts with an empty container. Tap a box in the 3D view (or step through the boxes with ‹ ›) to select it, then:</p>
+    <ul class="plain">
+      <li><strong>Turn</strong> it into another of its allowed positions, where it stands.</li>
+      <li><strong>Push</strong> it toward the back wall, the door, left, right, up or down: it slides until it meets a wall or another box.</li>
+      <li><strong>Pick a new spot:</strong> green boxes in the 3D view show every free spot where it fits; tap one.</li>
+      <li><strong>Remove</strong> it. Boxes standing on it come out with it, and all of them are listed under “Not loaded”.</li>
+    </ul>
+    <p>Boxes under “Not loaded” can be placed one at a time: choose a position or leave it automatic, then tap a green spot or use the next free spot (nearest the back wall and the floor). <strong>Fill the rest automatically</strong> keeps every box you placed and loads what is left around them. Undo and Redo step through your changes, and the share link keeps your hand edits.</p>
+    <p>Every change is checked before it is made, with the same rules as an automatic plan: a box cannot overlap another, must stand fully on the floor or on boxes below, cannot go on a box marked as not stackable, must use a position it is allowed, and must pass the door the way it is stowed. A box with others standing on it cannot be moved or turned until they are moved. If a change would break a rule, the planner says why instead of making it. Changing the boxes or the container afterwards starts again from an automatic plan.</p>
   </section>
 
   <section class="prose">

@@ -222,14 +222,20 @@ function search(cont, items, start, rand, opts, budget) {
   return best;
 }
 
-export function pack(container, rawItems, opts = {}) {
+// Numbers in, every box type kept (idx = position in the input list). `os` holds the orientations a
+// box may use that also pass the door (width across, height up), as [along, across, up] in mm.
+export function normalize(container, rawItems, opts = {}) {
   const cont = { L: +container.L, W: +container.W, H: +container.H, maxWeight: +container.maxWeight || 0,
     doorW: +container.doorW || 0, doorH: +container.doorH || 0, priority: !!opts.priority };
-  const items = rawItems
-    .map((it, i) => ({ ...it, idx: i, l: +it.l, w: +it.w, h: +it.h, weight: +it.weight || 0, qty: Math.floor(+it.qty || 0), stackable: it.stackable !== false }))
-    .filter((it) => it.l > 0 && it.w > 0 && it.h > 0 && it.qty > 0);
-  // a box must pass the door in the orientation it is stowed in (width across, height up)
-  for (const it of items) it.os = orientations(it).filter((o) => (!cont.doorW || o[1] <= cont.doorW) && (!cont.doorH || o[2] <= cont.doorH));
+  const items = rawItems.map((it, i) => ({ ...it, idx: i, l: +it.l, w: +it.w, h: +it.h, weight: +it.weight || 0, qty: Math.floor(+it.qty || 0), stackable: it.stackable !== false }));
+  for (const it of items) it.os = it.l > 0 && it.w > 0 && it.h > 0 ? orientations({ ...it, os: null }).filter((o) => (!cont.doorW || o[1] <= cont.doorW) && (!cont.doorH || o[2] <= cont.doorH)) : [];
+  return { cont, items };
+}
+
+export function pack(container, rawItems, opts = {}) {
+  const n0 = normalize(container, rawItems, opts);
+  const cont = n0.cont;
+  const items = n0.items.filter((it) => it.l > 0 && it.w > 0 && it.h > 0 && it.qty > 0);
   if (!(cont.L > 0 && cont.W > 0 && cont.H > 0) || !items.length) return { placed: [], items, cont, totals: { vol: 0, w: 0, n: 0 }, perItem: items.map(() => 0), cog: null, steps: null };
   const rand = rng(opts.seed ?? 12345);
   const budget = opts.timeMs ?? 1500;
@@ -240,13 +246,18 @@ export function pack(container, rawItems, opts = {}) {
     // loading order: back wall first, bottom up
     placed.sort((a, b) => a.x - b.x || a.z - b.z || a.y - b.y);
   }
+  return { placed, items, cont, steps, ...summarize(placed, items) };
+}
+
+// Totals, boxes per type and the cargo's centre of gravity for a list of placed boxes.
+export function summarize(placed, items) {
   const { vol, w, n } = evaluate(placed, items); const totals = { vol, w, n };
   const perItem = items.map(() => 0);
   for (const p of placed) perItem[p.k]++;
   let cx = 0, cy = 0, cz = 0;
   for (const p of placed) { const m = items[p.k].weight; cx += m * (p.x + p.dx / 2); cy += m * (p.y + p.dy / 2); cz += m * (p.z + p.dz / 2); }
   const cog = totals.w > 0 ? { x: cx / totals.w, y: cy / totals.w, z: cz / totals.w } : null;
-  return { placed, items, cont, totals, perItem, cog, steps };
+  return { totals, perItem, cog };
 }
 
 // Semi-automatic mode: the user sets the loading steps (box type, how many, a fixed orientation or

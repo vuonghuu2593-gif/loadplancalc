@@ -11,6 +11,7 @@ import data from '../data/containers.json';
     <h2>The method</h2>
     <p>Load planning — fitting boxes into a larger box — is a hard optimisation problem with no fast method that is always optimal. We use block building, a well-studied heuristic for container loading (Eley, M. (2002) “Solving container loading problems by block arrangement”, European Journal of Operational Research 141; Fanslau, T. and Bortfeldt, A. (2010) “A tree search algorithm for solving the container loading problem”, INFORMS Journal on Computing 22). The container is filled from the back wall, one block of identical boxes at a time, with a look-ahead that scores each block by how well the space left over can still be filled. Many variants are run and the plan that loads the most volume is kept.</p>
     <p>In semi-automatic mode you set the loading steps (box type, quantity, an optional fixed position, and whether a step starts a new section). The same search runs for each step in turn, starting from the space the earlier steps left, so the steps keep your order while each one is packed as tightly as the method allows.</p>
+    <p>When you edit a plan by hand, each move, turn or new box is checked against the rules below before it is made. The free spots offered for a box are the corners next to, beside, behind and on top of the boxes already loaded (the “extreme points” of Crainic, T.G., Perboli, G. and Tadei, R. (2008) “Extreme point-based heuristics for three-dimensional bin packing”, INFORMS Journal on Computing 20) that pass every check. “Fill the rest automatically” keeps your boxes, fills the gaps among them block by block from those corner points, and loads the empty space in front of them with the block-building method.</p>
     <p>Because it is a heuristic, a plan may occasionally fit a few boxes fewer than the best possible arrangement. It will never show an arrangement that is physically impossible: the checks below make sure of that.</p>
   </section>
   <section class="prose">
@@ -23,7 +24,7 @@ import data from '../data/containers.json';
       <li>Every box stands fully on the floor or on boxes below it, and nothing stands on a box marked as not stackable.</li>
       <li>The total weight is within the limit you entered, and no more boxes are placed than you entered.</li>
     </ul>
-    <p>The engine's test suite also checks hand-calculated cases (for example, 8 cubes of 500 mm in a 1 m cube, and 660 cartons of 600 × 400 × 400 mm in a 40' high cube), 40 random cases, a fixed-position case (600 cartons when the 600 × 400 × 400 mm carton may only stand one way) and 30 random semi-automatic plans on every change.</p>
+    <p>The engine's test suite also checks hand-calculated cases (for example, 8 cubes of 500 mm in a 1 m cube, and 660 cartons of 600 × 400 × 400 mm in a 40' high cube), 40 random cases, a fixed-position case (600 cartons when the 600 × 400 × 400 mm carton may only stand one way) 30 random semi-automatic plans, and hand-editing cases: the placement rules, pushing and free spots on small hand-checked layouts, refilling the 660-carton plan after boxes are taken out of the middle (back to 660), and 25 random plans with boxes removed and filled again.</p>
   </section>
   <section class="prose">
     <h2>Units</h2>

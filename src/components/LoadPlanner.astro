@@ -74,6 +74,62 @@ const presets = mode === 'container' ? data.containers : palletPresets;
       </div>
       <label class="step">Loading step: <span data-r="stepTxt"></span><input type="range" min="0" value="0" data-step></label>
     </div>
+    <div class="editor noprint" data-editor>
+      <div class="edoff" data-ed-off>
+        <div class="edbar">
+          <button type="button" class="btn" data-ed="start">Edit this plan by hand</button>
+          <button type="button" class="btn ghost" data-ed="empty">Load by hand from empty</button>
+        </div>
+        <p class="small">Move, turn or remove boxes, place the rest yourself, or let the planner fill the gaps around them. Every change is checked: no overlaps, full support, door size and the positions each box may use.</p>
+      </div>
+      <div class="edon" data-ed-on hidden>
+        <div class="edbar">
+          <button type="button" class="edbtn" data-ed="undo">↶ Undo</button>
+          <button type="button" class="edbtn" data-ed="redo">↷ Redo</button>
+          <button type="button" class="btn" data-ed="fill">Fill the rest automatically</button>
+          <button type="button" class="btn ghost" data-ed="exit">Back to automatic plan</button>
+        </div>
+        <p class="edmsg" data-ed-msg role="status" hidden></p>
+        <div class="edcard">
+          <div class="edselrow">
+            <button type="button" class="edbtn" data-ed="prev" aria-label="Previous box">‹</button>
+            <span data-ed-seltxt></span>
+            <button type="button" class="edbtn" data-ed="next" aria-label="Next box">›</button>
+          </div>
+          <div data-ed-selbody hidden>
+            <p class="small" data-ed-selinfo></p>
+            <div class="edlabel">Turn</div>
+            <div class="ogrid edturn" data-ed-turn></div>
+            <div class="edlabel">Push until it meets a wall or another box</div>
+            <div class="edpush">
+              <button type="button" class="edbtn" data-push="0,-1">← Back wall</button>
+              <button type="button" class="edbtn" data-push="0,1">Door →</button>
+              <button type="button" class="edbtn" data-push="2,1">↑ Up</button>
+              <button type="button" class="edbtn" data-push="1,1">Left</button>
+              <button type="button" class="edbtn" data-push="1,-1">Right</button>
+              <button type="button" class="edbtn" data-push="2,-1">↓ Down</button>
+            </div>
+            <p class="small edhint">Left and right as seen from the door.</p>
+            <div class="edbar">
+              <button type="button" class="btn ghost" data-ed="move">Pick a new spot</button>
+              <button type="button" class="btn ghost" data-ed="remove">Remove</button>
+            </div>
+          </div>
+        </div>
+        <div class="edcard" data-ed-placing hidden>
+          <p data-ed-pltxt></p>
+          <label>Position<select data-ed-plorient></select></label>
+          <div class="edbar">
+            <button type="button" class="btn" data-ed="nextspot">Put it in the next free spot</button>
+            <button type="button" class="btn ghost" data-ed="stop">Stop</button>
+          </div>
+        </div>
+        <div class="edcard">
+          <div class="edlabel">Not loaded</div>
+          <div data-ed-left></div>
+        </div>
+      </div>
+    </div>
     <div class="legend" data-r="legend"></div>
     <div class="viewbar noprint">
       <button type="button" class="btn" data-share>Copy link to this plan</button>

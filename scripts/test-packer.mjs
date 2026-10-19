@@ -1,6 +1,7 @@
 // Engine tests: hand-checked cases plus random cases checked by the independent validator.
 // Usage: node scripts/test-packer.mjs
 import { pack, validate } from '../src/scripts/packer.js';
+import { makeCtx, placeProblem, spots, nudge, fillAround, onTop, stackFrom, asResult } from '../src/scripts/editor.js';
 let fails = 0;
 const ok = (cond, msg) => { if (!cond) { fails++; console.log('FAIL', msg); } else console.log('ok  ', msg); };
 const simple = (C, b) => { // best single-orientation grid, the obvious lower bound
@@ -114,5 +115,72 @@ for (let s = 1; s <= 30; s++) {
   if (errs.length) { badS++; console.log('fuzz steps', s, errs); }
 }
 ok(badS === 0, `30 random step plans valid (${badS} bad)`);
+
+// 13. Hand editing
+{
+  const C = { L: 2000, W: 1000, H: 1000 };
+  const its = [{ l: 500, w: 500, h: 500, qty: 20, weight: 1 }, { l: 400, w: 300, h: 200, qty: 5, weight: 1, stackable: false, rotation: 'upright' }];
+  const ctx = makeCtx(C, its, [{ k: 0, x: 0, y: 0, z: 0, dx: 500, dy: 500, dz: 500 }, { k: 1, x: 500, y: 0, z: 0, dx: 400, dy: 300, dz: 200 }]);
+  ok(placeProblem(ctx, { k: 0, x: 0, y: 500, z: 0, dx: 500, dy: 500, dz: 500 }) === '', 'free spot beside a box is accepted');
+  ok(/hit another box/.test(placeProblem(ctx, { k: 0, x: 250, y: 0, z: 0, dx: 500, dy: 500, dz: 500 })), 'overlap refused');
+  ok(/not stand fully/.test(placeProblem(ctx, { k: 0, x: 250, y: 0, z: 500, dx: 500, dy: 500, dz: 500 })), 'half-supported box refused');
+  ok(/must not carry/.test(placeProblem(ctx, { k: 1, x: 500, y: 0, z: 200, dx: 400, dy: 300, dz: 200 })), 'box on a non-stackable box refused');
+  ok(/turned that way/.test(placeProblem(ctx, { k: 1, x: 1000, y: 0, z: 0, dx: 400, dy: 200, dz: 300 })), 'upright box tipped refused');
+  ok(/stick out/.test(placeProblem(ctx, { k: 0, x: 1600, y: 0, z: 0, dx: 500, dy: 500, dz: 500 })), 'outside refused');
+  ok(placeProblem(ctx, { k: 0, x: 0, y: 0, z: 500, dx: 500, dy: 500, dz: 500 }) === '', 'box on top of a stackable box accepted');
+  const ctxD = makeCtx({ L: 3000, W: 2352, H: 2395, doorW: 2340, doorH: 2292 }, [{ l: 1000, w: 1000, h: 2350, qty: 1, weight: 1 }], []);
+  ok(/door/.test(placeProblem(ctxD, { k: 0, x: 0, y: 0, z: 0, dx: 1000, dy: 1000, dz: 2350 })), 'box taller than the door refused');
+  const sp = spots(ctx, 0, null);
+  ok(sp.length > 0 && sp.every((b) => placeProblem(ctx, b) === '') && sp[0].x === 0, `${sp.length} free spots, all valid, first at the back wall`);
+  const sp1 = spots(ctx, 1, 1);
+  ok(sp1.length > 0 && sp1.every((b) => b.dx === 300 && b.dy === 400 && b.dz === 200), 'fixed position: every spot uses it');
+  // nudge: lone box at x = 600 slides back to the wall, then is stopped by a neighbour
+  const c2 = makeCtx(C, its, [{ k: 0, x: 600, y: 0, z: 0, dx: 500, dy: 500, dz: 500 }, { k: 0, x: 1500, y: 0, z: 0, dx: 500, dy: 500, dz: 500 }]);
+  ok(nudge(c2, 0, 0, -1)?.x === 0, 'nudge back: slides to the back wall');
+  ok(nudge(c2, 0, 0, 1)?.x === 1000, 'nudge toward the door: stops against the next box (x = 1000)');
+  ok(nudge(c2, 0, 1, 1)?.y === 500, 'nudge across: snaps to the far wall');
+  ok(nudge(c2, 0, 2, 1) === null, 'nudge up with nothing below to stand on: refused');
+  const c3 = makeCtx(C, its, [{ k: 0, x: 0, y: 0, z: 0, dx: 500, dy: 500, dz: 500 }, { k: 0, x: 0, y: 0, z: 500, dx: 500, dy: 500, dz: 500 }]);
+  ok(onTop(c3, 0).length === 1 && stackFrom(c3, 0).length === 2, 'stack above a box is found');
+  ok(validate(asResult(c3)).length === 0, 'edited plan validates');
+}
+// fill around kept boxes
+{
+  const r = fillAround({ L: 1000, W: 1000, H: 1000 }, [{ l: 500, w: 500, h: 500, qty: 10, weight: 1 }], []);
+  ok(validate(r).length === 0 && r.totals.n === 8, `fill from empty: 8 cubes (got ${r.totals.n})`);
+  const r2 = fillAround({ L: 1000, W: 1000, H: 1000 }, [{ l: 500, w: 500, h: 500, qty: 10, weight: 1 }], [{ k: 0, x: 500, y: 500, z: 0, dx: 500, dy: 500, dz: 500 }]);
+  ok(validate(r2).length === 0 && r2.totals.n === 8, `fill around one cube in the far corner: 8 (got ${r2.totals.n})`);
+  // 40' HC, 660 plan: take out 40 boxes from the middle, fill again -> back to 660
+  const it = [{ l: 600, w: 400, h: 400, qty: 5000, weight: 10 }];
+  const full = pack(HC, it);
+  const kept = full.placed.filter((p, i) => !(p.x > 4000 && p.x < 7000 && i % 3 === 0));
+  const r3 = fillAround(HC, it, kept.map((p) => ({ ...p, k: 0 })));
+  ok(validate(r3).length === 0 && r3.totals.n >= 660, `removed ${full.placed.length - kept.length} of 660 from the middle, fill again: ${r3.totals.n} (>= 660)`);
+  // the defaults of the page: keep the first 100 boxes, fill the rest
+  const its2 = [A, B];
+  const auto = pack(HC, its2);
+  const r4 = fillAround(HC, its2, auto.placed.slice(0, 100));
+  ok(validate(r4).length === 0 && r4.totals.n === 900, `defaults: keep 100, fill the rest -> 900 of 900 (got ${r4.totals.n})`);
+  const r5 = fillAround({ ...HC, maxWeight: 2000 }, its2, []);
+  ok(validate(r5).length === 0 && r5.totals.w <= 2000, `weight limit respected when filling (${r5.totals.w} kg)`);
+}
+let badF = 0;
+for (let s = 1; s <= 25; s++) {
+  let x = s * 15485863; const R = () => ((x = (x * 1103515245 + 12345) % 2147483648) / 2147483648);
+  const C = { L: 2000 + R() * 10000, W: 1500 + R() * 1000, H: 1500 + R() * 1200, maxWeight: R() < 0.5 ? 5000 + R() * 20000 : 0 };
+  if (R() < 0.5) { C.doorW = C.W - 12; C.doorH = C.H - 100; }
+  const n = 1 + Math.floor(R() * 4);
+  const items = Array.from({ length: n }, () => ({ l: 150 + R() * 900, w: 150 + R() * 700, h: 100 + R() * 800, qty: 1 + Math.floor(R() * 300), weight: R() * 40, rotation: R() < 0.4 ? 'upright' : 'any', stackable: R() > 0.15 }));
+  const base = pack(C, items, { tries: 10 });
+  // keep a random subset that still stands (drop a box only together with everything above it)
+  const ctx = makeCtx(C, items, base.placed.map((p) => ({ ...p, k: base.items[p.k].idx })));
+  const drop = new Set();
+  ctx.boxes.forEach((_, i) => { if (R() < 0.3) for (const j of stackFrom(ctx, i)) drop.add(j); });
+  const kept = ctx.boxes.filter((_, i) => !drop.has(i));
+  const r = fillAround(C, items, kept, { tries: 10 });
+  const errs = validate(r);
+  if (errs.length || r.totals.n < kept.length) { badF++; console.log('fuzz fill', s, errs, r.totals.n, kept.length); }
+}
+ok(badF === 0, `25 random "remove some, fill again" plans valid (${badF} bad)`);
 console.log(fails ? `${fails} failing` : 'all engine tests pass');
 process.exit(fails ? 1 : 0);

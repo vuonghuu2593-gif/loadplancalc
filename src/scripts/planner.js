@@ -2,6 +2,7 @@
 // a Web Worker that runs the packing engine, results, 3D view and share links.
 import { U, round, fmt } from './units.js';
 import { ORIENT, ORIENT_NAMES } from './packer.js';
+import { makeCtx, placeProblem, spots as freeSpots, nudge as nudgeBox, onTop, stackFrom, asResult, orientIndex, validate } from './editor.js';
 
 const COLORS = ['#F08A24', '#3E8ED0', '#4CB782', '#D9534F', '#9B6BD3', '#E5C02E', '#2BB5B8', '#C76B98', '#8C9A3C', '#A0693B'];
 const SWATCH = COLORS;
@@ -191,7 +192,7 @@ export function initPlanner(root) {
   });
   root.querySelectorAll('[data-units]').forEach((b) => b.addEventListener('click', () => {
     units = b.dataset.units; try { localStorage.setItem('lpc-units', units); } catch { /* ignore */ }
-    paintUnits(); paintContainer(); paintBoxes(); paintMode(); render(last);
+    paintUnits(); paintContainer(); paintBoxes(); paintMode(); render(ed ? edView() : last);
   }));
   root.querySelectorAll('[data-mode]').forEach((b) => b.addEventListener('click', () => {
     state.mode = b.dataset.mode;
@@ -243,19 +244,30 @@ export function initPlanner(root) {
     }
     return { container: { L: c.L, W: c.W, H: c.H, maxWeight: c.maxWeight, doorW: c.doorW, doorH: c.doorH }, offset: 0 };
   }
+  const engineItems = () => state.items.map((it) => ({ l: it.l, w: it.w, h: it.h, weight: it.weight, qty: it.qty, rotation: it.rotation, orients: it.rotation === 'custom' ? allowedIdx(it) : undefined, stackable: it.stackable !== false }));
   function schedule() {
+    if (ed) { ed = null; edNotice = 'Your hand edits were cleared because the inputs changed.'; clearEditView(); }
     clearTimeout(timer); root.querySelector('[data-result]').classList.add('busy');
     timer = setTimeout(run, 250);
     writeHash();
   }
   function run() {
     const { container } = engineInput();
-    const items = state.items.map((it) => ({ l: it.l, w: it.w, h: it.h, weight: it.weight, qty: it.qty, rotation: it.rotation, orients: it.rotation === 'custom' ? allowedIdx(it) : undefined, stackable: it.stackable !== false }));
     const opts = { priority: !!state.priority, timeMs: 1200 };
     if (state.mode === 'semi') { opts.steps = state.steps.map((st) => ({ item: st.item, qty: st.qty, orient: st.orient, newSection: !!st.newSection })); opts.fillRest = state.fillRest !== false; }
-    worker.postMessage({ id: ++reqId, container, items, opts });
+    worker.postMessage({ id: ++reqId, kind: 'pack', container, items: engineItems(), opts });
   }
-  worker.onmessage = (e) => { if (e.data.id !== reqId) return; last = e.data; render(last); };
+  const toView = (d) => {
+    const list = [];
+    for (let i = 0; i < d.buf.length; i += 8) list.push({ k: d.buf[i], x: d.buf[i + 1], y: d.buf[i + 2], z: d.buf[i + 3], dx: d.buf[i + 4], dy: d.buf[i + 5], dz: d.buf[i + 6], s: d.buf[i + 7] });
+    return { cont: d.cont, boxes: list, steps: d.steps, errors: d.errors };
+  };
+  worker.onmessage = (e) => {
+    if (e.data.id !== reqId) return;
+    if (e.data.kind === 'fill') { fillDone(toView(e.data)); return; }
+    last = toView(e.data);
+    if (!ed) render(last); else root.querySelector('[data-result]').classList.remove('busy');
+  };
 
   // ---------- results ----------
   let view = null, boxes = [];
@@ -264,6 +276,7 @@ export function initPlanner(root) {
     if (view) return view;
     const { createView } = await import('./view3d.js');
     view = createView(viewHost);
+    view.onPick(onPick);
     root.querySelectorAll('[data-view-btn]').forEach((b) => b.addEventListener('click', () => {
       root.querySelectorAll('[data-view-btn]').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
       view.aim(b.dataset.viewBtn);
@@ -274,7 +287,7 @@ export function initPlanner(root) {
   step.addEventListener('input', () => { view && view.setStep(+step.value); stepText(); });
   const stepText = () => {
     const v = +step.value; const b = boxes[v - 1];
-    const stTxt = b && b.s >= 0 && last && last.steps ? (last.steps[b.s].auto ? ' · automatic part' : ` · step ${b.s + 1}`) : '';
+    const stTxt = !ed && b && b.s >= 0 && last && last.steps ? (last.steps[b.s].auto ? ' · automatic part' : ` · step ${b.s + 1}`) : '';
     R('stepTxt').textContent = `${fmt(v)} of ${fmt(boxes.length)} boxes${stTxt}`;
   };
 
@@ -283,30 +296,34 @@ export function initPlanner(root) {
     root.querySelector('[data-result]').classList.remove('busy');
     const u = U[units];
     const ordered = state.items.reduce((s, it) => s + (it.qty || 0), 0);
+    boxes = d.boxes;
     const perItem = state.items.map(() => 0);
-    d.itemIdx.forEach((orig, k) => { perItem[orig] = d.perItem[k] || 0; });
+    let tv = 0, tw = 0, cxs = 0;
+    for (const b of boxes) { perItem[b.k]++; tv += b.dx * b.dy * b.dz; const m = state.items[b.k]?.weight || 0; tw += m; cxs += m * (b.x + b.dx / 2); }
+    const totals = { n: boxes.length, vol: tv, w: tw };
+    const cog = tw > 0 ? { x: cxs / tw } : null;
     const contVol = d.cont.L * d.cont.W * d.cont.H;
-    const n = d.totals.n;
+    const n = totals.n;
     $('#r-main').textContent = `${fmt(n)} of ${fmt(ordered)}`;
-    R('vol').textContent = contVol > 0 ? `${fmt(d.totals.vol / contVol * 100, 1)}%` : '0%';
-    const wt = u.fromKG(d.totals.w);
+    R('vol').textContent = contVol > 0 ? `${fmt(totals.vol / contVol * 100, 1)}%` : '0%';
+    const wt = u.fromKG(totals.w);
     R('wt').textContent = `${fmt(wt, 0)} ${u.wt}`;
     R('left').textContent = fmt(ordered - n);
     // warnings
     const w = [];
+    if (edNotice && !d.edited) { w.push(edNotice); edNotice = ''; }
     if (d.errors.length) w.push(`The plan failed its own check (${d.errors.join(', ')}). Please report these inputs through the contact page.`);
-    boxes = [];
-    for (let i = 0; i < d.buf.length; i += 8) boxes.push({ k: d.itemIdx[d.buf[i]], x: d.buf[i + 1], y: d.buf[i + 2], z: d.buf[i + 3], dx: d.buf[i + 4], dy: d.buf[i + 5], dz: d.buf[i + 6], s: d.buf[i + 7] });
     const semi = !!d.steps;
     const asked = semi ? d.steps.reduce((t, st) => t + st.asked, 0) : ordered;
     // boxes no step asked for (only when the automatic last step is off)
     const hasAuto = !semi || d.steps.some((st) => st.auto);
     const unasked = semi ? Math.max(0, ordered - asked) : 0;
-    if (!hasAuto && unasked > 0) w.push(`${fmt(unasked)} boxes are not in any step. Add a step for them, or tick “Then load whatever is left automatically”.`);
-    const notFit = hasAuto ? ordered - n : asked - n;
+    if (!hasAuto && unasked > 0) w.push(`${nBoxes(unasked)} ${unasked === 1 ? 'is' : 'are'} not in any step. Add a step for them, or tick “Then load whatever is left automatically”.`);
+    const notFit = d.edited ? 0 : hasAuto ? ordered - n : asked - n;
+    if (d.edited && ordered - n > 0) w.push(`${nBoxes(ordered - n)} ${ordered - n === 1 ? 'is' : 'are'} not loaded yet. Place them by hand, or tap “Fill the rest automatically”.`);
     if (notFit > 0) {
-      const byWeight = d.cont.maxWeight > 0 && d.totals.w > d.cont.maxWeight * 0.98;
-      w.push(byWeight ? `Weight limit reached: ${fmt(notFit)} boxes stay out because the load would exceed ${fmt(u.fromKG(d.cont.maxWeight))} ${u.wt}.` : `${fmt(notFit)} boxes do not fit in this space${semi ? ' with these steps' : ''}.`);
+      const byWeight = d.cont.maxWeight > 0 && totals.w > d.cont.maxWeight * 0.98;
+      w.push(byWeight ? `Weight limit reached: ${nBoxes(notFit)} stay${notFit === 1 ? 's' : ''} out because the load would exceed ${fmt(u.fromKG(d.cont.maxWeight))} ${u.wt}.` : `${nBoxes(notFit)} ${notFit === 1 ? 'does' : 'do'} not fit in this space${semi ? ' with these steps' : ''}.`);
     }
     if (semi) d.steps.forEach((st, si) => {
       if (st.auto) return;
@@ -316,12 +333,12 @@ export function initPlanner(root) {
     });
     state.items.forEach((it, i) => {
       const dims = [it.l, it.w, it.h];
-      if (hasAuto && it.qty > 0 && perItem[i] === 0) w.push(`“${esc(it.name)}” could not be placed at all — check its size against the inside dimensions${mode === 'container' ? ' and the door opening' : ''}.`);
+      if (hasAuto && !d.edited && it.qty > 0 && perItem[i] === 0) w.push(`“${esc(it.name)}” could not be placed at all — check its size against the inside dimensions${mode === 'container' ? ' and the door opening' : ''}.`);
       if (!dims.every((x) => x > 0)) w.push(`“${esc(it.name)}” needs a length, width and height.`);
     });
-    if (d.cog && n) {
-      const off = (d.cog.x - d.cont.L / 2) / d.cont.L * 100;
-      w.push(`Centre of gravity of the cargo: ${fmt(u.fromMM(d.cog.x), units === 'metric' ? 0 : 1)} ${u.len} from the back wall (${off >= 0 ? fmt(off, 0) + '% toward the door' : fmt(-off, 0) + '% toward the back'} from the middle). Keep heavy cargo low and the load spread evenly.`);
+    if (cog && n) {
+      const off = (cog.x - d.cont.L / 2) / d.cont.L * 100;
+      w.push(`Centre of gravity of the cargo: ${fmt(u.fromMM(cog.x), units === 'metric' ? 0 : 1)} ${u.len} from the back wall (${off >= 0 ? fmt(off, 0) + '% toward the door' : fmt(-off, 0) + '% toward the back'} from the middle). Keep heavy cargo low and the load spread evenly.`);
     }
     R('warn').innerHTML = w.map((x) => `<p class="warn">${x}</p>`).join('');
     // table
@@ -331,7 +348,7 @@ export function initPlanner(root) {
       return [...c.entries()].sort((a, b) => b[1] - a[1]).map(([o, m]) => `${o >= 0 ? SHORT[o] : '?'}: ${fmt(m)}`).join('<br>') || '–';
     };
     R('table').innerHTML = state.items.map((it, i) => `<tr><td><i style="display:inline-block;width:12px;height:12px;border-radius:3px;background:${SWATCH[i % SWATCH.length]};margin-right:6px"></i>${esc(it.name)}</td><td class="num">${fmt(it.qty)}</td><td class="num">${fmt(perItem[i])}</td><td class="num">${fmt(Math.max(0, it.qty - perItem[i]))}</td><td class="num">${fmt(u.fromKG(perItem[i] * it.weight))} ${u.wt}</td><td style="white-space:nowrap">${used(boxes.filter((b) => b.k === i))}</td></tr>`).join('');
-    R('stepbox').hidden = !semi;
+    R('stepbox').hidden = !semi || !!d.edited;
     R('steptable').innerHTML = semi ? d.steps.map((st, si) => {
       const cfg = st.auto ? null : state.steps[si];
       const label = st.auto ? 'Rest' : String(si + 1);
@@ -346,15 +363,228 @@ export function initPlanner(root) {
     const toVol = (mm3) => (units === 'metric' ? mm3 / 1e9 : mm3 / (304.8 ** 3));
     R('steps').innerHTML = [
       `${mode === 'container' ? 'Container' : 'Load space'} volume = ${fmt(L, 1)} × ${fmt(W, 1)} × ${fmt(H, 1)} ${u.len} = ${fmt(toVol(contVol), 2)} ${volU}`,
-      `Cargo loaded = ${fmt(n)} boxes = ${fmt(toVol(d.totals.vol), 2)} ${volU}`,
-      `Volume used = ${fmt(toVol(d.totals.vol), 2)} ÷ ${fmt(toVol(contVol), 2)} = ${contVol > 0 ? fmt(d.totals.vol / contVol * 100, 1) : 0}%`,
-      d.cont.maxWeight > 0 ? `Weight = ${fmt(wt)} ${u.wt} of ${fmt(u.fromKG(d.cont.maxWeight))} ${u.wt} allowed (${fmt(d.totals.w / d.cont.maxWeight * 100, 1)}%)` : `Weight = ${fmt(wt)} ${u.wt} (no limit entered)`,
+      `Cargo loaded = ${fmt(n)} boxes = ${fmt(toVol(totals.vol), 2)} ${volU}`,
+      `Volume used = ${fmt(toVol(totals.vol), 2)} ÷ ${fmt(toVol(contVol), 2)} = ${contVol > 0 ? fmt(totals.vol / contVol * 100, 1) : 0}%`,
+      d.cont.maxWeight > 0 ? `Weight = ${fmt(wt)} ${u.wt} of ${fmt(u.fromKG(d.cont.maxWeight))} ${u.wt} allowed (${fmt(totals.w / d.cont.maxWeight * 100, 1)}%)` : `Weight = ${fmt(wt)} ${u.wt} (no limit entered)`,
     ].join('<br>');
     // 3D
     const { offset } = engineInput();
     step.max = String(boxes.length); step.value = String(boxes.length); stepText();
     const v = await ensureView();
-    v.setPlan({ cont: d.cont, boxes, colors: SWATCH, offset });
+    v.setPlan({ cont: d.cont, boxes, colors: SWATCH, offset, keepCamera: !!d.edited });
+    paintEditor();
+  }
+
+
+  // ---------- hand editing (semi-automatic) ----------
+  // ed: { boxes (plan order kept for undo), sel (index into boxes), placing: null | { kind: 'new' | 'move',
+  // k, idx, orient }, spots, undo, redo, msg, bad }. Every change is checked before it is made.
+  let ed = null, edNotice = '', edBusy = false;
+  const E = (n) => root.querySelector(`[data-ed="${n}"]`);
+  const edCtx = () => makeCtx(engineInput().container, engineItems(), ed.boxes);
+  const strip = (b) => ({ k: b.k, x: b.x, y: b.y, z: b.z, dx: b.dx, dy: b.dy, dz: b.dz });
+  function edView() {
+    const ctx = edCtx();
+    const list = ed.boxes.map((b, i) => ({ ...b, s: -1, _i: i })).sort((a, b) => a.x - b.x || a.z - b.z || a.y - b.y);
+    return { cont: ctx.cont, boxes: list, steps: null, errors: validate(asResult(ctx)), edited: true };
+  }
+  const edRender = () => { render(edView()); writeEditHash(); };
+  const say = (msg, bad = false) => { if (ed) { ed.msg = msg; ed.bad = bad; } };
+  const leftOf = (k) => (state.items[k]?.qty || 0) - ed.boxes.filter((b) => b.k === k).length;
+  const lenTxt = (mm) => `${fmt(U[units].fromMM(mm), units === 'metric' ? 1 : 2)}`;
+  function clearEditView() { if (view) { view.setSpots([]); view.setSelected(null); } paintEditor(); }
+  function snapshot() { ed.undo.push(ed.boxes.map(strip)); if (ed.undo.length > 60) ed.undo.shift(); ed.redo = []; }
+  function startEdit(empty) {
+    if (!last) return;
+    ed = { boxes: empty ? [] : last.boxes.map(strip), sel: null, placing: null, spots: [], undo: [], redo: [], msg: '', bad: false };
+    say(empty ? 'Empty container. Pick a box type under “Not loaded” and place it, or tap “Fill the rest automatically”.' : 'Tap a box in the 3D view (or use ‹ ›) to select it.');
+    edRender();
+  }
+  function select(i) { if (!ed) return; ed.sel = i; ed.placing = null; ed.spots = []; say(''); paintEditor(); }
+  function spotsNow() {
+    const p = ed.placing; if (!p) { ed.spots = []; return; }
+    const ctx = edCtx();
+    const it = ctx.items[p.k];
+    if (p.kind === 'new') {
+      const w = ed.boxes.reduce((t, b) => t + (state.items[b.k]?.weight || 0), 0) + it.weight;
+      if (ctx.cont.maxWeight > 0 && w > ctx.cont.maxWeight + 1e-6) { ed.spots = []; say(`One more “${esc(state.items[p.k].name)}” would go over the payload of ${fmt(U[units].fromKG(ctx.cont.maxWeight))} ${U[units].wt}.`, true); return; }
+    }
+    const prefer = p.kind === 'move' ? [ed.boxes[p.idx].dx, ed.boxes[p.idx].dy, ed.boxes[p.idx].dz] : undefined;
+    ed.spots = freeSpots(ctx, p.k, p.orient, { ignore: p.kind === 'move' ? new Set([p.idx]) : undefined, prefer, limit: 1500 });
+    if (!ed.spots.length) say(p.orient != null ? 'No free spot for this box in that position. Try “Automatic”.' : 'No free spot left for this box.', true);
+  }
+  function placeAt(b) {
+    const p = ed.placing; if (!p || !b) return;
+    snapshot();
+    if (p.kind === 'move') { ed.boxes[p.idx] = strip(b); ed.sel = p.idx; ed.placing = null; ed.spots = []; say('Box moved.'); }
+    else {
+      ed.boxes.push(strip(b)); ed.sel = ed.boxes.length - 1;
+      if (leftOf(p.k) > 0) { spotsNow(); if (ed.spots.length) say(`Placed. ${fmt(leftOf(p.k))} “${esc(state.items[p.k].name)}” left: tap another green spot, or Stop.`); }
+      else { ed.placing = null; ed.spots = []; say(`All “${esc(state.items[p.k].name)}” are loaded.`); }
+    }
+    edRender();
+  }
+  function onPick(hit) {
+    if (!ed) return;
+    if (hit && hit.kind === 'spot' && ed.placing) placeAt(ed.spots[hit.index]);
+    else if (hit && hit.kind === 'box') select(boxes[hit.index]._i);
+    else if (!ed.placing) select(null);
+  }
+  function guardStack(ctx, i) {
+    const n = onTop(ctx, i).length;
+    if (n) { say(`${n === 1 ? 'A box stands' : n + ' boxes stand'} on this box. Move or remove ${n === 1 ? 'it' : 'them'} first.`, true); return false; }
+    return true;
+  }
+  function turnTo(o) {
+    const i = ed.sel; if (i == null) return;
+    const ctx = edCtx(); if (!guardStack(ctx, i)) return paintEditor();
+    const b = ed.boxes[i]; const d = dimsOf(state.items[b.k], o);
+    const c = { ...b, dx: d[0], dy: d[1], dz: d[2] };
+    const why = placeProblem(ctx, c, new Set([i]));
+    if (why) { say(`Cannot turn it here: ${why}. Use “Pick a new spot” to put it somewhere else in that position.`, true); return paintEditor(); }
+    snapshot(); ed.boxes[i] = c; say(`Turned: ${ORIENT_NAMES[o].toLowerCase()}.`); edRender();
+  }
+  function push(axis, dir) {
+    const i = ed.sel; if (i == null) return;
+    const ctx = edCtx(); if (!guardStack(ctx, i)) return paintEditor();
+    const c = nudgeBox(ctx, i, axis, dir);
+    if (!c) { say('No free place in that direction.', true); return paintEditor(); }
+    snapshot(); ed.boxes[i] = strip(c); say('Box moved.'); edRender();
+  }
+  function removeSel() {
+    const i = ed.sel; if (i == null) return;
+    const ctx = edCtx(); const st = stackFrom(ctx, i);
+    snapshot();
+    const drop = new Set(st); ed.boxes = ed.boxes.filter((_, j) => !drop.has(j));
+    ed.sel = null; ed.placing = null; ed.spots = [];
+    say(st.length === 1 ? 'Box removed. It is listed under “Not loaded”.' : `Removed the box and the ${st.length - 1} standing on it. They are listed under “Not loaded”.`);
+    edRender();
+  }
+  function fillRest() {
+    if (edBusy) return;
+    edBusy = true; root.querySelector('[data-result]').classList.add('busy');
+    ed.placing = null; ed.spots = [];
+    worker.postMessage({ id: ++reqId, kind: 'fill', container: engineInput().container, items: engineItems(), fixed: ed.boxes.map(strip), opts: { priority: !!state.priority, timeMs: 1200 } });
+  }
+  function fillDone(v) {
+    edBusy = false; if (!ed) return;
+    if (v.errors.length) { say('The automatic fill did not pass the check, so it was not used.', true); render(edView()); return; }
+    const before = ed.boxes.length;
+    snapshot(); ed.boxes = v.boxes.map(strip); ed.sel = null;
+    const added = ed.boxes.length - before;
+    say(added > 0 ? `Added ${nBoxes(added)} automatically around your boxes.` : 'Nothing more fits around your boxes.', added <= 0);
+    edRender();
+  }
+  function paintEditor() {
+    const on = !!ed;
+    root.querySelector('[data-ed-off]').hidden = on; root.querySelector('[data-ed-on]').hidden = !on;
+    if (!on) { if (view) { view.setSpots([]); view.setSelected(null); } return; }
+    const u = U[units];
+    const msg = root.querySelector('[data-ed-msg]'); msg.innerHTML = ed.msg || ''; msg.classList.toggle('bad', !!ed.bad); msg.hidden = !ed.msg;
+    E('undo').disabled = !ed.undo.length; E('redo').disabled = !ed.redo.length;
+    // selection
+    const pos = boxes.findIndex((b) => b._i === ed.sel);
+    const b = ed.sel != null ? ed.boxes[ed.sel] : null;
+    root.querySelector('[data-ed-seltxt]').innerHTML = b ? `<strong>Box ${fmt(pos + 1)} of ${fmt(boxes.length)}</strong> · ${esc(state.items[b.k]?.name)}` : (boxes.length ? 'No box selected: tap one in the 3D view or use ‹ ›.' : 'No boxes loaded yet.');
+    const body = root.querySelector('[data-ed-selbody]'); body.hidden = !b;
+    if (b) {
+      const it = state.items[b.k]; const cur = orientIndex(it, b);
+      root.querySelector('[data-ed-selinfo]').textContent = `${lenTxt(b.dx)} × ${lenTxt(b.dy)} × ${lenTxt(b.dz)} ${u.len} (along × across × up), ${lenTxt(b.x)} ${u.len} from the back wall, ${lenTxt(b.y)} ${u.len} from the side, ${lenTxt(b.z)} ${u.len} up`;
+      const seen = new Set();
+      root.querySelector('[data-ed-turn]').innerHTML = allowedIdx(it).filter((k) => { const key = dimsOf(it, k).join('x'); if (seen.has(key)) return false; seen.add(key); return true; })
+        .map((k) => `<button type="button" class="ochip" data-turn="${k}" aria-pressed="${dimsOf(it, k).join() === [b.dx, b.dy, b.dz].join() || k === cur}" title="${ORIENT_NAMES[k]}">${iso(dimsOf(it, k), SWATCH[b.k % SWATCH.length])}<span>${SHORT[k]}</span></button>`).join('');
+    }
+    // not loaded
+    const rows = state.items.map((it, k) => ({ it, k, left: leftOf(k) })).filter((r) => r.left > 0);
+    root.querySelector('[data-ed-left]').innerHTML = rows.length ? rows.map((r) => `<div class="edleftrow"><span><i style="background:${SWATCH[r.k % SWATCH.length]}"></i>${esc(r.it.name)}: <strong>${fmt(r.left)}</strong></span><button type="button" class="btn ghost" data-place="${r.k}">Place by hand</button></div>`).join('') : '<p class="small">Every box is loaded.</p>';
+    E('fill').disabled = !rows.length;
+    // placing
+    const pl = root.querySelector('[data-ed-placing]'); pl.hidden = !ed.placing;
+    if (ed.placing) {
+      const p = ed.placing; const it = state.items[p.k];
+      root.querySelector('[data-ed-pltxt]').innerHTML = p.kind === 'move' ? `Moving box ${fmt(pos + 1)}: tap a green spot in the 3D view.` : `Placing “${esc(it.name)}” (${fmt(leftOf(p.k))} left): tap a green spot in the 3D view, or use the next free spot.`;
+      const sel = root.querySelector('[data-ed-plorient]');
+      sel.innerHTML = stepOrientOptions(it).replace('Automatic (best allowed)', 'Automatic (best fit at each spot)');
+      sel.value = p.orient == null ? '' : String(p.orient);
+      E('nextspot').disabled = !ed.spots.length;
+    }
+    if (view) { view.setSelected(b && !(ed.placing && ed.placing.kind === 'move') ? b : null); view.setSpots(ed.spots); }
+  }
+  root.querySelector('[data-editor]').addEventListener('click', (e) => {
+    const t = e.target.closest('button'); if (!t) return;
+    const a = t.dataset.ed;
+    if (a === 'start' || a === 'empty') return startEdit(a === 'empty');
+    if (!ed) return;
+    if (a === 'exit') { ed = null; clearEditView(); render(last); writeHash(); return; }
+    if (a === 'undo' || a === 'redo') {
+      const from = a === 'undo' ? ed.undo : ed.redo, to = a === 'undo' ? ed.redo : ed.undo;
+      if (!from.length) return;
+      to.push(ed.boxes.map(strip)); ed.boxes = from.pop(); ed.sel = null; ed.placing = null; ed.spots = [];
+      say(a === 'undo' ? 'Undone.' : 'Redone.'); return edRender();
+    }
+    if (a === 'fill') return fillRest();
+    if (a === 'prev' || a === 'next') {
+      if (!boxes.length) return;
+      const pos = boxes.findIndex((b) => b._i === ed.sel);
+      const j = pos < 0 ? (a === 'next' ? 0 : boxes.length - 1) : (pos + (a === 'next' ? 1 : -1) + boxes.length) % boxes.length;
+      return select(boxes[j]._i);
+    }
+    if (a === 'remove') return removeSel();
+    if (a === 'move') {
+      const ctx = edCtx(); if (ed.sel == null) return; if (!guardStack(ctx, ed.sel)) return paintEditor();
+      const b = ed.boxes[ed.sel];
+      ed.placing = { kind: 'move', k: b.k, idx: ed.sel, orient: orientIndex(state.items[b.k], b) };
+      say(''); spotsNow(); return paintEditor();
+    }
+    if (a === 'stop') { ed.placing = null; ed.spots = []; say(''); return paintEditor(); }
+    if (a === 'nextspot') return placeAt(ed.spots[0]);
+    if (t.dataset.place != null) { ed.placing = { kind: 'new', k: +t.dataset.place, orient: null }; ed.sel = null; say(''); spotsNow(); return paintEditor(); }
+    if (t.dataset.turn != null) return turnTo(+t.dataset.turn);
+    if (t.dataset.push) { const [ax, dir] = t.dataset.push.split(','); return push(+ax, +dir); }
+  });
+  root.querySelector('[data-ed-plorient]').addEventListener('change', (e) => {
+    if (!ed || !ed.placing) return;
+    ed.placing.orient = e.target.value === '' ? null : +e.target.value; say(''); spotsNow(); paintEditor();
+  });
+
+  // hand edits in share links: [type, orientation, x, y, z (µm)] deflated, base64url
+  async function packEdits(list) {
+    const flat = [];
+    for (const b of list) flat.push(b.k, orientIndex(state.items[b.k], b), Math.round(b.x * 1000), Math.round(b.y * 1000), Math.round(b.z * 1000));
+    const stream = new Blob([flat.join(',')]).stream().pipeThrough(new CompressionStream('deflate-raw'));
+    const bytes = new Uint8Array(await new Response(stream).arrayBuffer());
+    let bin = ''; for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+    return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  }
+  async function unpackEdits(str) {
+    const bin = atob(str.replace(/-/g, '+').replace(/_/g, '/'));
+    const bytes = Uint8Array.from(bin, (c) => c.charCodeAt(0));
+    const text = await new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream('deflate-raw'))).text();
+    const n = text ? text.split(',').map(Number) : []; const out = [];
+    for (let i = 0; i + 4 < n.length + 0; i += 5) {
+      const it = state.items[n[i]]; if (!it || n[i + 1] < 0 || n[i + 1] > 5) throw new Error('bad edit');
+      const d = dimsOf(it, n[i + 1]);
+      out.push({ k: n[i], x: n[i + 2] / 1000, y: n[i + 3] / 1000, z: n[i + 4] / 1000, dx: d[0], dy: d[1], dz: d[2] });
+    }
+    return out;
+  }
+  let hashTimer = 0;
+  function writeEditHash() {
+    clearTimeout(hashTimer);
+    hashTimer = setTimeout(async () => {
+      if (!ed || typeof CompressionStream === 'undefined') return;
+      try { const e = await packEdits(ed.boxes); if (ed) history.replaceState(null, '', '#p=' + btoa(unescape(encodeURIComponent(JSON.stringify(state)))).replace(/=+$/, '') + '&e=' + e); } catch { /* ignore */ }
+    }, 300);
+  }
+  async function readEditHash() {
+    const m = location.hash.match(/&e=([A-Za-z0-9_-]*)/);
+    if (!m || typeof DecompressionStream === 'undefined') return;
+    try {
+      const list = await unpackEdits(m[1]);
+      ed = { boxes: list, sel: null, placing: null, spots: [], undo: [], redo: [], msg: '', bad: false };
+      if (edView().errors.length) { ed = null; edNotice = 'The hand edits in this link do not match these boxes, so the automatic plan is shown.'; if (last) render(last); return; }
+      say('Hand-edited plan from a shared link.'); edRender();
+    } catch { ed = null; }
   }
 
   // ---------- share / print ----------
@@ -375,13 +605,15 @@ export function initPlanner(root) {
     return null;
   }
   $('[data-share]').addEventListener('click', async () => {
-    writeHash();
+    if (ed) { clearTimeout(hashTimer); try { const e = await packEdits(ed.boxes); history.replaceState(null, '', '#p=' + btoa(unescape(encodeURIComponent(JSON.stringify(state)))).replace(/=+$/, '') + '&e=' + e); } catch { /* ignore */ } }
+    else writeHash();
     try { await navigator.clipboard.writeText(location.href); R('shareMsg').textContent = 'Link copied.'; }
     catch { R('shareMsg').textContent = 'Copy the address bar to share this plan.'; }
   });
   $('[data-print]').addEventListener('click', () => window.print());
 
-  paintUnits(); paintContainer(); paintBoxes(); paintMode(); run();
+  paintUnits(); paintContainer(); paintBoxes(); paintMode(); paintEditor(); run(); readEditHash();
 }
 
+const nBoxes = (n) => `${fmt(n)} ${n === 1 ? 'box' : 'boxes'}`;
 function esc(s) { return String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }

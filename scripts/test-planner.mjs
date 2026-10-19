@@ -62,6 +62,58 @@ await pg.click('[data-units="imperial"]'); await pg.click('[data-units="metric"]
 ok(await pg.inputValue('.stepcard:nth-child(1) [data-s="qty"]') === '100' && await main() === '600 of 900', 'steps survive a unit switch');
 await pg.click('.stepcard:nth-child(2) [data-move="-1"]'); await settle();
 ok((await pg.$eval('.stepcard:nth-child(1) [data-s="item"]', (e) => e.value)) === '1', 'move step up');
+// Hand editing
+const msg = () => pg.$eval('[data-ed-msg]', (e) => e.textContent.trim());
+const noFail = async () => !(await pg.$eval('[data-r="warn"]', (e) => e.textContent)).includes('failed its own check');
+await pg.goto('http://localhost:4401/container-loading-calculator/'); await pg.evaluate(() => history.replaceState(null, '', location.pathname)); await pg.reload(); await settle();
+await pg.click('[data-ed="start"]'); await pg.waitForTimeout(300);
+ok(await pg.isVisible('[data-ed-on]') && await main() === '900 of 900', 'edit mode opens on the automatic plan');
+const box = await pg.$('[data-view] canvas').then((c) => c.boundingBox());
+await pg.mouse.click(box.x + box.width * 0.5, box.y + box.height * 0.55); await pg.waitForTimeout(200);
+ok((await pg.$eval('[data-ed-seltxt]', (e) => e.textContent)).startsWith('Box '), 'tap in the 3D view selects a box (' + await pg.$eval('[data-ed-seltxt]', (e) => e.textContent) + ')');
+await pg.click('[data-ed="prev"]'); await pg.waitForTimeout(100);
+ok((await pg.$eval('[data-ed-seltxt]', (e) => e.textContent)).length > 0, 'step through boxes with ‹ ›');
+await pg.click('[data-ed="remove"]'); await pg.waitForTimeout(200);
+const m1 = await msg(); const extra = /the (\d+) standing/.exec(m1); const gone = 1 + (extra ? +extra[1] : 0);
+ok(await main() === `${(900 - gone).toLocaleString('en-US')} of 900`, `remove: ${gone} box(es) out (${await main()}; ${m1})`);
+ok((await pg.$eval('[data-ed-left]', (e) => e.textContent)).includes(String(gone)), 'removed boxes listed under Not loaded');
+await pg.click('[data-ed="undo"]'); await pg.waitForTimeout(150); ok(await main() === '900 of 900', 'undo');
+await pg.click('[data-ed="redo"]'); await pg.waitForTimeout(150); ok(await main() !== '900 of 900', 'redo');
+await pg.click('[data-ed="fill"]'); await settle();
+ok(await main() === '900 of 900' && await noFail(), 'fill the rest automatically: 900 of 900 (' + await main() + ')');
+await pg.click('[data-ed="exit"]'); await pg.waitForTimeout(200);
+ok(!(await pg.isVisible('[data-ed-on]')) && await main() === '900 of 900', 'back to the automatic plan');
+// from empty, by hand
+await pg.click('[data-ed="empty"]'); await pg.waitForTimeout(200);
+ok(await main() === '0 of 900', 'load by hand from empty: 0 of 900');
+await pg.click('[data-place="0"]'); await pg.waitForTimeout(200);
+ok(await pg.isVisible('[data-ed-placing]'), 'placing panel shows');
+for (let i = 0; i < 3; i++) { await pg.click('[data-ed="nextspot"]'); await pg.waitForTimeout(120); }
+ok(await main() === '3 of 900' && await noFail(), 'three boxes placed in free spots (' + await main() + ')');
+await pg.selectOption('[data-ed-plorient]', '4'); await pg.waitForTimeout(150);
+await pg.click('[data-ed="nextspot"]'); await pg.waitForTimeout(150);
+ok(await main() === '4 of 900' && await noFail(), 'placed one in a fixed position (length up)');
+await pg.click('[data-ed="stop"]');
+await pg.click('[data-ed="prev"]'); await pg.click('[data-push="0,1"]'); await pg.waitForTimeout(150);
+ok(/moved/.test(await msg()) && await noFail(), 'push toward the door: ' + await msg());
+await pg.click('[data-push="2,1"]'); await pg.waitForTimeout(150);
+ok(/No free place|moved/.test(await msg()) && await noFail(), 'push up is checked: ' + await msg());
+const chip = await pg.$('[data-ed-turn] .ochip[aria-pressed="false"]');
+if (chip) { await chip.click(); await pg.waitForTimeout(150); ok(/Turned|Cannot turn/.test(await msg()) && await noFail(), 'turn is checked: ' + await msg()); }
+await pg.click('[data-ed="move"]'); await pg.waitForTimeout(150);
+await pg.click('[data-ed="nextspot"]'); await pg.waitForTimeout(150);
+ok(/moved/.test(await msg()) && await main() === '4 of 900' && await noFail(), 'move to a new spot: ' + await msg());
+await pg.waitForTimeout(600);
+const eurl = pg.url();
+ok(/&e=/.test(eurl), 'share link carries the hand edits');
+const pg4 = await b.newPage({ viewport: { width: 390, height: 844 } });
+await pg4.goto(eurl); await pg4.waitForTimeout(2500);
+ok(await pg4.$eval('#r-main', (e) => e.textContent.trim()) === '4 of 900' && await pg4.isVisible('[data-ed-on]'), 'shared link reopens the hand-edited plan (' + await pg4.$eval('#r-main', (e) => e.textContent.trim()) + ')');
+await pg.click('[data-ed="fill"]'); await settle();
+const filled = parseInt((await main()).replace(/,/g, ''), 10);
+ok(filled >= 890 && await noFail(), 'fill around 4 hand-placed boxes (' + await main() + ')');
+await pg.fill('.boxcard [data-b="qty"]', '401'); await settle();
+ok(!(await pg.isVisible('[data-ed-on]')) && (await pg.$eval('[data-r="warn"]', (e) => e.textContent)).includes('hand edits were cleared'), 'changing inputs clears hand edits with a notice');
 await pg.screenshot({ path: process.env.SHOT || '/tmp/semi.png', fullPage: true });
 ok(errs.length === 0, 'no JS errors ' + errs.join(' | '));
 await b.close(); srv.close();

@@ -19,6 +19,9 @@ to `main` without asking. Because nobody reviews before publishing, the checks b
   check in `validate()` to make a test pass. Improvements must not lower any hand-checked count.
 - Page logic `src/scripts/planner.js` stores every value in mm/kg (unit switches never drift); 3D view `view3d.js`.
 - Component `src/components/LoadPlanner.astro` (mode container | pallet). New planner pages reuse it.
+- Planner features: orientation per box type (any / upright / custom set of the 6 positions), semi-automatic loading
+  steps (`opts.steps`, `packSteps`), and hand editing (`src/scripts/editor.js`: `placeProblem`, `spots`, `nudge`,
+  `fillAround`). Hand edits must stay checked by `placeProblem` before they are made; never let a manual change skip it.
 
 ## Facts and sources
 - Math and units use exact definitions (1 in = 25.4 mm, 1 ft = 0.3048 m, 1 lb = 0.45359237 kg).

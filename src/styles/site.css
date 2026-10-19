@@ -121,4 +121,25 @@ ul.plain,ol.plain{margin:8px 0 0;padding-left:20px;display:flex;flex-direction:c
 }
 @media print{.site-header,.site-footer,.noprint,form .addrow{display:none !important}body{background:#fff}}
 .result .seg{border-color:var(--band-muted)}
+/* hand editing (inside the dark result band) */
+.editor{display:flex;flex-direction:column;gap:10px;border-top:1px solid color-mix(in srgb,var(--band-muted) 40%,transparent);padding-top:12px}
+.editor .small{color:var(--band-muted);margin:0}
+.edbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.edbtn{height:44px;min-width:44px;border:1px solid var(--band-muted);border-radius:8px;background:transparent;color:var(--band-ink);font:600 15px var(--body);cursor:pointer;padding:0 12px}
+.edbtn:disabled,.editor .btn:disabled{opacity:.4;cursor:default}
+.edmsg{margin:0;padding:10px 12px;border-radius:8px;background:color-mix(in srgb,#3fd47a 18%,var(--band));border:1px solid color-mix(in srgb,#3fd47a 55%,transparent);font-size:15px}
+.edmsg.bad{background:var(--note);border-color:var(--note-line);color:var(--ink)}
+.edcard{border:1px solid color-mix(in srgb,var(--band-muted) 45%,transparent);border-radius:10px;padding:12px;display:flex;flex-direction:column;gap:10px}
+.edcard p{margin:0}
+.edcard label{color:var(--band-ink)}
+.edselrow{display:flex;align-items:center;gap:10px}
+.edselrow span{flex:1 1 auto;font-size:15px;text-align:center}
+.edlabel{font-size:13px;color:var(--band-muted);font-weight:600}
+.edturn .ochip{background:transparent;color:var(--band-muted);border-color:var(--band-muted)}
+.edturn .ochip[aria-pressed="true"]{color:var(--band-ink);border-color:var(--hi)}
+.edturn .ochip svg{opacity:1}
+.edpush{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.edhint{font-size:13px !important}
+.edleftrow{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;padding:4px 0}
+.edleftrow i{display:inline-block;width:14px;height:14px;border-radius:3px;margin-right:8px;vertical-align:-2px}
 .result .seg button[aria-pressed="true"]{background:var(--hi);color:#0F1E33}
