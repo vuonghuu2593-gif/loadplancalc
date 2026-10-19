@@ -143,3 +143,4 @@ ul.plain,ol.plain{margin:8px 0 0;padding-left:20px;display:flex;flex-direction:c
 .edleftrow{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;padding:4px 0}
 .edleftrow i{display:inline-block;width:14px;height:14px;border-radius:3px;margin-right:8px;vertical-align:-2px}
 .result .seg button[aria-pressed="true"]{background:var(--hi);color:#0F1E33}
+.prose h3{margin-top:18px}
