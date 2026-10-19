@@ -214,3 +214,18 @@ export function asResult(ctx) {
   return { placed, items: ctx.items, cont: ctx.cont, steps: null, ...summarize(placed, ctx.items) };
 }
 export { validate };
+
+// "Room for more": keeping the plan as it is, how many more boxes of type k alone still fit in the space
+// left (and under the payload left). Uses the same fill as "Fill the rest automatically", so every extra box
+// passes the same checks. Returns { more, limit: 'payload' | 'space', result }.
+export function roomFor(container, rawItems, fixed, k, opts = {}) {
+  const have = rawItems.map(() => 0);
+  for (const b of fixed) have[b.k]++;
+  const cap = opts.cap ?? 20000;
+  const items = rawItems.map((it, j) => ({ ...it, qty: have[j] + (j === k ? cap : 0) }));
+  const r = fillAround(container, items, fixed, { tries: opts.tries ?? 15, timeMs: opts.timeMs ?? 250 });
+  const more = r.totals.n - fixed.length;
+  const it = r.items[k];
+  const limit = r.cont.maxWeight > 0 && it && it.weight > 0 && r.totals.w + it.weight > r.cont.maxWeight + 1e-6 ? 'payload' : 'space';
+  return { more, limit, result: r };
+}

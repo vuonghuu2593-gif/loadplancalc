@@ -1,7 +1,7 @@
 // Engine tests: hand-checked cases plus random cases checked by the independent validator.
 // Usage: node scripts/test-packer.mjs
 import { pack, validate } from '../src/scripts/packer.js';
-import { makeCtx, placeProblem, spots, nudge, fillAround, onTop, stackFrom, asResult } from '../src/scripts/editor.js';
+import { makeCtx, placeProblem, spots, nudge, fillAround, onTop, stackFrom, asResult, roomFor } from '../src/scripts/editor.js';
 let fails = 0;
 const ok = (cond, msg) => { if (!cond) { fails++; console.log('FAIL', msg); } else console.log('ok  ', msg); };
 const simple = (C, b) => { // best single-orientation grid, the obvious lower bound
@@ -182,5 +182,27 @@ for (let s = 1; s <= 25; s++) {
   if (errs.length || r.totals.n < kept.length) { badF++; console.log('fuzz fill', s, errs, r.totals.n, kept.length); }
 }
 ok(badF === 0, `25 random "remove some, fill again" plans valid (${badF} bad)`);
+
+// 14. Room for more (space left after a plan)
+{
+  const C = { L: 1000, W: 1000, H: 1000 }, cube = [{ l: 500, w: 500, h: 500, qty: 3, weight: 1 }];
+  const plan = pack(C, cube).placed.map((p) => ({ ...p, k: 0 }));
+  const r = roomFor(C, cube, plan, 0);
+  ok(validate(r.result).length === 0 && r.more === 5 && r.limit === 'space', `3 cubes of 500 in a 1 m cube: room for 5 more (got ${r.more}, ${r.limit})`);
+  const rw = roomFor({ ...C, maxWeight: 5 }, cube, plan, 0);
+  ok(rw.more === 2 && rw.limit === 'payload', `same with a 5 kg payload and 1 kg cubes: 2 more, limited by payload (got ${rw.more}, ${rw.limit})`);
+  // 40' HC, 100 cartons of 600x400x400 loaded: room for more must be at least what the empty space in front of
+  // them holds on its own (the 100 fill the back 2,000 mm completely, so 100 + more <= 660)
+  const it = [{ l: 600, w: 400, h: 400, qty: 100, weight: 10 }];
+  const p100 = pack(HC, it).placed.map((p) => ({ ...p, k: 0 }));
+  const front = Math.max(...p100.map((p) => p.x + p.dx));
+  const alone = pack({ ...HC, L: HC.L - front }, [{ ...it[0], qty: 20000 }]).totals.n;
+  const r2 = roomFor(HC, it, p100, 0);
+  ok(validate(r2.result).length === 0 && r2.more >= alone && 100 + r2.more <= 660, `40' HC with 100 cartons: room for ${r2.more} more (>= ${alone} in the clear ${HC.L - front} mm, total <= 660)`);
+  // the page defaults: everything loaded, room left for each type is valid and non-negative
+  const its2 = [A, B]; const auto0 = pack(HC, its2); const auto = auto0.placed.map((p) => ({ ...p, k: auto0.items[p.k].idx }));
+  const ra = roomFor(HC, its2, auto, 0), rb = roomFor(HC, its2, auto, 1);
+  ok(validate(ra.result).length === 0 && validate(rb.result).length === 0 && ra.more > 0 && rb.more > 0, `defaults (900 loaded): room for ${ra.more} more A or ${rb.more} more B`);
+}
 console.log(fails ? `${fails} failing` : 'all engine tests pass');
 process.exit(fails ? 1 : 0);

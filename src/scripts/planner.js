@@ -309,6 +309,10 @@ export function initPlanner(root) {
     const wt = u.fromKG(totals.w);
     R('wt').textContent = `${fmt(wt, 0)} ${u.wt}`;
     R('left').textContent = fmt(ordered - n);
+    const volLeft = Math.max(0, contVol - totals.vol);
+    const vU = units === 'metric' ? 'm³' : 'ft³', toV = (mm3) => (units === 'metric' ? mm3 / 1e9 : mm3 / (304.8 ** 3));
+    R('spaceLeft').textContent = `${fmt(toV(volLeft), 2)} ${vU}`;
+    R('wtLeft').textContent = d.cont.maxWeight > 0 ? `${fmt(u.fromKG(Math.max(0, d.cont.maxWeight - totals.w)), 0)} ${u.wt}` : 'No limit set';
     // warnings
     const w = [];
     if (edNotice && !d.edited) { w.push(edNotice); edNotice = ''; }
@@ -365,8 +369,10 @@ export function initPlanner(root) {
       `${mode === 'container' ? 'Container' : 'Load space'} volume = ${fmt(L, 1)} × ${fmt(W, 1)} × ${fmt(H, 1)} ${u.len} = ${fmt(toVol(contVol), 2)} ${volU}`,
       `Cargo loaded = ${fmt(n)} boxes = ${fmt(toVol(totals.vol), 2)} ${volU}`,
       `Volume used = ${fmt(toVol(totals.vol), 2)} ÷ ${fmt(toVol(contVol), 2)} = ${contVol > 0 ? fmt(totals.vol / contVol * 100, 1) : 0}%`,
-      d.cont.maxWeight > 0 ? `Weight = ${fmt(wt)} ${u.wt} of ${fmt(u.fromKG(d.cont.maxWeight))} ${u.wt} allowed (${fmt(totals.w / d.cont.maxWeight * 100, 1)}%)` : `Weight = ${fmt(wt)} ${u.wt} (no limit entered)`,
+      `Space left = ${fmt(toVol(contVol), 2)} − ${fmt(toVol(totals.vol), 2)} = ${fmt(toVol(Math.max(0, contVol - totals.vol)), 2)} ${volU} (${contVol > 0 ? fmt((contVol - totals.vol) / contVol * 100, 1) : 0}% of the ${mode === 'container' ? 'container' : 'load space'})`,
+      d.cont.maxWeight > 0 ? `Weight = ${fmt(wt)} ${u.wt} of ${fmt(u.fromKG(d.cont.maxWeight))} ${u.wt} allowed (${fmt(totals.w / d.cont.maxWeight * 100, 1)}%), ${fmt(u.fromKG(Math.max(0, d.cont.maxWeight - totals.w)))} ${u.wt} left` : `Weight = ${fmt(wt)} ${u.wt} (no limit entered)`,
     ].join('<br>');
+    roomFor(d);
     // 3D
     const { offset } = engineInput();
     step.max = String(boxes.length); step.value = String(boxes.length); stepText();
@@ -375,6 +381,29 @@ export function initPlanner(root) {
     paintEditor();
   }
 
+
+  // ---------- room left: how many more of each box type fit around the plan as it is ----------
+  const roomWorker = new Worker(new URL('./pack-worker.js', import.meta.url), { type: 'module' });
+  let roomId = 0, roomKey = '', roomData = null, roomTimer = 0;
+  function paintRoom() {
+    const u = U[units];
+    R('room').innerHTML = state.items.map((it, i) => {
+      const r = roomData ? roomData[i] : undefined;
+      const more = r === undefined ? '…' : r === null ? '–' : fmt(r.more);
+      const lim = !r ? '' : r.limit === 'payload' ? `Payload (${fmt(u.fromKG(it.weight), 1)} ${u.wt} each)` : 'Space';
+      return `<tr><td><i style="display:inline-block;width:12px;height:12px;border-radius:3px;background:${SWATCH[i % SWATCH.length]};margin-right:6px"></i>${esc(it.name)}</td><td class="num">${more}</td><td>${lim}</td></tr>`;
+    }).join('');
+  }
+  function roomFor(d) {
+    const fixed = d.boxes.map((b) => ({ k: b.k, x: b.x, y: b.y, z: b.z, dx: b.dx, dy: b.dy, dz: b.dz }));
+    const container = engineInput().container, items = engineItems();
+    const key = JSON.stringify([container, items.map((it) => [it.l, it.w, it.h, it.weight, it.rotation, it.orients, it.stackable]), fixed]);
+    if (key === roomKey) { paintRoom(); return; }
+    roomKey = key; roomData = null; paintRoom();
+    clearTimeout(roomTimer);
+    roomTimer = setTimeout(() => roomWorker.postMessage({ id: ++roomId, kind: 'room', container, items, fixed, opts: { tries: 15, timeMs: 250 } }), 200);
+  }
+  roomWorker.onmessage = (e) => { if (e.data.id !== roomId) return; roomData = e.data.room; paintRoom(); };
 
   // ---------- hand editing (semi-automatic) ----------
   // ed: { boxes (plan order kept for undo), sel (index into boxes), placing: null | { kind: 'new' | 'move',

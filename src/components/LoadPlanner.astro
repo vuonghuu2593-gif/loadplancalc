@@ -61,7 +61,9 @@ const presets = mode === 'container' ? data.containers : palletPresets;
       <div><div class="k">Boxes loaded</div><div class="v hi" id="r-main">–</div></div>
       <div><div class="k">Volume used</div><div class="v" data-r="vol">–</div></div>
       <div><div class="k">Weight loaded</div><div class="v" data-r="wt">–</div></div>
-      <div><div class="k">Left over</div><div class="v" data-r="left">–</div></div>
+      <div><div class="k">Boxes left over</div><div class="v" data-r="left">–</div></div>
+      <div><div class="k">Space left</div><div class="v" data-r="spaceLeft">–</div></div>
+      <div><div class="k">Payload left</div><div class="v" data-r="wtLeft">–</div></div>
     </div>
     <div data-r="warn"></div>
     <div class="view3d" data-view><span class="hint">Drag to turn · pinch or scroll to zoom</span></div>
@@ -144,6 +146,13 @@ const presets = mode === 'container' ? data.containers : palletPresets;
       <tbody data-r="table"></tbody>
     </table>
   </div>
+  <div class="tablebox">
+    <table>
+      <thead><tr><th>Room left after this plan</th><th class="num">More that still fit</th><th>Limited by</th></tr></thead>
+      <tbody data-r="room"></tbody>
+    </table>
+  </div>
+  <p class="small" style="margin:6px 0 0">“More that still fit” is how many more of that box type alone would fit in the space left, keeping the plan as it is, within the payload left.</p>
   <div class="tablebox" data-r="stepbox" hidden>
     <table>
       <thead><tr><th>Step</th><th>Box type</th><th>Position</th><th class="num">Asked</th><th class="num">Loaded</th></tr></thead>

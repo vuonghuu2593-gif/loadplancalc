@@ -14,6 +14,12 @@ const main = () => pg.$eval('#r-main', (e) => e.textContent.trim());
 const settle = async () => { await pg.waitForTimeout(350); await pg.waitForFunction(() => !document.querySelector('[data-result]').classList.contains('busy'), null, { timeout: 15000 }); };
 await pg.goto('http://localhost:4401/container-loading-calculator/'); await settle();
 ok(await main() === '900 of 900', 'defaults: 900 of 900 (' + await main() + ')');
+// space left: 40' HC 12.032 x 2.35 x 2.7 = 76.34 m³; cargo 400 x 0.096 + 500 x 0.045 = 60.9 m³ -> 15.44 m³; 28,600 - 7,800 = 20,800 kg
+ok(await pg.$eval('[data-r="spaceLeft"]', (e) => e.textContent) === '15.44 m³', 'space left 15.44 m³ (' + await pg.$eval('[data-r="spaceLeft"]', (e) => e.textContent) + ')');
+ok(await pg.$eval('[data-r="wtLeft"]', (e) => e.textContent) === '20,800 kg', 'payload left 20,800 kg');
+await pg.waitForFunction(() => !document.querySelector('[data-r="room"]').textContent.includes('…'), null, { timeout: 20000 });
+const room = await pg.$$eval('[data-r="room"] tr', (r) => r.map((x) => x.children[1].textContent));
+ok(room.length === 2 && room.every((v) => /^[\d,]+$/.test(v) && +v.replace(/,/g, '') > 0), 'room for more shown for each box type (' + room.join(' / ') + ')');
 const L0 = await pg.inputValue('[data-f="L"]');
 await pg.click('[data-units="imperial"]'); await settle();
 ok(await pg.inputValue('[data-f="L"]') === '473.7', 'inside length 12032 mm shows 473.7 in (' + await pg.inputValue('[data-f="L"]') + ')');

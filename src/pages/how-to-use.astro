@@ -122,12 +122,14 @@ const schema = { '@context': 'https://schema.org', '@type': 'HowTo', name: `How 
   <section class="prose" id="results">
     <h2>Reading the result</h2>
     <ul class="plain">
-      <li><strong>Boxes loaded</strong> (for example “900 of 900”), <strong>Volume used</strong>, <strong>Weight loaded</strong> and <strong>Left over</strong>.</li>
+      <li><strong>Boxes loaded</strong> (for example “900 of 900”), <strong>Volume used</strong>, <strong>Weight loaded</strong> and <strong>Boxes left over</strong> (boxes you entered that are not in the plan).</li>
+      <li><strong>Space left</strong> is the empty volume still in the container, and <strong>Payload left</strong> how much more weight it may take (“No limit set” when you left the payload empty).</li>
+      <li><strong>Room left after this plan</strong>: for each box type, how many more of that type alone would still fit in the space left, keeping the plan exactly as it is, and whether space or payload is what stops it. Use it to see whether a few more cartons can still go in, or how much of another product you could add. It updates a moment after the plan.</li>
       <li><strong>Notes</strong> under the figures: boxes that do not fit, the weight limit being reached, steps that could not load everything they asked for, and the cargo's centre of gravity along the length. Keep heavy cargo low and the load spread evenly.</li>
       <li><strong>3D view:</strong> drag to turn, pinch or scroll to zoom. <strong>3D, Top, Side, Door</strong> jump to fixed views; the orange panel marks the door end.</li>
       <li><strong>Loading step slider:</strong> shows the plan box by box in loading order, from the back wall toward the door. In semi-automatic mode it also tells you which step a box belongs to.</li>
       <li><strong>Tables:</strong> ordered, loaded and left over per box type, the loaded weight, and the positions used. In semi-automatic mode a second table shows each step's asked and loaded counts.</li>
-      <li><strong>Formula lines</strong> under the tables show the container volume, cargo volume, volume used and weight with your numbers.</li>
+      <li><strong>Formula lines</strong> under the tables show the container volume, cargo volume, volume used, space left and weight with your numbers.</li>
     </ul>
     <p>Every plan passes an independent check before it is shown. If a plan ever failed it, you would see a warning instead; please <a href="/contact/">tell us</a> the inputs. <a href="/how-we-calculate/">How we calculate</a> explains the method.</p>
   </section>
@@ -151,6 +153,7 @@ const schema = { '@context': 'https://schema.org', '@type': 'HowTo', name: `How 
   <section class="prose" id="whats-new">
     <h2>What's new</h2>
     <ul class="plain">
+      <li><strong>October 19, 2026:</strong> the result shows the space and payload left, and how many more of each box type still fit around the plan.</li>
       <li><strong>October 19, 2026:</strong> edit the 3D plan by hand — select, turn, push, move, remove and place boxes, fill the rest automatically, undo and redo, with every change checked. Hand edits are kept in shared links. This guide added.</li>
       <li><strong>October 19, 2026:</strong> choose the positions each carton may use; semi-automatic loading steps with fixed positions and new sections.</li>
       <li><strong>October 18, 2026:</strong> container loading calculator with 3D plan, loading steps, share link and printing.</li>
