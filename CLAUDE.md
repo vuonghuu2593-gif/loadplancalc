@@ -41,7 +41,17 @@ to `main` without asking. Because nobody reviews before publishing, the checks b
   engine AND checked by hand, "How the calculator works", a reference table, practical guidance, related links.
 - Add new pages to the home page cards, the nav if important, `ops/keywords/page_map.csv` and related links.
 
-## Before every push
+## User guide `/how-to-use/` — Vương's rule: every update must update the guide
+- `src/pages/how-to-use.astro` explains every tool and option to visitors (English, plain steps). Any change to how a
+  tool works (a new tool page, a new or changed input, button, mode, result or default behaviour) updates its section
+  in the same commit and adds a dated line to "What's new". A new tool page gets its own section with `id` = the page's
+  slug and a link to the page. Tool pages link back to their section ("How to use this tool/calculator").
+- After editing: `npm run build && node scripts/guide-check.mjs --stamp && npm run build`, then the usual tests.
+  `scripts/test-site.mjs` fails if the guide misses a tool page or if the tools changed since the last stamp;
+  `--stamp` refuses when the tools changed but the guide file did not. Never stamp without updating the guide text.
+- Text, source or data-only edits that do not change how a tool is used need no guide change.
+
+## Before every push (the site test includes the guide check)
 `npm run build` → `node scripts/test-packer.mjs` → `npm i --no-save playwright@1.56.1 && node scripts/test-site.mjs`
 (every sitemap page at 390 px: no JS errors, no overflow, one H1, no NaN/undefined, planner shows a result) →
 `node scripts/test-planner.mjs` (unit round trips, share link, preset counts). All must pass. For a new calculator,

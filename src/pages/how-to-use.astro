@@ -1,0 +1,159 @@
+---
+// User guide. Rule for every session: any change to how a tool works updates this page (its section and
+// "What's new") in the same commit; scripts/guide-check.mjs enforces it in the site test.
+import Base from '../layouts/Base.astro';
+import data from '../data/containers.json';
+import stamp from '../../ops/guide-stamp.json';
+import { SITE_NAME } from '../site.js';
+const updated = new Date(stamp.updated + 'T00:00:00Z').toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' });
+const schema = { '@context': 'https://schema.org', '@type': 'HowTo', name: `How to use ${SITE_NAME}`, step: [
+  { '@type': 'HowToStep', name: 'Choose the container', text: 'Pick a container type or enter your own inside size, payload and door opening.' },
+  { '@type': 'HowToStep', name: 'Enter your boxes', text: 'For each box type enter length, width, height, weight and quantity, and how it may be turned.' },
+  { '@type': 'HowToStep', name: 'Read the plan', text: 'See how many boxes fit, the space and weight used, and step through the 3D loading plan.' },
+  { '@type': 'HowToStep', name: 'Adjust and share', text: 'Set loading steps or edit the plan by hand, then copy the link or print the plan.' },
+] };
+---
+<Base title="How to Use the Load Planner" description="Step-by-step guide to Load Plan Calc: container and box inputs, carton orientation, automatic and semi-automatic loading, editing the 3D plan by hand, sharing and printing." schema={schema}>
+  <section class="prose">
+    <h1>How to use {SITE_NAME}</h1>
+    <p class="lede">Everything the load planner can do, in the order you will use it. Last updated {updated}.</p>
+    <nav class="chips" aria-label="On this page">
+      <a href="#quick-start">Quick start</a>
+      <a href="#container-loading-calculator">Container loading calculator</a>
+      <a href="#orientation">Carton orientation</a>
+      <a href="#loading-method">Automatic or step by step</a>
+      <a href="#edit-by-hand">Editing by hand</a>
+      <a href="#results">Reading the result</a>
+      <a href="#share">Share and print</a>
+      <a href="#whats-new">What's new</a>
+    </nav>
+  </section>
+
+  <section class="prose" id="quick-start">
+    <h2>Quick start</h2>
+    <ol class="plain">
+      <li>Open the <a href="/container-loading-calculator/">container loading calculator</a>. It already shows a worked example, so you can see a result before typing anything.</li>
+      <li>Choose your container under <strong>Container type</strong>, or pick <strong>Custom size</strong> and type its inside size.</li>
+      <li>Under <strong>Boxes</strong>, change the example cartons to yours: size, weight and quantity. Add more box types with <strong>+ Add box type</strong>.</li>
+      <li>The result updates as you type: how many boxes fit, the volume and weight used, and a 3D plan you can turn and step through.</li>
+      <li>Use <strong>Copy link to this plan</strong> to send it to a colleague, or <strong>Print plan</strong>.</li>
+    </ol>
+  </section>
+
+  <section class="prose" id="container-loading-calculator">
+    <h2>Container loading calculator</h2>
+    <p>The <a href="/container-loading-calculator/">container loading calculator</a> fits mixed carton sizes into a shipping container and shows the plan in 3D. Everything is calculated in your browser; your inputs are not sent to us.</p>
+
+    <h3>Units</h3>
+    <p>Switch between <strong>cm · kg</strong> and <strong>in · lb</strong> at the top of the form. Values are stored in millimetres and kilograms, so switching back and forth never changes your numbers. Your choice is remembered on this device.</p>
+
+    <h3>Container</h3>
+    <ul class="plain">
+      <li><strong>Container type:</strong> {data.containers.map((c) => c.name).join(', ')}. These presets fill in the inside length, width and height, the door opening and the maximum payload from the carrier's published figures (see <a href="/shipping-container-dimensions/">shipping container dimensions</a>).</li>
+      <li><strong>Custom size:</strong> chosen automatically as soon as you change any container figure. Use it for your exact unit; the CSC plate or your booking has the real figures.</li>
+      <li><strong>Max payload:</strong> the most cargo weight allowed. Leave it empty for no weight limit.</li>
+      <li><strong>Door width and height:</strong> every box must pass the door the way it is stowed. Leave them empty to skip this check.</li>
+    </ul>
+
+    <h3>Boxes</h3>
+    <ul class="plain">
+      <li><strong>Name, quantity, weight, length, width, height</strong> for each box type. Up to 10 box types, up to 20,000 boxes per type. Each type gets its own colour in the 3D view.</li>
+      <li><strong>Orientation:</strong> which way the box may be turned (next section).</li>
+      <li><strong>Can carry boxes on top:</strong> untick for fragile cartons or crates; nothing will be stacked on them.</li>
+      <li><strong>✕</strong> removes a box type. <strong>+ Add box type</strong> copies the size of the last type to save typing.</li>
+    </ul>
+  </section>
+
+  <section class="prose" id="orientation">
+    <h2>Carton orientation</h2>
+    <p>A carton can sit in six positions: one of its three sides faces up, and its length runs either along the container (toward the door) or across it. For each box type choose under <strong>Orientation</strong>:</p>
+    <ul class="plain">
+      <li><strong>Automatic: any side can face down</strong> — the planner may use all six positions and picks the mix that loads the most.</li>
+      <li><strong>Automatic: this side up</strong> — the height stays vertical; the carton is only turned flat.</li>
+      <li><strong>Choose the positions allowed…</strong> — six small drawings appear, one per position (the arrow under each drawing points along the container toward the door). Tap a drawing to allow or block that position. Leave one ticked to fix the position completely; the last one cannot be unticked.</li>
+    </ul>
+    <p>The <strong>Positions used</strong> column of the results table shows which positions the plan used and how many boxes are in each.</p>
+  </section>
+
+  <section class="prose" id="loading-method">
+    <h2>Automatic or step by step</h2>
+    <p>Under <strong>Loading method</strong>:</p>
+    <ul class="plain">
+      <li><strong>Fully automatic</strong> — the planner chooses the order, place and position of every box to load as much as possible. Tick <strong>Load in list order</strong> if the first box type must go in before the others.</li>
+      <li><strong>Semi-automatic</strong> — you set the loading steps and the planner places the boxes of each step, from the back wall toward the door. When you switch, one step per box type is filled in for you.</li>
+    </ul>
+    <p>Each step has:</p>
+    <ul class="plain">
+      <li><strong>Box type</strong> and <strong>How many</strong> (leave empty to load all that are left of that type).</li>
+      <li><strong>Position</strong> — automatic (the best of the positions allowed for that box) or one fixed position for this step only.</li>
+      <li><strong>Start a new section in front of earlier steps</strong> — the step starts in front of everything already loaded, so its boxes are not tucked into gaps behind. Use it to keep orders, stops or destinations together.</li>
+    </ul>
+    <p>Move steps with ↑ ↓, remove them with ✕, add up to 20 with <strong>+ Add step</strong>. <strong>Then load whatever is left automatically</strong> finishes with the boxes no step took; untick it to load only what your steps ask for.</p>
+  </section>
+
+  <section class="prose" id="edit-by-hand">
+    <h2>Editing the plan by hand</h2>
+    <p>Under the 3D view:</p>
+    <ul class="plain">
+      <li><strong>Edit this plan by hand</strong> keeps the current plan and lets you change it.</li>
+      <li><strong>Load by hand from empty</strong> starts with an empty container and every box under “Not loaded”.</li>
+    </ul>
+    <h3>Select a box</h3>
+    <p>Tap or click a box in the 3D view; it is outlined in yellow. On a phone, small boxes are easier to reach with <strong>‹ ›</strong>, which step through the boxes in loading order. The panel shows the box's size and where it stands.</p>
+    <h3>Change a box</h3>
+    <ul class="plain">
+      <li><strong>Turn:</strong> tap one of the positions shown (only the positions that box may use). It turns where it stands if there is room.</li>
+      <li><strong>Push:</strong> ← Back wall, Door →, Left, Right, ↑ Up, ↓ Down. The box slides until it meets a wall or another box. Left and right are as seen from the door.</li>
+      <li><strong>Pick a new spot:</strong> green boxes show every free spot where it fits; tap one to move it there.</li>
+      <li><strong>Remove:</strong> takes the box out, together with any boxes standing on it. They are listed under “Not loaded”.</li>
+    </ul>
+    <h3>Place boxes that are not loaded</h3>
+    <ol class="plain">
+      <li>Under <strong>Not loaded</strong>, tap <strong>Place by hand</strong> next to a box type.</li>
+      <li>Choose a <strong>Position</strong>, or leave it on automatic to use the best fit at each spot.</li>
+      <li>Tap a green spot in the 3D view, or <strong>Put it in the next free spot</strong> (nearest the back wall and the floor). Keep tapping to place more; <strong>Stop</strong> when done.</li>
+    </ol>
+    <p><strong>Fill the rest automatically</strong> keeps every box you placed and loads the remaining boxes around them. <strong>Undo</strong> and <strong>Redo</strong> step through your changes. <strong>Back to automatic plan</strong> drops the hand edits.</p>
+    <h3>What is checked</h3>
+    <p>Every hand change is checked before it is made, with the same rules as an automatic plan: no overlapping boxes, every box stands fully on the floor or on boxes below, nothing on a box that cannot carry others, only the positions a box may use, and every box passes the door the way it is stowed. A box with others standing on it cannot be turned or moved until they are moved. If a change breaks a rule, the planner tells you why instead of making it.</p>
+    <p class="small">Changing the container or the boxes in the form starts again from an automatic plan; a note says that your hand edits were cleared.</p>
+  </section>
+
+  <section class="prose" id="results">
+    <h2>Reading the result</h2>
+    <ul class="plain">
+      <li><strong>Boxes loaded</strong> (for example “900 of 900”), <strong>Volume used</strong>, <strong>Weight loaded</strong> and <strong>Left over</strong>.</li>
+      <li><strong>Notes</strong> under the figures: boxes that do not fit, the weight limit being reached, steps that could not load everything they asked for, and the cargo's centre of gravity along the length. Keep heavy cargo low and the load spread evenly.</li>
+      <li><strong>3D view:</strong> drag to turn, pinch or scroll to zoom. <strong>3D, Top, Side, Door</strong> jump to fixed views; the orange panel marks the door end.</li>
+      <li><strong>Loading step slider:</strong> shows the plan box by box in loading order, from the back wall toward the door. In semi-automatic mode it also tells you which step a box belongs to.</li>
+      <li><strong>Tables:</strong> ordered, loaded and left over per box type, the loaded weight, and the positions used. In semi-automatic mode a second table shows each step's asked and loaded counts.</li>
+      <li><strong>Formula lines</strong> under the tables show the container volume, cargo volume, volume used and weight with your numbers.</li>
+    </ul>
+    <p>Every plan passes an independent check before it is shown. If a plan ever failed it, you would see a warning instead; please <a href="/contact/">tell us</a> the inputs. <a href="/how-we-calculate/">How we calculate</a> explains the method.</p>
+  </section>
+
+  <section class="prose" id="share">
+    <h2>Share and print</h2>
+    <ul class="plain">
+      <li><strong>Copy link to this plan</strong> copies a link with all your inputs, the loading method and steps, and any hand edits. Whoever opens it sees the same plan; the same inputs always give the same automatic plan.</li>
+      <li><strong>Print plan</strong> prints the result, the 3D view as it is on screen and the tables, without the form. Set the 3D view and the loading step slider first, or save as PDF from the print dialog.</li>
+    </ul>
+  </section>
+
+  <section class="prose" id="other-pages">
+    <h2>Other pages</h2>
+    <ul class="plain">
+      <li><a href="/shipping-container-dimensions/">Shipping container dimensions</a> — inside sizes, door openings, volume and weights of the common dry containers, with the carrier's source.</li>
+      <li><a href="/how-we-calculate/">How we calculate</a> — the loading method, the checks every plan passes and the sources of every figure.</li>
+    </ul>
+  </section>
+
+  <section class="prose" id="whats-new">
+    <h2>What's new</h2>
+    <ul class="plain">
+      <li><strong>October 19, 2026:</strong> edit the 3D plan by hand — select, turn, push, move, remove and place boxes, fill the rest automatically, undo and redo, with every change checked. Hand edits are kept in shared links. This guide added.</li>
+      <li><strong>October 19, 2026:</strong> choose the positions each carton may use; semi-automatic loading steps with fixed positions and new sections.</li>
+      <li><strong>October 18, 2026:</strong> container loading calculator with 3D plan, loading steps, share link and printing.</li>
+    </ul>
+  </section>
+</Base>

@@ -15,6 +15,7 @@ const schema = [
     <nav class="crumbs" aria-label="Breadcrumb"><a href={crumb.href}>{crumb.name}</a><span aria-hidden="true">›</span><span>{name}</span></nav>
     <h1>{h1}</h1>
     <p class="lede" set:html={lede} />
+    <p class="small"><a href={`/how-to-use/#${Astro.url.pathname.split('/').filter(Boolean).pop()}`}>How to use this tool</a> · step-by-step guide to every option</p>
   </section>
   <slot />
 </Base>

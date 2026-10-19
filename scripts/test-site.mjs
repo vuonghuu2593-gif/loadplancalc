@@ -32,6 +32,9 @@ for (const u of urls) {
   if (errs.length) p.push('JS errors: ' + errs.join(' | '));
   if (p.length) { fails++; console.log('FAIL', u, p.join('; ')); }
 }
+// the user guide must cover every tool and be updated with them (scripts/guide-check.mjs)
+const { check: guideCheck } = await import('./guide-check.mjs');
+const gp = guideCheck(); gp.forEach((x) => console.log('FAIL guide:', x)); if (gp.length) fails++;
 console.log(`pages: ${urls.length}, failing: ${fails}`);
 await b.close(); srv.close();
 process.exit(fails ? 1 : 0);
