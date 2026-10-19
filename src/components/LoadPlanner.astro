@@ -41,8 +41,19 @@ const presets = mode === 'container' ? data.containers : palletPresets;
     <div class="boxes" data-boxes></div>
     <div class="addrow">
       <button type="button" class="btn line" data-add>+ Add box type</button>
-      <label class="check"><input type="checkbox" data-f="priority"> Load in list order (first type has priority)</label>
     </div>
+    <h2>Loading method</h2>
+    <div class="seg modeseg" role="group" aria-label="Loading method">
+      <button type="button" data-mode="auto" aria-pressed="true">Fully automatic</button>
+      <button type="button" data-mode="semi" aria-pressed="false">Semi-automatic</button>
+    </div>
+    <p class="small" data-modehelp style="margin:0"></p>
+    <div class="steps" data-steps hidden></div>
+    <div class="addrow" data-semirow hidden>
+      <button type="button" class="btn line" data-addstep>+ Add step</button>
+      <label class="check"><input type="checkbox" data-f="fillRest"> Then load whatever is left automatically</label>
+    </div>
+    <label class="check"><input type="checkbox" data-f="priority"> <span data-prioritytxt>Load in list order (first type has priority)</span></label>
   </form>
 
   <section class="result" aria-live="polite" data-result>
@@ -73,8 +84,14 @@ const presets = mode === 'container' ? data.containers : palletPresets;
 
   <div class="tablebox">
     <table>
-      <thead><tr><th>Box type</th><th class="num">Ordered</th><th class="num">Loaded</th><th class="num">Left over</th><th class="num">Loaded weight</th></tr></thead>
+      <thead><tr><th>Box type</th><th class="num">Ordered</th><th class="num">Loaded</th><th class="num">Left over</th><th class="num">Loaded weight</th><th>Positions used</th></tr></thead>
       <tbody data-r="table"></tbody>
+    </table>
+  </div>
+  <div class="tablebox" data-r="stepbox" hidden>
+    <table>
+      <thead><tr><th>Step</th><th>Box type</th><th>Position</th><th class="num">Asked</th><th class="num">Loaded</th></tr></thead>
+      <tbody data-r="steptable"></tbody>
     </table>
   </div>
   <div class="formula" data-r="steps"></div>
@@ -88,8 +105,24 @@ const presets = mode === 'container' ? data.containers : palletPresets;
     <label class="dim"><span>Length <span class="small" data-ul></span></span><input data-b="l" inputmode="decimal"></label>
     <label class="dim"><span>Width <span class="small" data-ul></span></span><input data-b="w" inputmode="decimal"></label>
     <label class="dim"><span>Height <span class="small" data-ul></span></span><input data-b="h" inputmode="decimal"></label>
-    <label class="rot">Turning<select data-b="rotation"><option value="any">Any side can face down</option><option value="upright">This side up (turn flat only)</option></select></label>
+    <label class="rot">Orientation<select data-b="rotation"><option value="any">Automatic: any side can face down</option><option value="upright">Automatic: this side up (turn flat only)</option><option value="custom">Choose the positions allowed…</option></select></label>
     <div class="flags"><label class="check"><input type="checkbox" data-b="stackable"> Can carry boxes on top</label><button type="button" class="iconbtn" data-del aria-label="Remove this box type">✕</button></div>
+    <div class="orients" data-orients hidden>
+      <p class="small">Tap to allow or block each position. “Along” means along the container length, toward the door. Tick one position to fix it.</p>
+      <div class="ogrid" role="group" aria-label="Allowed positions"></div>
+    </div>
+  </div>
+</template>
+
+<template id="step-tpl">
+  <div class="stepcard">
+    <div class="stephead"><strong data-s="title">Step 1</strong>
+      <span class="stepbtns"><button type="button" class="iconbtn" data-move="-1" aria-label="Move step up">↑</button><button type="button" class="iconbtn" data-move="1" aria-label="Move step down">↓</button><button type="button" class="iconbtn" data-sdel aria-label="Remove this step">✕</button></span>
+    </div>
+    <label class="stype">Box type<select data-s="item"></select></label>
+    <label class="sqty">How many<input data-s="qty" inputmode="numeric" placeholder="All left"></label>
+    <label class="sorient">Position<select data-s="orient"></select></label>
+    <label class="check snew"><input type="checkbox" data-s="newSection"> Start a new section in front of earlier steps</label>
   </div>
 </template>
 

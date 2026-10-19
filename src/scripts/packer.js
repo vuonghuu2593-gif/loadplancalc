@@ -19,11 +19,24 @@ function rng(seed) {
   return () => { s ^= s << 13; s >>>= 0; s ^= s >> 17; s ^= s << 5; s >>>= 0; return s / 4294967296; };
 }
 
+// The six ways a box can sit, as [along the length, across the width, up] taken from [l, w, h].
+// Index order is used by the page and share links: 0-1 height up, 2-3 width up, 4-5 length up.
+export const ORIENT_NAMES = ['Height up, length along', 'Height up, length across', 'Width up, length along',
+  'Width up, length across', 'Length up, width along', 'Length up, width across'];
+
+// Orientations a box type may use: "any" (all six), "upright" (height stays vertical) or
+// "custom" (the ones the user ticked, by index into ORIENT.any).
+export function allowedPerms(it) {
+  if (it.rotation === 'upright') return ORIENT.upright;
+  if (it.rotation === 'custom' && Array.isArray(it.orients)) return ORIENT.any.filter((_, i) => it.orients.includes(i));
+  return ORIENT.any;
+}
+
 function orientations(it) {
   if (it.os) return it.os;
   const d = [it.l, it.w, it.h];
   const seen = new Set(); const out = [];
-  for (const p of ORIENT[it.rotation === 'upright' ? 'upright' : 'any']) {
+  for (const p of allowedPerms(it)) {
     const o = [d[p[0]], d[p[1]], d[p[2]]];
     const k = o.join('x');
     if (!seen.has(k)) { seen.add(k); out.push(o); }
@@ -98,10 +111,14 @@ function residuals(sp, c, it, useA) {
   return out;
 }
 
-function packOnce(cont, items, rule, splitRule, rand, noise) {
-  const qty = items.map((it) => it.qty);
-  let wLeft = cont.maxWeight > 0 ? cont.maxWeight : Infinity;
-  const spaces = [{ x: 0, y: 0, z: 0, sx: cont.L, sy: cont.W, sz: cont.H }];
+// One greedy run. Without `start` it fills the empty container. With `start` (semi-automatic steps)
+// it continues from an earlier state: quantities, weight left and the free spaces left by earlier
+// steps; spaces this run cannot use are handed back so later steps can still fill them.
+function packOnce(cont, items, rule, splitRule, rand, noise, start) {
+  const qty = start ? start.qty.slice() : items.map((it) => it.qty);
+  let wLeft = start ? start.wLeft : (cont.maxWeight > 0 ? cont.maxWeight : Infinity);
+  const spaces = start ? start.spaces.slice() : [{ x: 0, y: 0, z: 0, sx: cont.L, sy: cont.W, sz: cont.H }];
+  const kept = [];
   const placed = [];
   const minDim = Math.min(...items.flatMap((it) => [it.l, it.w, it.h]));
   const vols = items.map((it) => it.l * it.w * it.h);
@@ -158,7 +175,7 @@ function packOnce(cont, items, rule, splitRule, rand, noise) {
         }
       }
     }
-    if (!cands.length) continue;
+    if (!cands.length) { if (start) kept.push(sp); continue; }
     let c = cands[0];
     for (const d of cands) if (d.s > c.s) c = d;
     const it = items[c.k];
@@ -177,13 +194,32 @@ function packOnce(cont, items, rule, splitRule, rand, noise) {
     spaces.push(...residuals(sp, c, it, useA));
     if (qty.every((q) => q < 1)) break;
   }
-  return placed;
+  return { placed, spaces: spaces.concat(kept), qty, wLeft };
 }
 
 function evaluate(placed, items) {
-  let vol = 0, w = 0;
-  for (const p of placed) { vol += p.dx * p.dy * p.dz; w += items[p.k].weight; }
-  return { vol, w, n: placed.length };
+  let vol = 0, w = 0, front = 0;
+  for (const p of placed) { vol += p.dx * p.dy * p.dz; w += items[p.k].weight; if (p.x + p.dx > front) front = p.x + p.dx; }
+  return { vol, w, n: placed.length, front };
+}
+
+// Many greedy runs (fixed rules first, then seeded random variations); keeps the run that loads the
+// most volume, then the most boxes. The same input and seed always give the same answer.
+function search(cont, items, start, rand, opts, budget) {
+  let best = null, bestE = null;
+  const consider = (r) => {
+    const e = evaluate(r.placed, items);
+    // most volume, then most boxes, then the most compact load (shortest distance from the back wall)
+    const tie = Math.abs(e.vol - bestE?.vol) < 1e-6;
+    if (!best || e.vol > bestE.vol + 1e-6 || (tie && e.n > bestE.n) || (tie && e.n === bestE.n && e.front < bestE.front - 1e-6)) { best = r; bestE = e; }
+  };
+  for (let rule = 0; rule < 4; rule++) for (let split = 0; split < 3; split++) consider(packOnce(cont, items, rule, split, rand, 0, start));
+  consider(packOnce(cont, items, 4, 0, rand, 0, start));
+  const total = (start ? start.qty : items.map((it) => it.qty)).reduce((s, q) => s + q, 0);
+  const tries = opts.tries ?? 120;
+  const t0 = Date.now();
+  for (let t = 0; t < tries && bestE.n < total && Date.now() - t0 < budget; t++) consider(packOnce(cont, items, t % 5, t % 3, rand, 0.3, start));
+  return best;
 }
 
 export function pack(container, rawItems, opts = {}) {
@@ -194,27 +230,66 @@ export function pack(container, rawItems, opts = {}) {
     .filter((it) => it.l > 0 && it.w > 0 && it.h > 0 && it.qty > 0);
   // a box must pass the door in the orientation it is stowed in (width across, height up)
   for (const it of items) it.os = orientations(it).filter((o) => (!cont.doorW || o[1] <= cont.doorW) && (!cont.doorH || o[2] <= cont.doorH));
-  if (!(cont.L > 0 && cont.W > 0 && cont.H > 0) || !items.length) return { placed: [], items, cont, totals: { vol: 0, w: 0, n: 0 } };
-  const tries = opts.tries ?? 120;
+  if (!(cont.L > 0 && cont.W > 0 && cont.H > 0) || !items.length) return { placed: [], items, cont, totals: { vol: 0, w: 0, n: 0 }, perItem: items.map(() => 0), cog: null, steps: null };
   const rand = rng(opts.seed ?? 12345);
-  let best = null, bestE = null;
-  const consider = (placed) => {
-    const e = evaluate(placed, items);
-    if (!best || e.vol > bestE.vol + 1e-6 || (Math.abs(e.vol - bestE.vol) < 1e-6 && e.n > bestE.n)) { best = placed; bestE = e; }
-  };
-  for (let rule = 0; rule < 4; rule++) for (let split = 0; split < 3; split++) consider(packOnce(cont, items, rule, split, rand, 0));
-  consider(packOnce(cont, items, 4, 0, rand, 0));
-  const total = items.reduce((s, it) => s + it.qty, 0);
-  const t0 = Date.now(), budget = opts.timeMs ?? 1500;
-  for (let t = 0; t < tries && bestE.n < total && Date.now() - t0 < budget; t++) consider(packOnce(cont, items, t % 5, t % 3, rand, 0.3));
-  // loading order: back wall first, bottom up
-  best.sort((a, b) => a.x - b.x || a.z - b.z || a.y - b.y);
+  const budget = opts.timeMs ?? 1500;
+  let placed, steps = null;
+  if (Array.isArray(opts.steps) && opts.steps.length) ({ placed, steps } = packSteps(cont, items, opts, rand, budget));
+  else {
+    placed = search(cont, items, null, rand, opts, budget).placed;
+    // loading order: back wall first, bottom up
+    placed.sort((a, b) => a.x - b.x || a.z - b.z || a.y - b.y);
+  }
+  const { vol, w, n } = evaluate(placed, items); const totals = { vol, w, n };
   const perItem = items.map(() => 0);
-  for (const p of best) perItem[p.k]++;
+  for (const p of placed) perItem[p.k]++;
   let cx = 0, cy = 0, cz = 0;
-  for (const p of best) { const m = items[p.k].weight; cx += m * (p.x + p.dx / 2); cy += m * (p.y + p.dy / 2); cz += m * (p.z + p.dz / 2); }
-  const cog = bestE.w > 0 ? { x: cx / bestE.w, y: cy / bestE.w, z: cz / bestE.w } : null;
-  return { placed: best, items, cont, totals: bestE, perItem, cog };
+  for (const p of placed) { const m = items[p.k].weight; cx += m * (p.x + p.dx / 2); cy += m * (p.y + p.dy / 2); cz += m * (p.z + p.dz / 2); }
+  const cog = totals.w > 0 ? { x: cx / totals.w, y: cy / totals.w, z: cz / totals.w } : null;
+  return { placed, items, cont, totals, perItem, cog, steps };
+}
+
+// Semi-automatic mode: the user sets the loading steps (box type, how many, a fixed orientation or
+// automatic, and whether the step starts a new section in front of everything loaded so far). Each
+// step is searched on its own from the state the earlier steps left; an optional last step loads
+// whatever remains automatically. Boxes keep their step number (p.s) and are listed step by step.
+function packSteps(cont, items, opts, rand, budget) {
+  const raw = opts.steps.slice(0, 30);
+  const plan = raw.map((s) => {
+    const k = items.findIndex((it) => it.idx === +s.item);
+    const orient = Number.isInteger(s.orient) && s.orient >= 0 && s.orient < 6 ? s.orient : null;
+    const qty = s.qty === '' || s.qty == null ? null : Math.max(0, Math.floor(+s.qty || 0));
+    return { k, orient, qty, newSection: !!s.newSection, asked: 0, loaded: 0 };
+  });
+  if (opts.fillRest !== false) plan.push({ k: -1, orient: null, qty: null, newSection: false, auto: true, asked: 0, loaded: 0 });
+  let st = { qty: items.map((it) => it.qty), wLeft: cont.maxWeight > 0 ? cont.maxWeight : Infinity, spaces: [{ x: 0, y: 0, z: 0, sx: cont.L, sy: cont.W, sz: cont.H }] };
+  const placed = [];
+  const per = budget / Math.max(1, plan.length);
+  plan.forEach((step, si) => {
+    if (step.newSection) {
+      const front = placed.reduce((m, p) => Math.max(m, p.x + p.dx), 0);
+      st.spaces = front < cont.L ? [{ x: front, y: 0, z: 0, sx: cont.L - front, sy: cont.W, sz: cont.H }] : [];
+      step.front = front;
+    }
+    const qty = items.map(() => 0);
+    if (step.auto) items.forEach((_, k) => { qty[k] = st.qty[k]; });
+    else if (step.k >= 0) qty[step.k] = step.qty == null ? st.qty[step.k] : Math.min(step.qty, st.qty[step.k]);
+    step.asked = qty.reduce((s, q) => s + q, 0);
+    if (!step.asked) return;
+    let its = items;
+    if (step.orient != null) { // fixed orientation for this step
+      const it = items[step.k]; const d = [it.l, it.w, it.h]; const p = ORIENT.any[step.orient];
+      const key = [d[p[0]], d[p[1]], d[p[2]]].join('x');
+      its = items.map((x, k) => (k === step.k ? { ...x, os: x.os.filter((o) => o.join('x') === key) } : x));
+    }
+    const sub = { ...cont, priority: step.auto ? cont.priority : false };
+    const r = search(sub, its, { ...st, qty }, rand, opts, per);
+    r.placed.sort((a, b) => a.x - b.x || a.z - b.z || a.y - b.y);
+    for (const p of r.placed) { p.s = si; placed.push(p); st.qty[p.k]--; }
+    step.loaded = r.placed.length;
+    st = { qty: st.qty, wLeft: r.wLeft, spaces: r.spaces };
+  });
+  return { placed, steps: plan };
 }
 
 // Independent checker used by tests and by the page before showing a plan.
@@ -227,6 +302,7 @@ export function validate(res, eps = 0.01) {
     const dims = [it.l, it.w, it.h].sort((a, b) => a - b).join(), got = [p.dx, p.dy, p.dz].sort((a, b) => a - b).join();
     if (dims !== got) errors.push('wrong box size');
     if (it.rotation === 'upright' && Math.abs(p.dz - it.h) > eps) errors.push('upright box turned');
+    if (!permsOf(it, allowedPerms(it)).some((o) => same(o, p))) errors.push('orientation not allowed');
     if ((cont.doorW && p.dy > cont.doorW + eps) || (cont.doorH && p.dz > cont.doorH + eps)) errors.push('box larger than the door');
     w += it.weight;
   }
@@ -252,5 +328,27 @@ export function validate(res, eps = 0.01) {
     }
     if (area < a.dx * a.dy - eps) errors.push('box not fully supported');
   }
+  // semi-automatic steps: right box type, no more than asked, fixed orientation kept, new sections in front
+  if (res.steps) {
+    const st = res.steps;
+    const n = st.map(() => 0);
+    for (const p of placed) {
+      const step = st[p.s];
+      if (!step) { errors.push('box without a step'); continue; }
+      n[p.s]++;
+      if (!step.auto && p.k !== step.k) errors.push('wrong box type in a step');
+      if (step.orient != null && !same(permsOf(items[p.k], [ORIENT.any[step.orient]])[0], p)) errors.push('step orientation not kept');
+    }
+    st.forEach((step, si) => {
+      if (n[si] > step.asked) errors.push('more boxes in a step than asked');
+      if (step.newSection) {
+        const front = placed.filter((p) => p.s < si).reduce((m, p) => Math.max(m, p.x + p.dx), 0);
+        if (placed.some((p) => p.s >= si && p.x < front - eps)) errors.push('box behind a new section line');
+      }
+    });
+  }
   return [...new Set(errors)];
 }
+
+function permsOf(it, perms) { const d = [it.l, it.w, it.h]; return perms.map((p) => [d[p[0]], d[p[1]], d[p[2]]]); }
+function same(o, p, eps = 0.01) { return Math.abs(o[0] - p.dx) < eps && Math.abs(o[1] - p.dy) < eps && Math.abs(o[2] - p.dz) < eps; }

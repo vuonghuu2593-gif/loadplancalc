@@ -1,9 +1,41 @@
 // Page logic for the load planner: form state (stored in mm / kg so unit switches never drift),
 // a Web Worker that runs the packing engine, results, 3D view and share links.
 import { U, round, fmt } from './units.js';
+import { ORIENT, ORIENT_NAMES } from './packer.js';
 
 const COLORS = ['#F08A24', '#3E8ED0', '#4CB782', '#D9534F', '#9B6BD3', '#E5C02E', '#2BB5B8', '#C76B98', '#8C9A3C', '#A0693B'];
 const SWATCH = COLORS;
+const SHORT = ['H up · L along', 'H up · L across', 'W up · L along', 'W up · L across', 'L up · W along', 'L up · W across'];
+const AUTO_HELP = 'The planner chooses the order, place and position of every box (within the positions you allow) to load as much as possible.';
+const SEMI_HELP = 'You set the loading steps: which box type goes in first, how many, and in which position. The planner works out the exact place of every box, step by step, and checks the result.';
+
+// [along, across, up] for orientation i of a box
+const dimsOf = (it, i) => { const d = [it.l, it.w, it.h]; const p = ORIENT.any[i]; return [d[p[0]], d[p[1]], d[p[2]]]; };
+// orientation indices a box type may use (mirrors allowedPerms in the engine)
+const allowedIdx = (it) => (it.rotation === 'upright' ? [0, 1] : it.rotation === 'custom' && Array.isArray(it.orients) ? it.orients.slice().sort() : [0, 1, 2, 3, 4, 5]);
+// which orientation a placed box uses (first allowed match)
+const orientOf = (it, b) => {
+  const near = (o) => Math.abs(o[0] - b.dx) < 0.5 && Math.abs(o[1] - b.dy) < 0.5 && Math.abs(o[2] - b.dz) < 0.5;
+  const list = allowedIdx(it);
+  return list.find((i) => near(dimsOf(it, i))) ?? [0, 1, 2, 3, 4, 5].find((i) => near(dimsOf(it, i))) ?? -1;
+};
+
+// small isometric drawing of a box in one orientation; the arrow shows the container length
+function iso(o, color) {
+  const m = Math.max(...o) || 1; const [a, b, c] = o.map((v) => (v / m) * 26);
+  const P = (x, y, z) => [(x - y) * 0.866, (x + y) * 0.5 - z];
+  const poly = (pts, fill, op) => `<polygon points="${pts.map((q) => P(...q).map((v) => v.toFixed(1)).join(',')).join(' ')}" fill="${fill}"${op ? ` fill-opacity="${op}"` : ''} stroke="currentColor" stroke-opacity=".7" stroke-width=".8" stroke-linejoin="round"/>`;
+  const top = [[0, 0, c], [a, 0, c], [a, b, c], [0, b, c]];
+  const fx = [[a, 0, 0], [a, b, 0], [a, b, c], [a, 0, c]];
+  const fy = [[0, b, 0], [a, b, 0], [a, b, c], [0, b, c]];
+  const y0 = b + 7; const s0 = P(0, y0, 0), s1 = P(a + 8, y0, 0), h1 = P(a + 3, y0 - 3, 0), h2 = P(a + 3, y0 + 3, 0);
+  const pts = [...top, ...fx, ...fy, [0, y0, 0], [a + 8, y0, 0], [a + 3, y0 + 3, 0]].map((q) => P(...q));
+  const xs = pts.map((q) => q[0]), ys = pts.map((q) => q[1]);
+  const x0 = Math.min(...xs) - 2, yy0 = Math.min(...ys) - 2, w = Math.max(...xs) - x0 + 2, h = Math.max(...ys) - yy0 + 2;
+  return `<svg viewBox="${x0.toFixed(1)} ${yy0.toFixed(1)} ${w.toFixed(1)} ${h.toFixed(1)}" aria-hidden="true">`
+    + poly(top, color) + poly(fx, color) + poly(fx, '#000', 0.28) + poly(fy, color) + poly(fy, '#000', 0.14)
+    + `<path d="M${s0.join(',')} L${s1.join(',')} M${h1.join(',')} L${s1.join(',')} L${h2.join(',')}" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>`;
+}
 
 export function initPlanner(root) {
   const mode = root.dataset.mode;
@@ -19,6 +51,10 @@ export function initPlanner(root) {
   let state = structuredClone(defaults);
   const fromHash = readHash();
   if (fromHash) state = fromHash;
+  if (state.mode !== 'semi') state.mode = 'auto';
+  if (!Array.isArray(state.steps)) state.steps = [];
+  if (state.fillRest === undefined) state.fillRest = true;
+  const stepTpl = document.getElementById('step-tpl');
 
   // ---------- form <-> state ----------
   const lenFields = mode === 'container' ? ['L', 'W', 'H', 'doorW', 'doorH'] : ['L', 'W', 'H', 'overhang', 'palletH'];
@@ -54,13 +90,67 @@ export function initPlanner(root) {
       node.querySelector('[data-b="stackable"]').checked = it.stackable !== false;
       node.querySelector('[data-del]').hidden = state.items.length < 2;
       node.dataset.i = i;
+      paintOrients(node, it, i);
       host.appendChild(node);
     });
     paintUnits();
   }
+  function paintOrients(node, it, i) {
+    const box = node.querySelector('[data-orients]');
+    box.hidden = it.rotation !== 'custom';
+    if (box.hidden) return;
+    const on = allowedIdx(it); const u = U[units];
+    box.querySelector('.ogrid').innerHTML = [0, 1, 2, 3, 4, 5].map((k) => {
+      const o = dimsOf(it, k);
+      const t = `${ORIENT_NAMES[k]}: ${o.map((v) => fmt(u.fromMM(v), units === 'metric' ? 1 : 2)).join(' × ')} ${u.len} (along × across × up)`;
+      return `<button type="button" class="ochip" data-o="${k}" aria-pressed="${on.includes(k)}" title="${t}" aria-label="${t}">${iso(o, SWATCH[i % SWATCH.length])}<span>${SHORT[k]}</span></button>`;
+    }).join('');
+  }
+  function paintMode() {
+    const semi = state.mode === 'semi';
+    root.querySelectorAll('[data-mode]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.mode === state.mode)));
+    $('[data-modehelp]').textContent = semi ? SEMI_HELP : AUTO_HELP;
+    $('[data-steps]').hidden = !semi; $('[data-semirow]').hidden = !semi;
+    f('fillRest').checked = state.fillRest !== false;
+    f('priority').closest('label').hidden = semi && state.fillRest === false;
+    $('[data-prioritytxt]').textContent = semi ? 'Boxes loaded automatically go in list order (first type first)' : 'Load in list order (first type has priority)';
+    if (semi) paintSteps();
+  }
+  function stepOrientOptions(it) {
+    const u = U[units]; const seen = new Set(); const out = ['<option value="">Automatic (best allowed)</option>'];
+    for (const k of allowedIdx(it)) {
+      const o = dimsOf(it, k); const key = o.join('x');
+      if (seen.has(key)) continue; seen.add(key);
+      out.push(`<option value="${k}" title="${ORIENT_NAMES[k]}">${SHORT[k]} · ${o.map((v) => fmt(u.fromMM(v), units === 'metric' ? 1 : 2)).join('×')} ${u.len}</option>`);
+    }
+    return out.join('');
+  }
+  function paintSteps() {
+    const host = $('[data-steps]'); host.innerHTML = '';
+    state.steps.forEach((st, si) => {
+      const node = stepTpl.content.firstElementChild.cloneNode(true);
+      const it = state.items[st.item] || state.items[0];
+      node.style.setProperty('--sw', SWATCH[(state.items[st.item] ? st.item : 0) % SWATCH.length]);
+      node.dataset.si = si;
+      node.querySelector('[data-s="title"]').textContent = `Step ${si + 1}`;
+      const sel = node.querySelector('[data-s="item"]');
+      sel.innerHTML = state.items.map((x, i) => `<option value="${i}">${esc(x.name || `Box ${i + 1}`)}</option>`).join('');
+      sel.value = String(state.items[st.item] ? st.item : 0);
+      node.querySelector('[data-s="qty"]').value = st.qty == null ? '' : String(st.qty);
+      const os = node.querySelector('[data-s="orient"]'); os.innerHTML = stepOrientOptions(it);
+      os.value = st.orient == null ? '' : String(st.orient);
+      if (os.value !== (st.orient == null ? '' : String(st.orient))) { st.orient = null; os.value = ''; }
+      node.querySelector('[data-s="newSection"]').checked = !!st.newSection;
+      node.querySelector('[data-move="-1"]').disabled = si === 0;
+      node.querySelector('[data-move="1"]').disabled = si === state.steps.length - 1;
+      host.appendChild(node);
+    });
+    if (!state.steps.length) host.innerHTML = '<p class="small" style="margin:0">No steps yet. Add a step, or everything is loaded automatically.</p>';
+  }
 
   root.querySelector('form').addEventListener('input', (e) => {
     const t = e.target;
+    if (t.dataset.f === 'fillRest') { state.fillRest = t.checked; paintMode(); schedule(); return; }
     if (t.dataset.f && t.dataset.f !== 'preset' && t.dataset.f !== 'priority') {
       const k = t.dataset.f;
       if (k === 'maxWeight') state.cont.maxWeight = readWt(t.value) ?? 0;
@@ -72,9 +162,19 @@ export function initPlanner(root) {
       if (k === 'name') it.name = t.value;
       else if (k === 'qty') { const n = parseInt(t.value, 10); it.qty = Number.isFinite(n) && n >= 0 ? Math.min(n, 20000) : 0; }
       else if (k === 'weight') it.weight = readWt(t.value) ?? 0;
-      else if (k === 'rotation') it.rotation = t.value;
-      else if (k === 'stackable') it.stackable = t.checked;
-      else { const v = readLen(t.value); if (v !== null) it[k] = v; }
+      else if (k === 'rotation') {
+        if (t.value === 'custom' && !Array.isArray(it.orients)) it.orients = it.rotation === 'upright' ? [0, 1] : [0, 1, 2, 3, 4, 5];
+        it.rotation = t.value; paintOrients(t.closest('.boxcard'), it, i);
+      } else if (k === 'stackable') it.stackable = t.checked;
+      else { const v = readLen(t.value); if (v !== null) { it[k] = v; if (it.rotation === 'custom') paintOrients(t.closest('.boxcard'), it, i); } }
+      if (state.mode === 'semi' && k !== 'qty' && k !== 'weight' && k !== 'stackable') paintSteps();
+      schedule();
+    } else if (t.dataset.s) {
+      const si = +t.closest('.stepcard').dataset.si; const st = state.steps[si]; const k = t.dataset.s;
+      if (k === 'item') { st.item = +t.value; st.orient = null; paintSteps(); }
+      else if (k === 'qty') { const n = parseInt(t.value, 10); st.qty = t.value.trim() === '' ? null : Number.isFinite(n) && n >= 0 ? Math.min(n, 20000) : 0; }
+      else if (k === 'orient') st.orient = t.value === '' ? null : +t.value;
+      else if (k === 'newSection') st.newSection = t.checked;
       schedule();
     }
   });
@@ -91,17 +191,45 @@ export function initPlanner(root) {
   });
   root.querySelectorAll('[data-units]').forEach((b) => b.addEventListener('click', () => {
     units = b.dataset.units; try { localStorage.setItem('lpc-units', units); } catch { /* ignore */ }
-    paintUnits(); paintContainer(); paintBoxes(); render(last);
+    paintUnits(); paintContainer(); paintBoxes(); paintMode(); render(last);
   }));
+  root.querySelectorAll('[data-mode]').forEach((b) => b.addEventListener('click', () => {
+    state.mode = b.dataset.mode;
+    if (state.mode === 'semi' && !state.steps.length) state.steps = state.items.map((_, i) => ({ item: i, qty: null, orient: null, newSection: false }));
+    paintMode(); schedule();
+  }));
+  $('[data-addstep]').addEventListener('click', () => {
+    if (state.steps.length >= 20) return;
+    state.steps.push({ item: 0, qty: null, orient: null, newSection: false }); paintSteps(); schedule();
+  });
+  $('[data-steps]').addEventListener('click', (e) => {
+    const card = e.target.closest('.stepcard'); if (!card) return;
+    const si = +card.dataset.si;
+    const mv = e.target.closest('[data-move]');
+    if (mv) { const j = si + +mv.dataset.move; if (j < 0 || j >= state.steps.length) return; [state.steps[si], state.steps[j]] = [state.steps[j], state.steps[si]]; paintSteps(); schedule(); }
+    else if (e.target.closest('[data-sdel]')) { state.steps.splice(si, 1); paintSteps(); schedule(); }
+  });
   $('[data-add]').addEventListener('click', () => {
     if (state.items.length >= 10) return;
     const prev = state.items[state.items.length - 1];
     state.items.push({ name: `Box ${state.items.length + 1}`, l: prev ? prev.l : 400, w: prev ? prev.w : 300, h: prev ? prev.h : 300, weight: prev ? prev.weight : 5, qty: 50, rotation: 'any', stackable: true });
-    paintBoxes(); schedule();
+    paintBoxes(); paintMode(); schedule();
   });
   $('[data-boxes]').addEventListener('click', (e) => {
+    const chip = e.target.closest('[data-o]');
+    if (chip) {
+      const i = +chip.closest('.boxcard').dataset.i; const it = state.items[i]; const k = +chip.dataset.o;
+      const on = allowedIdx(it);
+      if (on.includes(k)) { if (on.length === 1) return; it.orients = on.filter((x) => x !== k); } else it.orients = [...on, k].sort();
+      paintOrients(chip.closest('.boxcard'), it, i);
+      if (state.mode === 'semi') paintSteps();
+      schedule(); return;
+    }
     const d = e.target.closest('[data-del]'); if (!d) return;
-    state.items.splice(+d.closest('.boxcard').dataset.i, 1); paintBoxes(); schedule();
+    const di = +d.closest('.boxcard').dataset.i;
+    state.items.splice(di, 1);
+    state.steps = state.steps.filter((st) => st.item !== di).map((st) => (st.item > di ? { ...st, item: st.item - 1 } : st));
+    paintBoxes(); paintMode(); schedule();
   });
 
   // ---------- engine ----------
@@ -122,8 +250,10 @@ export function initPlanner(root) {
   }
   function run() {
     const { container } = engineInput();
-    const items = state.items.map((it) => ({ l: it.l, w: it.w, h: it.h, weight: it.weight, qty: it.qty, rotation: it.rotation, stackable: it.stackable !== false }));
-    worker.postMessage({ id: ++reqId, container, items, opts: { priority: !!state.priority, timeMs: 1200 } });
+    const items = state.items.map((it) => ({ l: it.l, w: it.w, h: it.h, weight: it.weight, qty: it.qty, rotation: it.rotation, orients: it.rotation === 'custom' ? allowedIdx(it) : undefined, stackable: it.stackable !== false }));
+    const opts = { priority: !!state.priority, timeMs: 1200 };
+    if (state.mode === 'semi') { opts.steps = state.steps.map((st) => ({ item: st.item, qty: st.qty, orient: st.orient, newSection: !!st.newSection })); opts.fillRest = state.fillRest !== false; }
+    worker.postMessage({ id: ++reqId, container, items, opts });
   }
   worker.onmessage = (e) => { if (e.data.id !== reqId) return; last = e.data; render(last); };
 
@@ -142,7 +272,11 @@ export function initPlanner(root) {
   }
   const step = $('[data-step]');
   step.addEventListener('input', () => { view && view.setStep(+step.value); stepText(); });
-  const stepText = () => { R('stepTxt').textContent = `${fmt(+step.value)} of ${fmt(boxes.length)} boxes`; };
+  const stepText = () => {
+    const v = +step.value; const b = boxes[v - 1];
+    const stTxt = b && b.s >= 0 && last && last.steps ? (last.steps[b.s].auto ? ' · automatic part' : ` · step ${b.s + 1}`) : '';
+    R('stepTxt').textContent = `${fmt(v)} of ${fmt(boxes.length)} boxes${stTxt}`;
+  };
 
   async function render(d) {
     if (!d) return;
@@ -161,13 +295,28 @@ export function initPlanner(root) {
     // warnings
     const w = [];
     if (d.errors.length) w.push(`The plan failed its own check (${d.errors.join(', ')}). Please report these inputs through the contact page.`);
-    if (ordered - n > 0) {
+    boxes = [];
+    for (let i = 0; i < d.buf.length; i += 8) boxes.push({ k: d.itemIdx[d.buf[i]], x: d.buf[i + 1], y: d.buf[i + 2], z: d.buf[i + 3], dx: d.buf[i + 4], dy: d.buf[i + 5], dz: d.buf[i + 6], s: d.buf[i + 7] });
+    const semi = !!d.steps;
+    const asked = semi ? d.steps.reduce((t, st) => t + st.asked, 0) : ordered;
+    // boxes no step asked for (only when the automatic last step is off)
+    const hasAuto = !semi || d.steps.some((st) => st.auto);
+    const unasked = semi ? Math.max(0, ordered - asked) : 0;
+    if (!hasAuto && unasked > 0) w.push(`${fmt(unasked)} boxes are not in any step. Add a step for them, or tick “Then load whatever is left automatically”.`);
+    const notFit = hasAuto ? ordered - n : asked - n;
+    if (notFit > 0) {
       const byWeight = d.cont.maxWeight > 0 && d.totals.w > d.cont.maxWeight * 0.98;
-      w.push(byWeight ? `Weight limit reached: ${fmt(ordered - n)} boxes stay out because the load would exceed ${fmt(u.fromKG(d.cont.maxWeight))} ${u.wt}.` : `${fmt(ordered - n)} boxes do not fit in this space.`);
+      w.push(byWeight ? `Weight limit reached: ${fmt(notFit)} boxes stay out because the load would exceed ${fmt(u.fromKG(d.cont.maxWeight))} ${u.wt}.` : `${fmt(notFit)} boxes do not fit in this space${semi ? ' with these steps' : ''}.`);
     }
+    if (semi) d.steps.forEach((st, si) => {
+      if (st.auto) return;
+      const cfg = state.steps[si]; const name = esc(state.items[cfg?.item]?.name || 'this box type');
+      if (st.asked === 0) w.push(`Step ${si + 1} has nothing to load: no “${name}” are left for it.`);
+      else if (st.loaded < st.asked) w.push(`Step ${si + 1} loaded ${fmt(st.loaded)} of ${fmt(st.asked)} “${name}”: the rest do not fit in the space left${cfg?.orient != null ? ' in the position chosen' : ''}.`);
+    });
     state.items.forEach((it, i) => {
       const dims = [it.l, it.w, it.h];
-      if (it.qty > 0 && perItem[i] === 0) w.push(`“${esc(it.name)}” could not be placed at all — check its size against the inside dimensions${mode === 'container' ? ' and the door opening' : ''}.`);
+      if (hasAuto && it.qty > 0 && perItem[i] === 0) w.push(`“${esc(it.name)}” could not be placed at all — check its size against the inside dimensions${mode === 'container' ? ' and the door opening' : ''}.`);
       if (!dims.every((x) => x > 0)) w.push(`“${esc(it.name)}” needs a length, width and height.`);
     });
     if (d.cog && n) {
@@ -176,7 +325,20 @@ export function initPlanner(root) {
     }
     R('warn').innerHTML = w.map((x) => `<p class="warn">${x}</p>`).join('');
     // table
-    R('table').innerHTML = state.items.map((it, i) => `<tr><td><i style="display:inline-block;width:12px;height:12px;border-radius:3px;background:${SWATCH[i % SWATCH.length]};margin-right:6px"></i>${esc(it.name)}</td><td class="num">${fmt(it.qty)}</td><td class="num">${fmt(perItem[i])}</td><td class="num">${fmt(Math.max(0, it.qty - perItem[i]))}</td><td class="num">${fmt(u.fromKG(perItem[i] * it.weight))} ${u.wt}</td></tr>`).join('');
+    const used = (list) => { // "H up · L along: 540, L up · W across: 120"
+      const c = new Map();
+      for (const b of list) { const o = orientOf(state.items[b.k], b); c.set(o, (c.get(o) || 0) + 1); }
+      return [...c.entries()].sort((a, b) => b[1] - a[1]).map(([o, m]) => `${o >= 0 ? SHORT[o] : '?'}: ${fmt(m)}`).join('<br>') || '–';
+    };
+    R('table').innerHTML = state.items.map((it, i) => `<tr><td><i style="display:inline-block;width:12px;height:12px;border-radius:3px;background:${SWATCH[i % SWATCH.length]};margin-right:6px"></i>${esc(it.name)}</td><td class="num">${fmt(it.qty)}</td><td class="num">${fmt(perItem[i])}</td><td class="num">${fmt(Math.max(0, it.qty - perItem[i]))}</td><td class="num">${fmt(u.fromKG(perItem[i] * it.weight))} ${u.wt}</td><td style="white-space:nowrap">${used(boxes.filter((b) => b.k === i))}</td></tr>`).join('');
+    R('stepbox').hidden = !semi;
+    R('steptable').innerHTML = semi ? d.steps.map((st, si) => {
+      const cfg = st.auto ? null : state.steps[si];
+      const label = st.auto ? 'Rest' : String(si + 1);
+      const type = st.auto ? 'Everything left' : esc(state.items[cfg?.item]?.name || '');
+      const pos = cfg && cfg.orient != null ? SHORT[cfg.orient] : `Automatic${st.loaded ? '<br><span class="small">' + used(boxes.filter((b) => b.s === si)) + '</span>' : ''}`;
+      return `<tr><td>${label}${cfg?.newSection ? ' <span class="small">(new section)</span>' : ''}</td><td>${type}</td><td style="white-space:nowrap">${pos}</td><td class="num">${fmt(st.asked)}</td><td class="num">${fmt(st.loaded)}</td></tr>`;
+    }).join('') : '';
     R('legend').innerHTML = state.items.map((it, i) => `<span><i style="background:${SWATCH[i % SWATCH.length]}"></i>${esc(it.name)}: ${fmt(perItem[i])}</span>`).join('');
     // formula steps with live numbers
     const L = u.fromMM(d.cont.L), W = u.fromMM(d.cont.W), H = u.fromMM(d.cont.H);
@@ -189,9 +351,7 @@ export function initPlanner(root) {
       d.cont.maxWeight > 0 ? `Weight = ${fmt(wt)} ${u.wt} of ${fmt(u.fromKG(d.cont.maxWeight))} ${u.wt} allowed (${fmt(d.totals.w / d.cont.maxWeight * 100, 1)}%)` : `Weight = ${fmt(wt)} ${u.wt} (no limit entered)`,
     ].join('<br>');
     // 3D
-    boxes = [];
     const { offset } = engineInput();
-    for (let i = 0; i < d.buf.length; i += 7) boxes.push({ k: d.itemIdx[d.buf[i]], x: d.buf[i + 1], y: d.buf[i + 2], z: d.buf[i + 3], dx: d.buf[i + 4], dy: d.buf[i + 5], dz: d.buf[i + 6] });
     step.max = String(boxes.length); step.value = String(boxes.length); stepText();
     const v = await ensureView();
     v.setPlan({ cont: d.cont, boxes, colors: SWATCH, offset });
@@ -206,7 +366,11 @@ export function initPlanner(root) {
     if (!m) return null;
     try {
       const s = JSON.parse(decodeURIComponent(escape(atob(m[1]))));
-      if (s && s.cont && Array.isArray(s.items) && s.items.length) { s.items = s.items.slice(0, 10); return s; }
+      if (s && s.cont && Array.isArray(s.items) && s.items.length) {
+        s.items = s.items.slice(0, 10);
+        s.steps = Array.isArray(s.steps) ? s.steps.slice(0, 20).filter((st) => st && Number.isInteger(st.item) && st.item >= 0 && st.item < s.items.length) : [];
+        return s;
+      }
     } catch { /* bad link */ }
     return null;
   }
@@ -217,7 +381,7 @@ export function initPlanner(root) {
   });
   $('[data-print]').addEventListener('click', () => window.print());
 
-  paintUnits(); paintContainer(); paintBoxes(); run();
+  paintUnits(); paintContainer(); paintBoxes(); paintMode(); run();
 }
 
 function esc(s) { return String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }

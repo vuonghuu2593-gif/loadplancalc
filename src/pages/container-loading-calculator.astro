@@ -15,7 +15,7 @@ const n = (v: number) => v.toLocaleString('en-US');
 ---
 <ToolPage
   title="Container Loading Calculator (Free 3D Load Plan)"
-  description="Free 3D container loading calculator: enter your cartons and see how many fit in a 20ft, 40ft or 40ft high cube container, the space and payload used, and a step-by-step loading plan."
+  description="Free 3D container loading calculator: see how many cartons fit in a 20ft, 40ft or 40ft high cube container. Fully automatic or semi-automatic loading steps, with carton orientation you can choose."
   h1="Container loading calculator"
   name="Container loading calculator"
   lede={`Enter your carton sizes, weights and quantities to see how many fit in a 20', 40', 40' high cube or 45' container, with a 3D plan you can step through. For example, 600 × 400 × 400 mm cartons: <strong>660 fit in a 40' high cube</strong> (inside ${n(hc.L)} × ${n(hc.W)} × ${n(hc.H)} mm) — 30 rows along the length, each row 22 cartons: three columns of six lying 600 mm across plus one column of four standing 600 mm tall.`}
@@ -33,6 +33,28 @@ const n = (v: number) => v.toLocaleString('en-US');
       <li><strong>Can carry boxes on top:</strong> untick for fragile cartons or crates that must not be stacked on.</li>
       <li><strong>Load in list order:</strong> by default the planner loads whatever combination uses the most space. Tick this when the first box type must go in before the others.</li>
     </ul>
+  </section>
+
+  <section class="prose">
+    <h2>Choosing carton orientation</h2>
+    <p>Every carton can sit in six positions: one of its three sides faces up, and its length either runs along the container (toward the door) or across it. Under <strong>Orientation</strong> you choose how much the planner may decide:</p>
+    <ul class="plain">
+      <li><strong>Automatic:</strong> the planner tries every allowed position for each block and keeps the mix that loads the most. With “this side up” it only turns cartons flat.</li>
+      <li><strong>Choose the positions allowed:</strong> tap the drawings to allow or block each of the six positions — for example, allow only “height up” and “length up” for cartons that must not lie on their side. Leave one position ticked to fix it completely.</li>
+    </ul>
+    <p>The table under the plan shows which positions were used and how many cartons are in each. For the 600 × 400 × 400 mm carton above, fixing it in one position (400 mm up, 600 mm along) gives 20 × 5 × 6 = <strong>600 cartons</strong> in a 40' high cube, while letting the planner mix positions gives 660.</p>
+  </section>
+
+  <section class="prose">
+    <h2>Fully automatic or semi-automatic loading</h2>
+    <p><strong>Fully automatic</strong> leaves everything to the planner: the order of box types, where each block goes and which way each carton faces.</p>
+    <p><strong>Semi-automatic</strong> lets you set the loading sequence the way your warehouse will actually load, and the planner works out the exact position of every carton in each step. Each step has:</p>
+    <ul class="plain">
+      <li><strong>Box type and how many:</strong> leave the quantity empty to load all that are left of that type.</li>
+      <li><strong>Position:</strong> automatic (best of the positions you allow for that box) or one fixed position for this step only.</li>
+      <li><strong>Start a new section:</strong> the step begins in front of everything already loaded, so later cargo is not tucked into gaps behind it. Use this to keep orders, destinations or stops together.</li>
+    </ul>
+    <p>Steps run in order from the back wall toward the door, and you can move or delete them. With “Then load whatever is left automatically” ticked, the planner finishes with the cartons no step took. The step table shows how many cartons each step asked for and how many it loaded, and the loading-step slider under the 3D view tells you which step each carton belongs to. Every semi-automatic plan passes the same independent check as an automatic one, plus checks that each step used only its own box type, kept its fixed position, and that new sections start in front of earlier cargo.</p>
   </section>
 
   <section class="prose">
