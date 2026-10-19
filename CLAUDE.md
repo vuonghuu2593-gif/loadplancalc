@@ -58,6 +58,11 @@ to `main` without asking. Because nobody reviews before publishing, the checks b
 also check its numbers against a hand calculation for its defaults and one other case, and switch units both ways.
 After pushing, wait for the deploy and open the new page on the live domain.
 
+## Internal links and indexing (traffic plan, 2026-10-19)
+- Every new page is linked from its hub (or the home page) and from at least 2 related existing pages, and links back to them.
+- No orphan pages: every sitemap URL must have at least one internal link pointing to it.
+- When Vương's computer is online in a run, request indexing of the new URL in Search Console (URL Inspection); once per URL, never repeated.
+
 ## Work tracking
 - `ops/QUEUE.md`: ordered backlog. Take the first unchecked item; tick it when live; move blocked items to the end with a reason.
 - `ops/LOG.md`: append one dated line per run.
