@@ -3,6 +3,7 @@
 // "What's new") in the same commit; scripts/guide-check.mjs enforces it in the site test.
 import Base from '../layouts/Base.astro';
 import data from '../data/containers.json';
+import pallets from '../data/pallets.json';
 import stamp from '../../ops/guide-stamp.json';
 import { SITE_NAME } from '../site.js';
 const updated = new Date(stamp.updated + 'T00:00:00Z').toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' });
@@ -20,6 +21,7 @@ const schema = { '@context': 'https://schema.org', '@type': 'HowTo', name: `How 
     <nav class="chips" aria-label="On this page">
       <a href="#quick-start">Quick start</a>
       <a href="#container-loading-calculator">Container loading calculator</a>
+      <a href="#pallet-loading-calculator">Pallet loading calculator</a>
       <a href="#orientation">Carton orientation</a>
       <a href="#loading-method">Automatic or step by step</a>
       <a href="#edit-by-hand">Editing by hand</a>
@@ -32,7 +34,7 @@ const schema = { '@context': 'https://schema.org', '@type': 'HowTo', name: `How 
   <section class="prose" id="quick-start">
     <h2>Quick start</h2>
     <ol class="plain">
-      <li>Open the <a href="/container-loading-calculator/">container loading calculator</a>. It already shows a worked example, so you can see a result before typing anything.</li>
+      <li>Open the <a href="/container-loading-calculator/">container loading calculator</a> (or the <a href="/pallet-loading-calculator/">pallet loading calculator</a> for cartons on one pallet). It already shows a worked example, so you can see a result before typing anything.</li>
       <li>Choose your container under <strong>Container type</strong>, or pick <strong>Custom size</strong> and type its inside size.</li>
       <li>Under <strong>Boxes</strong>, change the example cartons to yours: size, weight and quantity. Add more box types with <strong>+ Add box type</strong>.</li>
       <li>The result updates as you type: how many boxes fit, the volume and weight used, and a 3D plan you can turn and step through.</li>
@@ -61,6 +63,30 @@ const schema = { '@context': 'https://schema.org', '@type': 'HowTo', name: `How 
       <li><strong>Orientation:</strong> which way the box may be turned (next section).</li>
       <li><strong>Can carry boxes on top:</strong> untick for fragile cartons or crates; nothing will be stacked on them.</li>
       <li><strong>✕</strong> removes a box type. <strong>+ Add box type</strong> copies the size of the last type to save typing.</li>
+    </ul>
+  </section>
+
+  <section class="prose" id="pallet-loading-calculator">
+    <h2>Pallet loading calculator</h2>
+    <p>The <a href="/pallet-loading-calculator/">pallet loading calculator</a> stacks cartons on one pallet and shows how many fit, the Ti-Hi and a 3D plan. It uses the same planner as the container calculator, so boxes, orientation, loading steps, hand editing, sharing and printing work as described in the other sections of this guide; only the pallet inputs and two results are different.</p>
+    <h3>Pallet</h3>
+    <ul class="plain">
+      <li><strong>Pallet size:</strong> {pallets.pallets.map((x) => x.name).join(', ')}. A preset fills in the pallet length, width and height from the maker's published figures (see <a href="/pallet-sizes/">standard pallet sizes</a>) and sets <strong>Max load weight</strong> to the pallet's safe working load. The 48 × 40 in pallet is entered as exactly 48 × 40 in.</li>
+      <li><strong>Custom size:</strong> chosen automatically as soon as you change the pallet length, width or height.</li>
+      <li><strong>Max height incl. pallet:</strong> how tall the loaded pallet may be, measured from the floor. The value filled in at the start is only an example; enter the limit your racking, trailer, container door or customer sets. The pallet height is taken off, so the boxes get the rest.</li>
+      <li><strong>Max load weight:</strong> the most the boxes on the pallet may weigh together. Change it to your own limit, or leave it empty for no limit.</li>
+      <li><strong>Overhang per side:</strong> how far boxes may stick out past each edge of the pallet. 0 keeps every box on the deck.</li>
+      <li><strong>Pallet height:</strong> the height of the empty pallet.</li>
+    </ul>
+    <h3>Result</h3>
+    <ul class="plain">
+      <li><strong>Boxes loaded</strong>, <strong>Volume used</strong> (of the space above the pallet up to the height limit), <strong>Weight loaded</strong>, <strong>Boxes left over</strong>, <strong>Space left</strong> and <strong>Weight left</strong> work as in the container calculator.</li>
+      <li><strong>Ti × Hi (per layer × layers):</strong> with one box type, the boxes in one layer of a full pallet and the number of layers, for example “8 × 6” (48 per pallet). If the weight limit stops the top layer short, it shows as, for example, “16 × 5 + 13”. When the boxes stand in different positions or the layers differ, no single Ti-Hi is shown and the note says why; choose “this side up” under Orientation for even layers. Not shown with more than one box type, in semi-automatic mode or while you edit by hand.</li>
+      <li><strong>Pallets for your quantity:</strong> your quantity divided by the boxes on a full pallet, rounded up, with how many go on the last pallet (for example “2 full of 48 + 1 with 4”).</li>
+      <li>With one box type, the plan is built layer by layer from the bottom, so a quantity smaller than a full pallet shows as full layers and a part layer on top. The loading step slider adds the boxes in that order.</li>
+      <li><strong>3D view:</strong> the brown slab is the pallet; the outline is the load space (pallet plus overhang, up to the height limit). <strong>Front</strong> looks at the pallet's front edge.</li>
+      <li><strong>Notes:</strong> boxes that do not fit on this pallet (they go on the next pallets: see Pallets for your quantity), the max load weight being reached, and the centre of gravity of the load: how far it is off the middle of the pallet along the length and across the width, and how high above the deck.</li>
+      <li>When editing by hand, the push buttons are <strong>← Back edge</strong> and <strong>Front edge →</strong> instead of back wall and door; left and right are as seen from the front edge.</li>
     </ul>
   </section>
 
@@ -154,6 +180,7 @@ const schema = { '@context': 'https://schema.org', '@type': 'HowTo', name: `How 
   <section class="prose" id="whats-new">
     <h2>What's new</h2>
     <ul class="plain">
+      <li><strong>October 21, 2026:</strong> new <a href="/pallet-loading-calculator/">pallet loading calculator</a>: cartons on a Euro, EPAL or 48 × 40 in pallet with overhang, height and weight limits, Ti-Hi, pallets needed for your quantity, and a 3D plan built layer by layer. Fixed: editing a plan by hand with box sizes in inches no longer shows a failed check.</li>
       <li><strong>October 20, 2026:</strong> new reference page: <a href="/pallet-sizes/">standard pallet sizes</a> (EPAL and 48 × 40 in), with how to enter pallets in the planner.</li>
       <li><strong>October 19, 2026:</strong> the result shows the space and payload left, and how many more of each box type still fit around the plan.</li>
       <li><strong>October 19, 2026:</strong> edit the 3D plan by hand — select, turn, push, move, remove and place boxes, fill the rest automatically, undo and redo, with every change checked. Hand edits are kept in shared links. This guide added.</li>

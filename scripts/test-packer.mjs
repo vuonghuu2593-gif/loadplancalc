@@ -1,6 +1,6 @@
 // Engine tests: hand-checked cases plus random cases checked by the independent validator.
 // Usage: node scripts/test-packer.mjs
-import { pack, validate } from '../src/scripts/packer.js';
+import { pack, validate, palletPack, layersOf } from '../src/scripts/packer.js';
 import { makeCtx, placeProblem, spots, nudge, fillAround, onTop, stackFrom, asResult, roomFor } from '../src/scripts/editor.js';
 let fails = 0;
 const ok = (cond, msg) => { if (!cond) { fails++; console.log('FAIL', msg); } else console.log('ok  ', msg); };
@@ -203,6 +203,45 @@ ok(badF === 0, `25 random "remove some, fill again" plans valid (${badF} bad)`);
   const its2 = [A, B]; const auto0 = pack(HC, its2); const auto = auto0.placed.map((p) => ({ ...p, k: auto0.items[p.k].idx }));
   const ra = roomFor(HC, its2, auto, 0), rb = roomFor(HC, its2, auto, 1);
   ok(validate(ra.result).length === 0 && validate(rb.result).length === 0 && ra.more > 0 && rb.more > 0, `defaults (900 loaded): room for ${ra.more} more A or ${rb.more} more B`);
+}
+// 15. Pallet mode (palletPack + layersOf): hand-checked Ti-Hi cases and random pallets
+{
+  const IN = 25.4, LB = 0.45359237;
+  // Euro pallet 1200 x 800, 144 mm high, 1800 mm limit -> 1656 mm above the deck. 400x300x250 upright:
+  // 1200/300 = 4 along x 800/400 = 2 across = 8 per layer; floor(1656/250) = 6 layers -> 48; 48 x 12 = 576 kg <= 1500
+  const eu = { L: 1200, W: 800, H: 1800 - 144, maxWeight: 1500 };
+  const ctn = { l: 400, w: 300, h: 250, weight: 12, rotation: 'upright' };
+  const r1 = palletPack(eu, [{ ...ctn, qty: 100 }]); const l1 = r1.pallet.layers;
+  ok(validate(r1).length === 0 && r1.totals.n === 48 && r1.pallet.perPallet === 48 && l1.kind === 'even' && l1.ti === 8 && l1.hi === 6, `Euro pallet 400x300x250 x100: 48 = 8 x 6 (got ${r1.totals.n} = ${l1.ti} x ${l1.hi}, ${l1.kind})`);
+  // fewer than a full pallet: built layer by layer (8 + 8 + 4), full-pallet count still 48
+  const r2 = palletPack(eu, [{ ...ctn, qty: 20 }]); const c2 = layersOf(r2.placed).counts.join();
+  ok(validate(r2).length === 0 && r2.totals.n === 20 && c2 === '8,8,4' && r2.pallet.perPallet === 48, `20 cartons: layers 8,8,4 and 48 per full pallet (got ${c2}, ${r2.pallet.perPallet})`);
+  // 48 x 40 in, 141 mm high, 60 in limit -> 1383 mm; 12x10x8 in: 4 x 4 = 16 per layer, floor(1383/203.2) = 6 layers = 96,
+  // but 2800 lb / 30 lb = 93.3 -> 93 = 16 x 5 + 13
+  const us = { L: 48 * IN, W: 40 * IN, H: 60 * IN - 141, maxWeight: 2800 * LB };
+  const r3 = palletPack(us, [{ l: 12 * IN, w: 10 * IN, h: 8 * IN, weight: 30 * LB, qty: 200, rotation: 'upright' }]); const l3 = r3.pallet.layers;
+  ok(validate(r3).length === 0 && r3.totals.n === 93 && l3.kind === 'top' && l3.ti === 16 && l3.hi === 6 && l3.top === 13 && r3.pallet.weightLimited, `48x40 in, 12x10x8 in at 30 lb, 60 in: 93 = 16 x 5 + 13 (got ${r3.totals.n}, ${l3.ti} x ${l3.hi - 1} + ${l3.top})`);
+  // same at 20 lb: 96 = 16 x 6, not weight limited
+  const r4 = palletPack(us, [{ l: 12 * IN, w: 10 * IN, h: 8 * IN, weight: 20 * LB, qty: 200, rotation: 'upright' }]);
+  ok(validate(r4).length === 0 && r4.totals.n === 96 && r4.pallet.layers.kind === 'even' && !r4.pallet.weightLimited, `same at 20 lb: 96 = 16 x 6 (got ${r4.totals.n})`);
+  // any orientation: no single Ti-Hi, never fewer than upright
+  const r5 = palletPack(eu, [{ ...ctn, rotation: 'any', qty: 100 }]);
+  ok(validate(r5).length === 0 && r5.totals.n >= 48, `any orientation: ${r5.totals.n} >= 48, layers ${r5.pallet.layers.mixed ? 'mixed' : r5.pallet.layers.kind}`);
+  // overhang 25 mm per side (1250 x 850): still 8 per layer (area bound 8.85)
+  const r6 = palletPack({ ...eu, L: 1250, W: 850 }, [{ ...ctn, qty: 100 }]);
+  ok(validate(r6).length === 0 && r6.totals.n === 48, `25 mm overhang: 48 (got ${r6.totals.n})`);
+  // layersOf rejects boxes off a layer line
+  ok(layersOf([{ z: 0, dz: 100 }, { z: 50, dz: 100 }]).mixed === true && layersOf([{ z: 0, dz: 100 }, { z: 0, dz: 200 }]).mixed === true, 'layersOf: off-line or mixed heights give no Ti-Hi');
+  // random pallets: every plan valid, never fewer boxes than the ordinary plan
+  let badP = 0;
+  for (let s = 1; s <= 20; s++) {
+    let x = s * 104729; const R = () => ((x = (x * 1103515245 + 12345) % 2147483648) / 2147483648);
+    const C = { L: 600 + R() * 700, W: 500 + R() * 600, H: 400 + R() * 1600, maxWeight: R() < 0.6 ? 200 + R() * 1300 : 0 };
+    const it = { l: 100 + R() * 500, w: 100 + R() * 400, h: 80 + R() * 400, weight: R() * 30, qty: 1 + Math.floor(R() * 150), rotation: R() < 0.6 ? 'upright' : 'any', stackable: R() > 0.1 };
+    const r = palletPack(C, [it], { timeMs: 300 }); const e = validate(r); const plain = pack(C, [it], { timeMs: 300 }).totals.n;
+    if (e.length || r.totals.n < plain || r.pallet.perPallet < r.totals.n) { badP++; console.log('pallet fuzz', s, e, r.totals.n, plain, r.pallet.perPallet); }
+  }
+  ok(badP === 0, `20 random pallets valid and not below the ordinary plan (${badP} bad)`);
 }
 console.log(fails ? `${fails} failing` : 'all engine tests pass');
 process.exit(fails ? 1 : 0);

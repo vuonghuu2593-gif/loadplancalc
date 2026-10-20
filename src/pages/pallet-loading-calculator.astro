@@ -1,0 +1,107 @@
+---
+import ToolPage from '../layouts/ToolPage.astro';
+import LoadPlanner from '../components/LoadPlanner.astro';
+import data from '../data/pallets.json';
+import { palletPack, validate } from '../scripts/packer.js';
+const KG_PER_LB = 0.45359237, MM_PER_IN = 25.4;
+const n = (v: number, d = 0) => v.toLocaleString('en-US', { maximumFractionDigits: d, minimumFractionDigits: 0 });
+const inch = (mm: number, d = 1) => n(mm / MM_PER_IN, d);
+// Presets: footprint and height from pallets.json (EPAL / CHEP), safe working load as the starting max load
+// weight. The CHEP pallet uses its printed inch size (48 × 40 in = 1,219.2 × 1,016 mm); CHEP's 1219 mm is
+// that length rounded to the millimetre.
+const presets = data.pallets.map((x) => ({
+  id: x.id, name: x.name, source: x.publisher, url: x.url,
+  L: x.Lin ? x.Lin * MM_PER_IN : x.L, W: x.Win ? x.Win * MM_PER_IN : x.W, H: x.H,
+  maxWeight: x.swlKg ?? (x.swlLb as number) * KG_PER_LB,
+}));
+const euro = presets.find((p) => p.id === 'epal1')!;
+const chep = presets.find((p) => p.id === 'chep4840')!;
+const EX_H = 1800; // example height limit of the loaded pallet (user-set, not a standard)
+const carton = { name: 'Carton', l: 400, w: 300, h: 250, weight: 12, qty: 100, rotation: 'upright', stackable: true };
+const defaults = {
+  cont: { preset: euro.id, L: euro.L, W: euro.W, H: EX_H, overhang: 0, palletH: euro.H, maxWeight: euro.maxWeight },
+  priority: false,
+  items: [carton],
+};
+// The worked example and the reference table are computed with the engine at build time and checked
+// by the independent validator (the build fails if a plan does not pass).
+function perPallet(p: typeof euro, box: { l: number; w: number; h: number; weight: number }, maxH = EX_H) {
+  const r = palletPack({ L: p.L, W: p.W, H: maxH - p.H, maxWeight: p.maxWeight }, [{ ...box, qty: 20000, rotation: 'upright', stackable: true }], { timeMs: 1200 });
+  const errs = validate(r);
+  if (errs.length || r.totals.n !== r.pallet!.perPallet) throw new Error(`pallet table plan failed its check: ${p.id} ${errs.join(', ')}`);
+  return { n: r.totals.n, lay: r.pallet!.layers as any, kg: r.totals.w };
+}
+const ex = perPallet(euro, carton);
+if (ex.n !== 48 || ex.lay.ti !== 8 || ex.lay.hi !== 6) throw new Error(`worked example changed: ${ex.n} = ${ex.lay.ti} x ${ex.lay.hi}; update the lede`);
+const boxB = { l: 12 * MM_PER_IN, w: 10 * MM_PER_IN, h: 8 * MM_PER_IN, weight: 30 * KG_PER_LB };
+const rows = presets.map((p) => ({ p, a: perPallet(p, carton), b: perPallet(p, boxB) }));
+const tihi = (r: { n: number; lay: any }) => (r.lay.mixed ? `${n(r.n)}` : r.lay.kind === 'even' ? `${r.lay.ti} × ${r.lay.hi} = ${n(r.n)}` : r.lay.kind === 'top' ? `${r.lay.ti} × ${r.lay.hi - 1} + ${r.lay.top} = ${n(r.n)}` : `${n(r.n)}`);
+const swl = (p: typeof euro) => (p.id === 'chep4840' ? `${n(2800)} lb (${n(p.maxWeight)} kg)` : `${n(p.maxWeight)} kg (${n(p.maxWeight / KG_PER_LB)} lb)`);
+---
+<ToolPage
+  title="Pallet Loading Calculator: Cartons per Pallet and Ti-Hi"
+  description="Free pallet calculator: how many cartons fit on a Euro pallet, EPAL or 48 × 40 in pallet, with Ti-Hi (boxes per layer × layers), overhang, height and weight limits, and a 3D stacking plan."
+  h1="Pallet loading calculator"
+  name="Pallet loading calculator"
+  lede={`Enter your carton size, the pallet and how high the loaded pallet may be, and see how many cartons fit, the Ti-Hi (cartons per layer × layers) and a 3D stacking plan. For example, 400 × 300 × 250 mm cartons (15.7 × 11.8 × 9.8 in) kept this side up on a Euro pallet (${n(euro.L)} × ${n(euro.W)} mm, ${euro.H} mm high) with a ${n(EX_H)} mm height limit: <strong>8 per layer × 6 layers = 48 cartons</strong>. Each layer is 4 cartons along the ${n(euro.L)} mm side (4 × 300 = 1,200 mm) and 2 across the ${n(euro.W)} mm side (2 × 400 = 800 mm); above the deck there is ${n(EX_H)} − ${euro.H} = ${n(EX_H - euro.H)} mm, room for 6 layers of 250 mm (1,500 mm) but not 7 (1,750 mm). At 12 kg each the load weighs 576 kg, within EPAL's ${n(euro.maxWeight)} kg safe working load, and 100 cartons need 3 pallets (2 of 48 and 1 of 4).`}
+>
+  <LoadPlanner mode="pallet" defaults={defaults} palletPresets={presets} />
+
+  <section class="prose">
+    <h2>How the calculator works</h2>
+    <p>The pallet top, plus the overhang you allow on each side, is the floor of the load space; the height limit minus the pallet's own height is its ceiling. With no overhang, a Euro pallet with a {n(EX_H)} mm limit gives a load space of {n(euro.L)} × {n(euro.W)} × {n(EX_H - euro.H)} mm. The planner then fills that space with the same block-building method as the <a href="/container-loading-calculator/">container loading calculator</a>: blocks of identical cartons, many variations tried, and the plan that loads the most volume kept.</p>
+    <p>With one box type, it first plans a full pallet — as many cartons as fit, ignoring the weight limit — and then builds your pallet from the bottom up: the lowest layer first, then the next, until your quantity or the max load weight is reached. A pallet built that way always stands, because each carton rests on cartons in the layers already placed. If the ordinary plan would load more, that one is used instead.</p>
+    <p>Every plan is checked independently before it is shown: no carton overlaps another or sticks out past the pallet edge plus overhang or above the height limit, “this side up” cartons are not tipped, every carton stands fully on the pallet or on cartons below it, nothing stands on a carton marked as not stackable, and the total stays within the max load weight.</p>
+    <ul class="plain">
+      <li><strong>Ti × Hi:</strong> with one box type, the planner reads the layers of a full pallet: Ti is the cartons in one layer, Hi the number of layers. It is shown only when every carton stands with the same side up on a clean layer line. If the weight limit stops the last layer short, it shows as, for example, 16 × 5 + 13.</li>
+      <li><strong>Pallets for your quantity:</strong> your quantity divided by the cartons on a full pallet (within the max load weight), rounded up, with how many go on the last pallet.</li>
+      <li><strong>Max load weight</strong> starts at the pallet's safe working load from its maker; change it to your own limit (a customer's, a racking rating, or the forklift's). Leave it empty for no limit.</li>
+      <li><strong>Max height incl. pallet</strong> is your limit for the loaded pallet, measured from the floor. The {n(EX_H)} mm filled in is an example, not a standard: use the figure your warehouse racking, trailer, container door or customer sets.</li>
+    </ul>
+    <p>The formula lines under the 3D view repeat these steps with your numbers.</p>
+  </section>
+
+  <section class="prose">
+    <h2>Cartons per pallet for two example cartons</h2>
+    <p>Computed with the planner for each pallet below, cartons kept this side up, a {n(EX_H)} mm ({inch(EX_H)} in) height limit including the pallet, no overhang, and the pallet's safe working load as the weight limit. Carton A is 400 × 300 × 250 mm at 12 kg; carton B is 12 × 10 × 8 in at 30 lb.</p>
+    <div class="tablebox">
+      <table>
+        <thead><tr><th>Pallet</th><th class="num">Footprint (mm)</th><th class="num">Above the deck</th><th class="num">Carton A: Ti × Hi</th><th class="num">Carton B: Ti × Hi</th><th class="num">Safe working load</th></tr></thead>
+        <tbody>
+          {rows.map(({ p, a, b }) => <tr>
+            <td><a href={p.url} rel="noopener">{p.name}</a></td>
+            <td class="num">{n(p.L, 1)} × {n(p.W)}</td>
+            <td class="num">{n(EX_H - p.H)} mm</td>
+            <td class="num">{tihi(a)}</td>
+            <td class="num">{tihi(b)}</td>
+            <td class="num">{swl(p)}</td>
+          </tr>)}
+        </tbody>
+      </table>
+    </div>
+    <p class="small">Pallet sizes, heights and safe working loads from EPAL's product pages and CHEP's product page (linked; more on <a href="/pallet-sizes/">standard pallet sizes</a>). The CHEP 48 × 40 in pallet is entered as 48 × 40 in ({n(chep.L, 1)} × {n(chep.W)} mm): CHEP prints both 48 in and 1219 mm, and 1219 mm is 48 in rounded to the millimetre. That 0.2 mm matters for a 12 in carton: four of them (1,219.2 mm) fill exactly 48 in but would not fit in 1,219 mm. Where the weight limit stops the top layer short, the table shows it as “+ n”.</p>
+  </section>
+
+  <section class="prose">
+    <h2>Building a pallet that holds together</h2>
+    <ul class="plain">
+      <li><strong>Measure cartons as packed.</strong> A carton a few millimetres over its printed size can turn 4 across into 3 across. Enter the real outside size.</li>
+      <li><strong>Overhang.</strong> Leave it at 0 unless your customer or carrier allows it. A carton that sticks out past the pallet edge is not carried at that edge.</li>
+      <li><strong>Height.</strong> Set the limit from where the pallet goes next: rack openings, the trailer or container inside and door height (see <a href="/shipping-container-dimensions/">shipping container dimensions</a>), or your customer's rules. Leave room for the forklift to lift the pallet.</li>
+      <li><strong>Weight.</strong> A safe working load is not a licence to load unevenly: CHEP's 2,800 lb figure for its 48 × 40 in pallet is for a uniformly distributed load. Put heavy cartons low and keep the load centred; the planner shows the centre of gravity of the load.</li>
+      <li><strong>Stacking loaded pallets</strong> is a separate limit from what one pallet carries: EPAL gives the most the bottom pallet may carry, and CHEP how many high its pallets may be block stacked (see <a href="/pallet-sizes/">stacking limits</a>).</li>
+      <li><strong>Fragile cartons:</strong> untick <strong>Can carry boxes on top</strong> so nothing is stacked on them. Use semi-automatic steps to put one product below another.</li>
+    </ul>
+    <p>To see how loaded pallets then fit in a container, enter each pallet as a box (its footprint, the pallet height plus the load height, and the gross weight) in the <a href="/container-loading-calculator/">container loading calculator</a>.</p>
+  </section>
+
+  <section class="prose">
+    <h2>Related</h2>
+    <div class="chips">
+      <a href="/pallet-sizes/">Standard pallet sizes</a>
+      <a href="/container-loading-calculator/">Container loading calculator</a>
+      <a href="/shipping-container-dimensions/">Shipping container dimensions</a>
+      <a href="/how-we-calculate/">How we calculate</a>
+    </div>
+  </section>
+</ToolPage>

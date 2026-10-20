@@ -83,7 +83,7 @@ export function createView(host) {
     controls.target.copy(c); controls.update(); draw();
   }
 
-  function setPlan({ cont, boxes, colors, keepCamera }) {
+  function setPlan({ cont, boxes, colors, keepCamera, pallet = null, offset = 0 }) {
     const same = keepCamera && size.L === cont.L && size.W === cont.W && size.H === cont.H;
     scene.remove(group); group.traverse((o) => { o.geometry?.dispose(); o.material?.dispose?.(); });
     group = new THREE.Group(); scene.add(group); meshes = []; order = [];
@@ -91,10 +91,18 @@ export function createView(host) {
     // container outline and floor
     const edges = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(cont.L, cont.H, cont.W)), new THREE.LineBasicMaterial({ color: 0xb7c4cd }));
     edges.position.set(cont.L / 2, cont.H / 2, cont.W / 2); group.add(edges);
-    const floor = new THREE.Mesh(new THREE.PlaneGeometry(cont.L, cont.W), new THREE.MeshBasicMaterial({ color: 0x2a3a4c, side: THREE.DoubleSide }));
-    floor.rotation.x = -Math.PI / 2; floor.position.set(cont.L / 2, -1, cont.W / 2); group.add(floor);
-    const door = new THREE.Mesh(new THREE.PlaneGeometry(cont.W, cont.H), new THREE.MeshBasicMaterial({ color: 0xf08a24, transparent: true, opacity: 0.12, side: THREE.DoubleSide }));
-    door.rotation.y = Math.PI / 2; door.position.set(cont.L, cont.H / 2, cont.W / 2); group.add(door);
+    if (pallet) { // the pallet as a wooden slab under the load space (offset = overhang per side)
+      const ph = Math.max(pallet.H, 20);
+      const slab = new THREE.Mesh(new THREE.BoxGeometry(pallet.L, ph, pallet.W), new THREE.MeshLambertMaterial({ color: 0xa8865a }));
+      slab.position.set(offset + pallet.L / 2, -ph / 2 - 1, offset + pallet.W / 2); group.add(slab);
+      const se = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(pallet.L, ph, pallet.W)), new THREE.LineBasicMaterial({ color: 0x5c4630 }));
+      se.position.copy(slab.position); group.add(se);
+    } else {
+      const floor = new THREE.Mesh(new THREE.PlaneGeometry(cont.L, cont.W), new THREE.MeshBasicMaterial({ color: 0x2a3a4c, side: THREE.DoubleSide }));
+      floor.rotation.x = -Math.PI / 2; floor.position.set(cont.L / 2, -1, cont.W / 2); group.add(floor);
+      const door = new THREE.Mesh(new THREE.PlaneGeometry(cont.W, cont.H), new THREE.MeshBasicMaterial({ color: 0xf08a24, transparent: true, opacity: 0.12, side: THREE.DoubleSide }));
+      door.rotation.y = Math.PI / 2; door.position.set(cont.L, cont.H / 2, cont.W / 2); group.add(door);
+    }
     // boxes: one instanced mesh per box type, a small gap so neighbours stay visible
     const geo = new THREE.BoxGeometry(1, 1, 1);
     const byK = new Map();

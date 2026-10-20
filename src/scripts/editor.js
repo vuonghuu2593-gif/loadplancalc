@@ -68,7 +68,7 @@ export function orientIndex(it, b) {
 export function placeProblem(ctx, b, ignore) {
   const { cont } = ctx; const it = ctx.items[b.k];
   if (!it) return 'unknown box type';
-  if (b.x < -EPS || b.y < -EPS || b.z < -EPS || b.x + b.dx > cont.L + EPS || b.y + b.dy > cont.W + EPS || b.z + b.dz > cont.H + EPS) return 'it would stick out of the container';
+  if (b.x < -EPS || b.y < -EPS || b.z < -EPS || b.x + b.dx > cont.L + EPS || b.y + b.dy > cont.W + EPS || b.z + b.dz > cont.H + EPS) return 'it would stick out of the load space';
   const d = [it.l, it.w, it.h];
   if (!allowedPerms(it).some((p) => Math.abs(d[p[0]] - b.dx) < EPS && Math.abs(d[p[1]] - b.dy) < EPS && Math.abs(d[p[2]] - b.dz) < EPS)) return 'this box may not be turned that way';
   if ((cont.doorW && b.dy > cont.doorW + EPS) || (cont.doorH && b.dz > cont.doorH + EPS)) return 'it would not pass the door turned this way';

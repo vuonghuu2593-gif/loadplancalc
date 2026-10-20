@@ -1,7 +1,7 @@
 // Page logic for the load planner: form state (stored in mm / kg so unit switches never drift),
 // a Web Worker that runs the packing engine, results, 3D view and share links.
 import { U, round, fmt } from './units.js';
-import { ORIENT, ORIENT_NAMES } from './packer.js';
+import { ORIENT, ORIENT_NAMES, layersOf } from './packer.js';
 import { makeCtx, placeProblem, spots as freeSpots, nudge as nudgeBox, onTop, stackFrom, asResult, orientIndex, validate } from './editor.js';
 
 const COLORS = ['#F08A24', '#3E8ED0', '#4CB782', '#D9534F', '#9B6BD3', '#E5C02E', '#2BB5B8', '#C76B98', '#8C9A3C', '#A0693B'];
@@ -76,7 +76,10 @@ export function initPlanner(root) {
     f('maxWeight').value = c.maxWeight ? showWt(c.maxWeight) : '';
     f('priority').checked = !!state.priority;
     const p = presets.find((x) => x.id === c.preset);
-    f('srcnote').innerHTML = p && p.url ? `Preset figures from <a href="${p.url}" rel="noopener" target="_blank">${p.source || 'Hapag-Lloyd'}</a>. Containers vary by maker and series; check the CSC plate or your booking for the exact unit.` : (mode === 'container' ? 'Enter the inside dimensions of your container.' : '');
+    if (mode === 'pallet') {
+      const u = U[units];
+      f('srcnote').innerHTML = p && p.url ? `Pallet length, width and height from <a href="${p.url}" rel="noopener" target="_blank">${esc(p.source)}</a>, and its safe working load (${fmt(u.fromKG(p.maxWeight), 0)} ${u.wt}) as the starting max load weight. The max height is your own limit (racking, trailer, customer or warehouse rule); the ${fmt(u.fromMM(1800), units === 'metric' ? 0 : 1)} ${u.len} filled in is only an example.` : 'Enter your pallet size and height, how far the load may overhang each side, the max height of the loaded pallet and the max load weight.';
+    } else f('srcnote').innerHTML = p && p.url ? `Preset figures from <a href="${p.url}" rel="noopener" target="_blank">${p.source || 'Hapag-Lloyd'}</a>. Containers vary by maker and series; check the CSC plate or your booking for the exact unit.` : 'Enter the inside dimensions of your container.';
   }
   function paintBoxes() {
     const host = $('[data-boxes]'); host.innerHTML = '';
@@ -156,7 +159,8 @@ export function initPlanner(root) {
       const k = t.dataset.f;
       if (k === 'maxWeight') state.cont.maxWeight = readWt(t.value) ?? 0;
       else { const v = readLen(t.value); if (v !== null) state.cont[k] = v; }
-      if (['L', 'W', 'H', 'doorW', 'doorH', 'maxWeight'].includes(k) && mode === 'container' && state.cont.preset !== 'custom') { state.cont.preset = 'custom'; f('preset').value = 'custom'; paintContainer(); }
+      const presetKeys = mode === 'container' ? ['L', 'W', 'H', 'doorW', 'doorH', 'maxWeight'] : ['L', 'W', 'palletH'];
+      if (presetKeys.includes(k) && state.cont.preset !== 'custom') { state.cont.preset = 'custom'; f('preset').value = 'custom'; paintContainer(); }
       schedule();
     } else if (t.dataset.b) {
       const i = +t.closest('.boxcard').dataset.i; const it = state.items[i]; const k = t.dataset.b;
@@ -185,7 +189,7 @@ export function initPlanner(root) {
       const p = presets.find((x) => x.id === t.value);
       if (p) {
         if (mode === 'container') Object.assign(state.cont, { preset: p.id, L: p.L, W: p.W, H: p.H, doorW: p.doorW, doorH: p.doorH, maxWeight: p.payload });
-        else Object.assign(state.cont, { preset: p.id, L: p.L, W: p.W });
+        else Object.assign(state.cont, { preset: p.id, L: p.L, W: p.W, palletH: p.H, maxWeight: p.maxWeight });
       } else state.cont.preset = 'custom';
       paintContainer(); schedule();
     } else if (t.dataset.f === 'priority') { state.priority = t.checked; schedule(); }
@@ -253,14 +257,14 @@ export function initPlanner(root) {
   }
   function run() {
     const { container } = engineInput();
-    const opts = { priority: !!state.priority, timeMs: 1200 };
+    const opts = { priority: !!state.priority, timeMs: 1200, pallet: mode === 'pallet' };
     if (state.mode === 'semi') { opts.steps = state.steps.map((st) => ({ item: st.item, qty: st.qty, orient: st.orient, newSection: !!st.newSection })); opts.fillRest = state.fillRest !== false; }
     worker.postMessage({ id: ++reqId, kind: 'pack', container, items: engineItems(), opts });
   }
   const toView = (d) => {
     const list = [];
     for (let i = 0; i < d.buf.length; i += 8) list.push({ k: d.buf[i], x: d.buf[i + 1], y: d.buf[i + 2], z: d.buf[i + 3], dx: d.buf[i + 4], dy: d.buf[i + 5], dz: d.buf[i + 6], s: d.buf[i + 7] });
-    return { cont: d.cont, boxes: list, steps: d.steps, errors: d.errors };
+    return { cont: d.cont, boxes: list, steps: d.steps, errors: d.errors, pallet: d.pallet || null };
   };
   worker.onmessage = (e) => {
     if (e.data.id !== reqId) return;
@@ -298,10 +302,10 @@ export function initPlanner(root) {
     const ordered = state.items.reduce((s, it) => s + (it.qty || 0), 0);
     boxes = d.boxes;
     const perItem = state.items.map(() => 0);
-    let tv = 0, tw = 0, cxs = 0;
-    for (const b of boxes) { perItem[b.k]++; tv += b.dx * b.dy * b.dz; const m = state.items[b.k]?.weight || 0; tw += m; cxs += m * (b.x + b.dx / 2); }
+    let tv = 0, tw = 0, cxs = 0, cys = 0, czs = 0;
+    for (const b of boxes) { perItem[b.k]++; tv += b.dx * b.dy * b.dz; const m = state.items[b.k]?.weight || 0; tw += m; cxs += m * (b.x + b.dx / 2); cys += m * (b.y + b.dy / 2); czs += m * (b.z + b.dz / 2); }
     const totals = { n: boxes.length, vol: tv, w: tw };
-    const cog = tw > 0 ? { x: cxs / tw } : null;
+    const cog = tw > 0 ? { x: cxs / tw, y: cys / tw, z: czs / tw } : null;
     const contVol = d.cont.L * d.cont.W * d.cont.H;
     const n = totals.n;
     $('#r-main').textContent = `${fmt(n)} of ${fmt(ordered)}`;
@@ -327,7 +331,7 @@ export function initPlanner(root) {
     if (d.edited && ordered - n > 0) w.push(`${nBoxes(ordered - n)} ${ordered - n === 1 ? 'is' : 'are'} not loaded yet. Place them by hand, or tap “Fill the rest automatically”.`);
     if (notFit > 0) {
       const byWeight = d.cont.maxWeight > 0 && totals.w > d.cont.maxWeight * 0.98;
-      w.push(byWeight ? `Weight limit reached: ${nBoxes(notFit)} stay${notFit === 1 ? 's' : ''} out because the load would exceed ${fmt(u.fromKG(d.cont.maxWeight))} ${u.wt}.` : `${nBoxes(notFit)} ${notFit === 1 ? 'does' : 'do'} not fit in this space${semi ? ' with these steps' : ''}.`);
+      w.push(byWeight ? `Weight limit reached: ${nBoxes(notFit)} stay${notFit === 1 ? 's' : ''} out because the load would exceed ${fmt(u.fromKG(d.cont.maxWeight))} ${u.wt}.` : `${nBoxes(notFit)} ${notFit === 1 ? 'does' : 'do'} not fit ${mode === 'pallet' ? 'on this pallet' : 'in this space'}${semi ? ' with these steps' : ''}${mode === 'pallet' && !semi && state.items.length === 1 ? ' (see “Pallets for your quantity”)' : ''}.`);
     }
     if (semi) d.steps.forEach((st, si) => {
       if (st.auto) return;
@@ -337,10 +341,13 @@ export function initPlanner(root) {
     });
     state.items.forEach((it, i) => {
       const dims = [it.l, it.w, it.h];
-      if (hasAuto && !d.edited && it.qty > 0 && perItem[i] === 0) w.push(`“${esc(it.name)}” could not be placed at all — check its size against the inside dimensions${mode === 'container' ? ' and the door opening' : ''}.`);
+      if (hasAuto && !d.edited && it.qty > 0 && perItem[i] === 0) w.push(`“${esc(it.name)}” could not be placed at all — check its size against the ${mode === 'container' ? 'inside dimensions and the door opening' : 'pallet size, overhang and max height'}.`);
       if (!dims.every((x) => x > 0)) w.push(`“${esc(it.name)}” needs a length, width and height.`);
     });
-    if (cog && n) {
+    if (cog && n && mode === 'pallet') {
+      const ln = (mm) => `${fmt(u.fromMM(mm), units === 'metric' ? 1 : 2)} ${u.len}`;
+      w.push(`Centre of gravity of the load: ${ln(Math.abs(cog.x - d.cont.L / 2))} off the middle along the length, ${ln(Math.abs(cog.y - d.cont.W / 2))} across the width, ${ln(cog.z)} above the pallet deck. Keep heavy boxes low and the load centred.`);
+    } else if (cog && n) {
       const off = (cog.x - d.cont.L / 2) / d.cont.L * 100;
       w.push(`Centre of gravity of the cargo: ${fmt(u.fromMM(cog.x), units === 'metric' ? 0 : 1)} ${u.len} from the back wall (${off >= 0 ? fmt(off, 0) + '% toward the door' : fmt(-off, 0) + '% toward the back'} from the middle). Keep heavy cargo low and the load spread evenly.`);
     }
@@ -365,7 +372,9 @@ export function initPlanner(root) {
     const L = u.fromMM(d.cont.L), W = u.fromMM(d.cont.W), H = u.fromMM(d.cont.H);
     const volU = units === 'metric' ? 'm³' : 'ft³';
     const toVol = (mm3) => (units === 'metric' ? mm3 / 1e9 : mm3 / (304.8 ** 3));
+    const c0 = state.cont; const lnF = (mm) => fmt(u.fromMM(mm), units === 'metric' ? 1 : 2);
     R('steps').innerHTML = [
+      ...(mode === 'pallet' ? [`Load space = (${lnF(c0.L)} + 2 × ${lnF(c0.overhang || 0)}) × (${lnF(c0.W)} + 2 × ${lnF(c0.overhang || 0)}) ${u.len} footprint, ${lnF(c0.H)} − ${lnF(c0.palletH || 0)} = ${lnF(d.cont.H)} ${u.len} high above the pallet deck`] : []),
       `${mode === 'container' ? 'Container' : 'Load space'} volume = ${fmt(L, 1)} × ${fmt(W, 1)} × ${fmt(H, 1)} ${u.len} = ${fmt(toVol(contVol), 2)} ${volU}`,
       `Cargo loaded = ${fmt(n)} boxes = ${fmt(toVol(totals.vol), 2)} ${volU}`,
       `Volume used = ${fmt(toVol(totals.vol), 2)} ÷ ${fmt(toVol(contVol), 2)} = ${contVol > 0 ? fmt(totals.vol / contVol * 100, 1) : 0}%`,
@@ -373,14 +382,36 @@ export function initPlanner(root) {
       d.cont.maxWeight > 0 ? `Weight = ${fmt(wt)} ${u.wt} of ${fmt(u.fromKG(d.cont.maxWeight))} ${u.wt} allowed (${fmt(totals.w / d.cont.maxWeight * 100, 1)}%), ${fmt(u.fromKG(Math.max(0, d.cont.maxWeight - totals.w)))} ${u.wt} left` : `Weight = ${fmt(wt)} ${u.wt} (no limit entered)`,
     ].join('<br>');
     roomFor(d);
+    if (mode === 'pallet') paintPallet(d);
     // 3D
     const { offset } = engineInput();
     step.max = String(boxes.length); step.value = String(boxes.length); stepText();
     const v = await ensureView();
-    v.setPlan({ cont: d.cont, boxes, colors: SWATCH, offset, keepCamera: !!d.edited });
+    v.setPlan({ cont: d.cont, boxes, colors: SWATCH, offset, keepCamera: !!d.edited, pallet: mode === 'pallet' ? { L: state.cont.L, W: state.cont.W, H: state.cont.palletH || 0 } : null });
     paintEditor();
   }
 
+
+  // ---------- pallet mode: Ti-Hi and pallets needed (one box type only) ----------
+  // The engine (palletPack) builds a one-type pallet layer by layer and reports the full-pallet count
+  // within the weight limit and its layers. Ti-Hi is only shown when every box sits on a clean layer line.
+  function paintPallet(d) {
+    const set = (k, v, sub = '') => { R(k).textContent = v; R(k + 'Sub').textContent = sub; };
+    if (state.items.length !== 1) { set('tihi', '–', 'Shown for one box type. With mixed boxes, read the plan layer by layer in the Side view.'); set('pallets', '–', 'Shown for one box type.'); return; }
+    if (d.edited) { set('tihi', '–', 'Not shown while you edit by hand.'); set('pallets', '–', ''); return; }
+    const P = d.pallet; const qty = state.items[0].qty;
+    if (state.mode === 'semi') { set('tihi', '–', 'Shown in fully automatic mode.'); set('pallets', '–', ''); return; }
+    if (!P || !qty) { set('tihi', '–', 'Enter a box size and quantity.'); set('pallets', '–', ''); return; }
+    const per = P.perPallet, lay = P.layers;
+    if (!per) { set('tihi', '0', 'The box does not fit on this pallet.'); set('pallets', '–', ''); return; }
+    const cap = P.weightLimited ? ' (max load weight reached)' : '';
+    if (!lay || lay.mixed) set('tihi', '–', `No single Ti-Hi: the boxes stand in different positions (${fmt(per)} per pallet${cap}). Choose “this side up” for even layers.`);
+    else if (lay.kind === 'even') set('tihi', `${fmt(lay.ti)} × ${fmt(lay.hi)}`, `${fmt(lay.ti)} per layer, ${fmt(lay.hi)} layer${lay.hi === 1 ? '' : 's'} = ${fmt(per)} per pallet${cap}`);
+    else if (lay.kind === 'top') set('tihi', `${fmt(lay.ti)} × ${fmt(lay.hi - 1)} + ${fmt(lay.top)}`, `${fmt(lay.hi - 1)} full layer${lay.hi === 2 ? '' : 's'} of ${fmt(lay.ti)} and ${fmt(lay.top)} on top = ${fmt(per)} per pallet${cap}`);
+    else set('tihi', '–', `Layers differ (${lay.counts.map((c) => fmt(c)).join(', ')} from the bottom up) = ${fmt(per)} per pallet${cap}.`);
+    const nP = Math.ceil(qty / per), rest = qty - (nP - 1) * per;
+    set('pallets', fmt(nP), nP === 1 ? `${fmt(qty)} of up to ${fmt(per)} boxes on one pallet` : rest === per ? `${fmt(nP)} full pallets of ${fmt(per)}` : `${fmt(nP - 1)} full of ${fmt(per)} + 1 with ${fmt(rest)}`);
+  }
 
   // ---------- room left: how many more of each box type fit around the plan as it is ----------
   const roomWorker = new Worker(new URL('./pack-worker.js', import.meta.url), { type: 'module' });
@@ -426,7 +457,7 @@ export function initPlanner(root) {
   function startEdit(empty) {
     if (!last) return;
     ed = { boxes: empty ? [] : last.boxes.map(strip), sel: null, placing: null, spots: [], undo: [], redo: [], msg: '', bad: false };
-    say(empty ? 'Empty container. Pick a box type under “Not loaded” and place it, or tap “Fill the rest automatically”.' : 'Tap a box in the 3D view (or use ‹ ›) to select it.');
+    say(empty ? `Empty ${mode === 'container' ? 'container' : 'pallet'}. Pick a box type under “Not loaded” and place it, or tap “Fill the rest automatically”.` : 'Tap a box in the 3D view (or use ‹ ›) to select it.');
     edRender();
   }
   function select(i) { if (!ed) return; ed.sel = i; ed.placing = null; ed.spots = []; say(''); paintEditor(); }

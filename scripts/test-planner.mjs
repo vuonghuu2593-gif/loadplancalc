@@ -121,6 +121,66 @@ ok(filled >= 890 && await noFail(), 'fill around 4 hand-placed boxes (' + await 
 await pg.fill('.boxcard [data-b="qty"]', '401'); await settle();
 ok(!(await pg.isVisible('[data-ed-on]')) && (await pg.$eval('[data-r="warn"]', (e) => e.textContent)).includes('hand edits were cleared'), 'changing inputs clears hand edits with a notice');
 await pg.screenshot({ path: process.env.SHOT || '/tmp/semi.png', fullPage: true });
+// Pallet mode: /pallet-loading-calculator/
+{
+  const T = (k) => pg.$eval(`[data-r="${k}"]`, (e) => e.textContent.trim());
+  const V = (sel) => pg.inputValue(sel);
+  await pg.goto('http://localhost:4401/pallet-loading-calculator/'); await pg.evaluate(() => { localStorage.setItem('lpc-units', 'metric'); history.replaceState(null, '', location.pathname); }); await pg.reload(); await settle();
+  // Euro pallet 1200 x 800 x 144 mm, 1800 mm limit: 8 per layer x 6 layers = 48; 100 cartons -> 3 pallets (2 x 48 + 4)
+  ok(await main() === '48 of 100', 'pallet defaults: 48 of 100 (' + await main() + ')');
+  ok(await T('tihi') === '8 × 6' && (await T('tihiSub')).includes('48 per pallet'), 'Ti-Hi 8 × 6 (' + await T('tihi') + ' / ' + await T('tihiSub') + ')');
+  ok(await T('pallets') === '3' && await T('palletsSub') === '2 full of 48 + 1 with 4', 'pallets for 100: 3 = 2 full of 48 + 1 with 4 (' + await T('palletsSub') + ')');
+  ok(await V('[data-f="L"]') === '120' && await V('[data-f="W"]') === '80' && await V('[data-f="H"]') === '180' && await V('[data-f="palletH"]') === '14.4' && await V('[data-f="maxWeight"]') === '1500' && await V('[data-f="overhang"]') === '0', 'Euro pallet preset fields in cm / kg');
+  ok((await T('wt')) === '576 kg' && !(await T('warn')).includes('failed its own check'), 'weight 48 x 12 = 576 kg, plan passes the check');
+  ok((await T('steps')).includes('180 − 14.4 = 165.6 cm'), 'formula line: load height 180 − 14.4 = 165.6 cm');
+  ok(await pg.$('[data-view] canvas') !== null, '3D view drawn');
+  await pg.click('[data-units="imperial"]'); await settle();
+  ok(await V('[data-f="L"]') === '47.24' && await V('[data-f="maxWeight"]') === '3306.93' && await V('.boxcard [data-b="l"]') === '15.75', 'imperial: 47.24 in, 3,306.93 lb, carton 15.75 in');
+  for (let i = 0; i < 3; i++) { await pg.click('[data-units="metric"]'); await pg.click('[data-units="imperial"]'); }
+  await pg.click('[data-units="metric"]'); await settle();
+  ok(await V('[data-f="L"]') === '120' && await V('[data-f="H"]') === '180' && await V('.boxcard [data-b="h"]') === '25' && await main() === '48 of 100', 'pallet: no drift after 4 unit round trips');
+  // fewer than a full pallet: layer by layer, Ti-Hi of the full pallet, 1 pallet
+  await pg.fill('.boxcard [data-b="qty"]', '20'); await settle();
+  ok(await main() === '20 of 20' && await T('tihi') === '8 × 6' && await T('pallets') === '1', '20 cartons: 1 pallet, full-pallet Ti-Hi 8 × 6 (' + await T('tihi') + ')');
+  await pg.fill('.boxcard [data-b="qty"]', '100');
+  await pg.fill('[data-f="overhang"]', '2.5'); await settle();
+  ok(await main() === '48 of 100' && await pg.$eval('[data-f="preset"]', (e) => e.value) === 'epal1', 'overhang 2.5 cm: still 48, preset kept');
+  await pg.fill('[data-f="palletH"]', '15'); await settle();
+  ok(await pg.$eval('[data-f="preset"]', (e) => e.value) === 'custom', 'changing the pallet height switches to Custom size');
+  // second case in inches: CHEP 48 x 40 in, 60 in limit, 12 x 10 x 8 in at 30 lb, 200 cartons:
+  // 4 x 4 = 16 per layer, floor((1524 - 141) / 203.2) = 6 layers = 96, 2800 / 30 = 93.3 -> 93 = 16 x 5 + 13; 200 -> 3 pallets
+  await pg.click('[data-units="imperial"]');
+  await pg.selectOption('[data-f="preset"]', 'chep4840'); await pg.fill('[data-f="overhang"]', '0');
+  await pg.fill('[data-f="H"]', '60');
+  for (const [k, v] of [['l', '12'], ['w', '10'], ['h', '8'], ['weight', '30'], ['qty', '200']]) await pg.fill(`.boxcard [data-b="${k}"]`, v);
+  await settle();
+  ok(await V('[data-f="L"]') === '48' && await V('[data-f="W"]') === '40' && await V('[data-f="maxWeight"]') === '2800', 'CHEP preset: 48 × 40 in, 2,800 lb');
+  ok(await main() === '93 of 200', '48 × 40 in, 12 × 10 × 8 in at 30 lb: 93 of 200 (' + await main() + ')');
+  ok(await T('tihi') === '16 × 5 + 13' && (await T('tihiSub')).includes('max load weight reached'), 'Ti-Hi 16 × 5 + 13, weight limited (' + await T('tihi') + ')');
+  ok(await T('pallets') === '3' && await T('palletsSub') === '2 full of 93 + 1 with 14', 'pallets for 200: 2 full of 93 + 1 with 14 (' + await T('palletsSub') + ')');
+  ok((await T('warn')).includes('Weight limit reached') && !(await T('warn')).includes('failed its own check'), 'weight-limit note, plan passes the check');
+  await pg.click('[data-units="metric"]'); await settle();
+  ok(await V('[data-f="L"]') === '121.9' && await V('.boxcard [data-b="l"]') === '30.5' && await main() === '93 of 200', 'metric: 121.9 cm, carton 30.5 cm (shown to 1 decimal), still 93');
+  await pg.click('[data-units="imperial"]'); await settle();
+  ok(await V('[data-f="L"]') === '48' && await V('[data-f="H"]') === '60' && await V('.boxcard [data-b="weight"]') === '30' && await main() === '93 of 200', 'back to inches: 48, 60, 30 lb, 93 of 200');
+  await pg.waitForTimeout(300);
+  const purl = pg.url();
+  const pg5 = await b.newPage({ viewport: { width: 390, height: 844 } }); pg5.on('pageerror', (e) => errs.push(e.message));
+  await pg5.goto(purl); await pg5.waitForTimeout(400); await pg5.waitForFunction(() => document.querySelector('#r-main').textContent.trim() !== '–', null, { timeout: 15000 }); await pg5.waitForTimeout(500);
+  ok(await pg5.$eval('#r-main', (e) => e.textContent.trim()) === '93 of 200' && await pg5.$eval('[data-r="tihi"]', (e) => e.textContent.trim()) === '16 × 5 + 13', 'pallet share link reproduces 93 = 16 × 5 + 13');
+  // hand editing on a pallet: checked, Ti-Hi hidden while editing
+  await pg.click('[data-ed="start"]'); await pg.waitForTimeout(300);
+  ok(await T('tihi') === '–' && await main() === '93 of 200' && !(await T('warn')).includes('failed its own check'), 'edit mode with inch sizes: plan still passes the check, Ti-Hi hidden');
+  await pg.click('[data-ed="next"]'); await pg.click('[data-ed="remove"]'); await pg.waitForTimeout(200);
+  await pg.click('[data-ed="fill"]'); await settle();
+  ok(await main() === '93 of 200' && !(await T('warn')).includes('failed its own check'), 'remove + fill on a pallet: 93 again, checked (' + await main() + ')');
+  await pg.click('[data-ed="exit"]'); await pg.waitForTimeout(300);
+  ok(await T('tihi') === '16 × 5 + 13', 'back to the automatic plan: Ti-Hi again');
+  // two box types: no Ti-Hi
+  await pg.click('[data-add]'); await settle();
+  ok(await T('tihi') === '–' && (await T('tihiSub')).includes('one box type'), 'two box types: Ti-Hi not shown');
+  await pg.screenshot({ path: process.env.PSHOT || '/tmp/pallet.png', fullPage: true });
+}
 ok(errs.length === 0, 'no JS errors ' + errs.join(' | '));
 await b.close(); srv.close();
 console.log(fails ? fails + ' failing' : 'planner checks pass'); process.exit(fails ? 1 : 0);

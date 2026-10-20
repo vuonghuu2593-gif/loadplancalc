@@ -24,7 +24,7 @@ const presets = mode === 'container' ? data.containers : palletPresets;
     <div class="row3">
       <label><span>{mode === 'container' ? 'Inside length' : 'Pallet length'} <span class="small" data-ul></span></span><input data-f="L" inputmode="decimal"></label>
       <label><span>{mode === 'container' ? 'Inside width' : 'Pallet width'} <span class="small" data-ul></span></span><input data-f="W" inputmode="decimal"></label>
-      <label><span>{mode === 'container' ? 'Inside height' : 'Max load height'} <span class="small" data-ul></span></span><input data-f="H" inputmode="decimal"></label>
+      <label><span>{mode === 'container' ? 'Inside height' : 'Max height incl. pallet'} <span class="small" data-ul></span></span><input data-f="H" inputmode="decimal"></label>
     </div>
     <div class="row3">
       <label><span>{mode === 'container' ? 'Max payload' : 'Max load weight'} <span class="small" data-uw></span></span><input data-f="maxWeight" inputmode="decimal"></label>
@@ -63,7 +63,11 @@ const presets = mode === 'container' ? data.containers : palletPresets;
       <div><div class="k">Weight loaded</div><div class="v" data-r="wt">–</div></div>
       <div><div class="k">Boxes left over</div><div class="v" data-r="left">–</div></div>
       <div><div class="k">Space left</div><div class="v" data-r="spaceLeft">–</div></div>
-      <div><div class="k">Payload left</div><div class="v" data-r="wtLeft">–</div></div>
+      <div><div class="k">{mode === 'container' ? 'Payload left' : 'Weight left'}</div><div class="v" data-r="wtLeft">–</div></div>
+      {mode === 'pallet' && <>
+        <div><div class="k">Ti × Hi (per layer × layers)</div><div class="v" data-r="tihi">–</div><div class="small sub" data-r="tihiSub"></div></div>
+        <div><div class="k">Pallets for your quantity</div><div class="v" data-r="pallets">–</div><div class="small sub" data-r="palletsSub"></div></div>
+      </>}
     </div>
     <div data-r="warn"></div>
     <div class="view3d" data-view><span class="hint">Drag to turn · pinch or scroll to zoom</span></div>
@@ -72,7 +76,7 @@ const presets = mode === 'container' ? data.containers : palletPresets;
         <button type="button" data-view-btn="3d" aria-pressed="true">3D</button>
         <button type="button" data-view-btn="top" aria-pressed="false">Top</button>
         <button type="button" data-view-btn="side" aria-pressed="false">Side</button>
-        <button type="button" data-view-btn="door" aria-pressed="false">Door</button>
+        <button type="button" data-view-btn="door" aria-pressed="false">{mode === 'container' ? 'Door' : 'Front'}</button>
       </div>
       <label class="step">Loading step: <span data-r="stepTxt"></span><input type="range" min="0" value="0" data-step></label>
     </div>
@@ -82,7 +86,7 @@ const presets = mode === 'container' ? data.containers : palletPresets;
           <button type="button" class="btn" data-ed="start">Edit this plan by hand</button>
           <button type="button" class="btn ghost" data-ed="empty">Load by hand from empty</button>
         </div>
-        <p class="small">Move, turn or remove boxes, place the rest yourself, or let the planner fill the gaps around them. Every change is checked: no overlaps, full support, door size and the positions each box may use.</p>
+        <p class="small">Move, turn or remove boxes, place the rest yourself, or let the planner fill the gaps around them. Every change is checked: no overlaps, full support, {mode === 'container' ? 'door size' : 'pallet edges and height'} and the positions each box may use.</p>
       </div>
       <div class="edon" data-ed-on hidden>
         <div class="edbar">
@@ -104,14 +108,14 @@ const presets = mode === 'container' ? data.containers : palletPresets;
             <div class="ogrid edturn" data-ed-turn></div>
             <div class="edlabel">Push until it meets a wall or another box</div>
             <div class="edpush">
-              <button type="button" class="edbtn" data-push="0,-1">← Back wall</button>
-              <button type="button" class="edbtn" data-push="0,1">Door →</button>
+              <button type="button" class="edbtn" data-push="0,-1">{mode === 'container' ? '← Back wall' : '← Back edge'}</button>
+              <button type="button" class="edbtn" data-push="0,1">{mode === 'container' ? 'Door →' : 'Front edge →'}</button>
               <button type="button" class="edbtn" data-push="2,1">↑ Up</button>
               <button type="button" class="edbtn" data-push="1,1">Left</button>
               <button type="button" class="edbtn" data-push="1,-1">Right</button>
               <button type="button" class="edbtn" data-push="2,-1">↓ Down</button>
             </div>
-            <p class="small edhint">Left and right as seen from the door.</p>
+            <p class="small edhint">Left and right as seen from the {mode === 'container' ? 'door' : 'front edge (the Front view)'}.</p>
             <div class="edbar">
               <button type="button" class="btn ghost" data-ed="move">Pick a new spot</button>
               <button type="button" class="btn ghost" data-ed="remove">Remove</button>
@@ -152,7 +156,7 @@ const presets = mode === 'container' ? data.containers : palletPresets;
       <tbody data-r="room"></tbody>
     </table>
   </div>
-  <p class="small" style="margin:6px 0 0">“More that still fit” is how many more of that box type alone would fit in the space left, keeping the plan as it is, within the payload left.</p>
+  <p class="small" style="margin:6px 0 0">“More that still fit” is how many more of that box type alone would fit in the space left, keeping the plan as it is, within the {mode === 'container' ? 'payload' : 'weight'} left.</p>
   <div class="tablebox" data-r="stepbox" hidden>
     <table>
       <thead><tr><th>Step</th><th>Box type</th><th>Position</th><th class="num">Asked</th><th class="num">Loaded</th></tr></thead>
@@ -173,7 +177,7 @@ const presets = mode === 'container' ? data.containers : palletPresets;
     <label class="rot">Orientation<select data-b="rotation"><option value="any">Automatic: any side can face down</option><option value="upright">Automatic: this side up (turn flat only)</option><option value="custom">Choose the positions allowed…</option></select></label>
     <div class="flags"><label class="check"><input type="checkbox" data-b="stackable"> Can carry boxes on top</label><button type="button" class="iconbtn" data-del aria-label="Remove this box type">✕</button></div>
     <div class="orients" data-orients hidden>
-      <p class="small">Tap to allow or block each position. “Along” means along the container length, toward the door. Tick one position to fix it.</p>
+      <p class="small">Tap to allow or block each position. “Along” means along the {mode === 'container' ? 'container length, toward the door' : 'pallet length'}. Tick one position to fix it.</p>
       <div class="ogrid" role="group" aria-label="Allowed positions"></div>
     </div>
   </div>

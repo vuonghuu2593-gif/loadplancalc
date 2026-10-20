@@ -363,3 +363,50 @@ export function validate(res, eps = 0.01) {
 
 function permsOf(it, perms) { const d = [it.l, it.w, it.h]; return perms.map((p) => [d[p[0]], d[p[1]], d[p[2]]]); }
 function same(o, p, eps = 0.01) { return Math.abs(o[0] - p.dx) < eps && Math.abs(o[1] - p.dy) < eps && Math.abs(o[2] - p.dz) < eps; }
+
+// Layers of a one-box-type pallet plan, for Ti-Hi (boxes per layer × layers). Every box must stand
+// with the same height up and sit on a layer line (z = a whole number of box heights); otherwise
+// there is no single Ti-Hi and { mixed: true } comes back. kind: 'even' (all layers the same),
+// 'top' (all the same except a smaller top layer) or 'uneven'.
+export function layersOf(placed, eps = 0.01) {
+  if (!placed.length) return null;
+  const dz = placed[0].dz;
+  if (placed.some((p) => Math.abs(p.dz - dz) > eps)) return { mixed: true };
+  const counts = [];
+  for (const p of placed) {
+    const i = Math.round(p.z / dz);
+    if (Math.abs(p.z - i * dz) > eps) return { mixed: true };
+    counts[i] = (counts[i] || 0) + 1;
+  }
+  for (let i = 0; i < counts.length; i++) counts[i] = counts[i] || 0;
+  const ti = counts[0], hi = counts.length, last = counts[hi - 1];
+  const body = counts.slice(0, -1).every((c) => c === ti);
+  const kind = body && last === ti ? 'even' : body && last < ti ? 'top' : 'uneven';
+  return { mixed: false, dz, counts, ti, hi, kind, top: last };
+}
+
+// Pallet mode with one box type: build the pallet layer by layer. A full pallet is planned without the
+// weight limit (as many boxes as fit), then the plan keeps its lowest boxes (sorted by height, then
+// along, then across) up to the quantity and the weight limit. Every box in such a prefix stands on
+// boxes that come earlier in the list, so the prefix of a valid plan is itself valid; validate() still
+// checks it. The ordinary plan is kept when it loads more. `pallet` reports the full-pallet count
+// (within the weight limit) and its layers for Ti-Hi.
+export function palletPack(container, rawItems, opts = {}) {
+  const live = rawItems.filter((it) => +it.l > 0 && +it.w > 0 && +it.h > 0 && Math.floor(+it.qty || 0) > 0);
+  const budget = opts.timeMs ?? 1500;
+  if (rawItems.length !== 1 || live.length !== 1 || (Array.isArray(opts.steps) && opts.steps.length)) return { ...pack(container, rawItems, opts), pallet: null };
+  const it = rawItems[0], qty = Math.floor(+it.qty || 0), wt = +it.weight || 0, maxW = +container.maxWeight || 0;
+  const full = pack({ ...container, maxWeight: 0 }, [{ ...it, qty: 20000 }], { ...opts, timeMs: budget / 2 });
+  const capW = wt > 0 && maxW > 0 ? Math.floor(maxW / wt + 1e-9) : Infinity;
+  const byLayer = full.placed.slice().sort((a, b) => a.z - b.z || a.x - b.x || a.y - b.y);
+  let per = Math.min(full.totals.n, capW);
+  const prefix = byLayer.slice(0, Math.min(qty, per));
+  const normal = pack(container, rawItems, { ...opts, timeMs: budget / 2 });
+  let placed, layers;
+  if (prefix.length >= normal.totals.n) { placed = prefix; layers = layersOf(byLayer.slice(0, per)); }
+  else {
+    placed = normal.placed.slice().sort((a, b) => a.z - b.z || a.x - b.x || a.y - b.y);
+    if (normal.totals.n < qty) { per = Math.max(per, normal.totals.n); layers = layersOf(normal.placed); } else layers = layersOf(byLayer.slice(0, per));
+  }
+  return { placed, items: normal.items, cont: normal.cont, steps: null, ...summarize(placed, normal.items), pallet: { perPallet: per, layers, weightLimited: capW < full.totals.n } };
+}

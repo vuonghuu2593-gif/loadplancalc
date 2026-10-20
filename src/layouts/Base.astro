@@ -37,7 +37,11 @@ const fullTitle = title === SITE_NAME ? title : `${title} | ${SITE_NAME}`;
     gtag('js', new Date());
     gtag('config', 'G-TCZ4ZWR5MG');
   </script>
-  <script is:inline async src="https://www.googletagmanager.com/gtag/js?id=G-TCZ4ZWR5MG"></script>
+  <!-- Automated browsers (our site tests, WebDriver/Playwright crawlers) report navigator.webdriver = true: they are not counted in Analytics. -->
+  <script is:inline>
+    if (navigator.webdriver) { window['ga-disable-G-TCZ4ZWR5MG'] = true; }
+    else { var gs = document.createElement('script'); gs.async = true; gs.src = 'https://www.googletagmanager.com/gtag/js?id=G-TCZ4ZWR5MG'; document.head.appendChild(gs); }
+  </script>
 </head>
 <body>
   <header class="site-header">
@@ -45,6 +49,7 @@ const fullTitle = title === SITE_NAME ? title : `${title} | ${SITE_NAME}`;
       <a class="brand" href="/"><svg viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="12" fill="#0F1E33"/><rect x="10" y="20" width="44" height="30" fill="none" stroke="#F08A24" stroke-width="5"/><rect x="16" y="32" width="12" height="13" fill="#F08A24"/><rect x="30" y="32" width="12" height="13" fill="#F08A24"/><rect x="23" y="24" width="12" height="8" fill="#F08A24"/></svg>{SITE_NAME}</a>
       <nav class="site-nav" aria-label="Main">
         <a href="/container-loading-calculator/">Container loading</a>
+        <a href="/pallet-loading-calculator/">Pallet loading</a>
         <a href="/shipping-container-dimensions/">Container dimensions</a>
         <a href="/pallet-sizes/">Pallet sizes</a>
         <a href="/how-to-use/">How to use</a>

@@ -46,6 +46,7 @@ select{font-family:var(--body)}
 .result .k{font-size:13px;color:var(--band-muted)}
 .result .v{font-family:var(--mono);font-size:clamp(22px,6vw,32px);font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
 .result .v.hi{color:var(--hi)}
+.result .sub{color:var(--band-muted);margin-top:2px;font-size:13px}
 .result p{margin:0;font-size:15px;color:var(--band-ink)}
 .btn{height:46px;border:0;border-radius:8px;background:var(--hi);color:#0F1E33;font:600 16px var(--body);cursor:pointer;padding:0 16px}
 .btn.ghost{background:transparent;color:var(--band-ink);border:1px solid var(--band-muted)}
