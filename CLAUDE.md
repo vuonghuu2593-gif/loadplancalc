@@ -81,3 +81,7 @@ AdSense state for all sites lives in `ops/MONETIZATION.md` in the towinglimits r
 ## Progress dashboard (2026-10-21)
 After every run, update Vương's Vietnamese progress dashboard exactly as towinglimits/CLAUDE.md section "Progress dashboard" says
 (notes_vi.json labels for this repo's new queue items, build.py, upload, dataset update).
+
+## Daily traffic review (2026-10-21)
+At the start of every run read towinglimits/ops/traffic/insights_vi.json and do the actions for this site with owner "runs"
+(see towinglimits/CLAUDE.md "Daily traffic review").
