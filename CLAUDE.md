@@ -77,3 +77,7 @@ Each item states the target page, main keyword and volume, and the primary sourc
 
 ## Monetization
 AdSense state for all sites lives in `ops/MONETIZATION.md` in the towinglimits repo. Follow the step for the current stage.
+
+## Progress dashboard (2026-10-21)
+After every run, update Vương's Vietnamese progress dashboard exactly as towinglimits/CLAUDE.md section "Progress dashboard" says
+(notes_vi.json labels for this repo's new queue items, build.py, upload, dataset update).
