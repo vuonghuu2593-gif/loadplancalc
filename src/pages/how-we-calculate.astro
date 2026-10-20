@@ -1,6 +1,7 @@
 ---
 import Base from '../layouts/Base.astro';
 import data from '../data/containers.json';
+import pallets from '../data/pallets.json';
 ---
 <Base title="How We Calculate" description="The load planning method, the checks every plan passes, and the sources behind every figure on Load Plan Calc.">
   <section class="prose">
@@ -36,6 +37,7 @@ import data from '../data/containers.json';
       <thead><tr><th>Figure</th><th>Source</th><th>Checked</th></tr></thead>
       <tbody>
         {data.containers.map((c) => <tr><td>{c.name}: inside size, door, tare, payload, gross</td><td><a href={c.url} rel="noopener">Hapag-Lloyd</a></td><td>{data.source.checked}</td></tr>)}
+        {pallets.pallets.map((x) => <tr><td>{x.name}: footprint, height, weight, safe working load, stacking limit</td><td><a href={x.url} rel="noopener">{x.publisher}</a></td><td>{pallets.checked}</td></tr>)}
         <tr><td>Packing, securing and weight distribution guidance</td><td><a href="https://www.imo.org/en/ourwork/safety/pages/ctu-code.aspx" rel="noopener">IMO/ILO/UNECE CTU Code</a></td><td>2026-10-18</td></tr>
       </tbody>
     </table></div>

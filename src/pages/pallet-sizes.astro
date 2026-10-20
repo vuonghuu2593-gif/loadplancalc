@@ -1,0 +1,85 @@
+---
+import Base from '../layouts/Base.astro';
+import data from '../data/pallets.json';
+import cont from '../data/containers.json';
+const n = (v: number, d = 0) => v.toLocaleString('en-US', { maximumFractionDigits: d, minimumFractionDigits: d });
+const inch = (mm: number) => mm / 25.4;
+const lb = (kg: number) => kg / 0.45359237;
+const kgOf = (lbs: number) => lbs * 0.45359237;
+const p = Object.fromEntries(data.pallets.map((x) => [x.id, x]));
+const euro = p.epal1, us = p.chep4840;
+const area = (x: { L: number; W: number }) => (x.L * x.W) / 1e6;
+const sqft = (x: { L: number; W: number }) => (x.L * x.W) / (304.8 * 304.8);
+const ratio = area(us) / area(euro);
+const url = new URL('/pallet-sizes/', 'https://loadplancalc.com').href;
+const schema = { '@context': 'https://schema.org', '@type': 'Article', headline: 'Standard pallet sizes', dateModified: data.checked, mainEntityOfPage: url };
+---
+<Base title="Standard Pallet Sizes: Euro Pallet and 48 × 40 Dimensions" description="Pallet dimensions in mm and inches with height, weight and safe working load: EPAL Euro pallet (1200 × 800), EPAL 2, 3, 6 and 7, and the North American 48 × 40 in block pallet, from EPAL and CHEP." schema={schema}>
+  <section class="prose">
+    <h1>Standard pallet sizes</h1>
+    <p class="lede">The EPAL Euro pallet is {n(euro.L)} × {n(euro.W)} mm and {euro.H} mm high ({n(inch(euro.L), 1)} × {n(inch(euro.W), 1)} × {n(inch(euro.H), 1)} in), weighs about {euro.weightKg} kg and has a safe working load of {n(euro.swlKg)} kg, according to EPAL. The North American 48 × 40 in pallet measures {n(us.L)} × {n(us.W)} × {us.H} mm in CHEP's specification for its block pallet. Below are the sizes, heights and load ratings of six common pallets, each from the organisation that sets or makes it.</p>
+  </section>
+
+  <section class="prose">
+    <h2>Pallet dimensions</h2>
+    <div class="tablebox">
+      <table>
+        <thead><tr><th>Pallet</th><th class="num">Footprint</th><th class="num">Height</th><th class="num">Weight</th><th class="num">Safe working load</th></tr></thead>
+        <tbody>
+          {data.pallets.map((x) => <tr>
+            <td><a href={x.url} rel="noopener">{x.name}</a></td>
+            <td class="num">{n(x.L)} × {n(x.W)} mm<br><span class="small">{x.Lin ? `${x.Lin} × ${x.Win}` : `${n(inch(x.L), 1)} × ${n(inch(x.W), 1)}`} in</span></td>
+            <td class="num">{x.H} mm<br><span class="small">{x.Hin ?? n(inch(x.H), 1)} in</span></td>
+            <td class="num">{x.weightKg ? <>about {n(x.weightKg, x.weightKg % 1 ? 1 : 0)} kg<br><span class="small">{n(lb(x.weightKg))} lb</span></> : '–'}</td>
+            <td class="num">{x.swlKg ? <>{n(x.swlKg)} kg<br><span class="small">{n(lb(x.swlKg))} lb</span></> : <>{n(x.swlLb!)} lb<br><span class="small">{n(kgOf(x.swlLb!))} kg</span></>}</td>
+          </tr>)}
+        </tbody>
+      </table>
+    </div>
+    <p class="small">EPAL figures from EPAL's product pages; the 48 × 40 in figures from CHEP's product page (CHEP does not list a weight for this pallet there, and its load figure is what the pallet is "designed … to carry … in normal operating circumstances with a uniformly distributed load"). EPAL prints the Euro pallet as length 800 mm and width 1,200 mm, and the EPAL 3 as length 1,000 mm and width 1,200 mm; the table gives the long side first. Inches and pounds are converted (1 in = 25.4 mm, 1 lb = 0.45359237 kg) unless the maker prints them.</p>
+  </section>
+
+  <section class="prose">
+    <h2>Stacking limits</h2>
+    <div class="tablebox">
+      <table>
+        <thead><tr><th>Pallet</th><th>What the maker says about stacking</th></tr></thead>
+        <tbody>{data.pallets.map((x) => <tr><td>{x.name}</td><td>{x.stackNote}{x.id === 'epal7' && `. The safe working load of ${n(x.swlKg)} kg applies ${x.swlNote}.`}</td></tr>)}</tbody>
+      </table>
+    </div>
+    <p class="small">The safe working load is what one pallet may carry in use. The stacking figures are a separate limit: the most the bottom pallet may carry when laden pallets are stacked on a solid, even floor (EPAL), or how high loaded CHEP pallets may be block stacked. For racks, follow the maker's own rules.</p>
+  </section>
+
+  <section class="prose">
+    <h2>Euro pallet vs 48 × 40 in pallet</h2>
+    <ul class="plain">
+      <li><strong>Area.</strong> A Euro pallet covers {n(area(euro), 2)} m² ({n(sqft(euro), 2)} sq ft); a 48 × 40 in pallet covers {n(area(us), 2)} m² ({n(sqft(us), 2)} sq ft), {n((ratio - 1) * 100, 0)}% more.</li>
+      <li><strong>Close to, but not the same as, the EPAL 2 and 3.</strong> The EPAL 2 and EPAL 3 are {n(p.epal2.L)} × {n(p.epal2.W)} mm; the 48 × 40 in pallet is {n(us.L - p.epal2.L)} mm longer and {n(us.W - p.epal2.W)} mm wider. Loads planned on one do not fit the other without checking the overhang.</li>
+      <li><strong>Two half pallets make a Euro pallet.</strong> The EPAL 6 and EPAL 7 half pallets are {n(p.epal6.L)} × {n(p.epal6.W)} mm: two side by side cover {n(p.epal6.L)} × {n(p.epal6.W * 2)} mm, the same footprint as a Euro pallet.</li>
+      <li><strong>Entry.</strong> CHEP's 48 × 40 in block pallet is 4-way entry: {us.entry!.replace('4-way entry; ', '')}.</li>
+    </ul>
+  </section>
+
+  <section class="prose">
+    <h2>How high can you load a pallet in a container?</h2>
+    <p>The pallet itself takes part of the inside height. With a {euro.H} mm Euro pallet on the floor, the room left above the deck is:</p>
+    <div class="tablebox">
+      <table>
+        <thead><tr><th>Container</th><th class="num">Inside height</th><th class="num">Above a {euro.H} mm pallet</th><th class="num">Door height</th></tr></thead>
+        <tbody>{cont.containers.map((c) => <tr><td>{c.name}</td><td class="num">{n(c.H)} mm</td><td class="num">{n(c.H - euro.H)} mm<br><span class="small">{n(inch(c.H - euro.H), 1)} in</span></td><td class="num">{n(c.doorH)} mm</td></tr>)}</tbody>
+      </table>
+    </div>
+    <p class="small">Inside and door heights from Hapag-Lloyd's specifications (see <a href="/shipping-container-dimensions/">shipping container dimensions</a>). A loaded pallet goes in through the door, so the door height ({n(cont.containers[0].doorH)} mm on a standard container) is the real limit for one pallet plus its load; leave room for the forklift to lift it.</p>
+  </section>
+
+  <section class="prose">
+    <h2>Other pallet sizes</h2>
+    <p>Other sizes are in use: ISO 6780 sets pallet dimensions for intercontinental handling, and pallet pools and industries have their own sizes. ISO sells the standard's text and we could not check it, so those sizes are not listed here; use the figures printed on the pallet or given by its supplier.</p>
+  </section>
+
+  <section class="prose">
+    <h2>Planning a pallet load</h2>
+    <p>To see how pallets fit in a container, enter each pallet as a box in the <a href="/container-loading-calculator/">container loading calculator</a>: its footprint, the pallet height plus the load height, and the gross weight. Set <strong>Orientation</strong> to "this side up" so it is never turned on its side, and leave <strong>Can carry boxes on top</strong> unticked if nothing may go on top of the load. The 3D plan shows how many fit and whether the payload limit is reached.</p>
+    <p class="small">Sources: EPAL product pages for the <a href={euro.url} rel="noopener">Euro pallet</a>, <a href={p.epal2.url} rel="noopener">EPAL 2</a>, <a href={p.epal3.url} rel="noopener">EPAL 3</a>, <a href={p.epal6.url} rel="noopener">EPAL 6</a> and <a href={p.epal7.url} rel="noopener">EPAL 7</a>; <a href={us.url} rel="noopener">CHEP Pooled Wood Block Pallet North America (48 × 40 inches)</a>. Checked {data.checked}.</p>
+  </section>
+</Base>
