@@ -145,3 +145,19 @@ ul.plain,ol.plain{margin:8px 0 0;padding-left:20px;display:flex;flex-direction:c
 .edleftrow i{display:inline-block;width:14px;height:14px;border-radius:3px;margin-right:8px;vertical-align:-2px}
 .result .seg button[aria-pressed="true"]{background:var(--hi);color:#0F1E33}
 .prose h3{margin-top:18px}
+
+/* UX (2026-10-21): one-row menu on phones; current page marked; result bar while the result is off screen */
+.site-nav a[aria-current="page"]{font-weight:700;text-decoration:underline;text-underline-offset:4px}
+@media (max-width:640px){
+  .site-header .wrap{flex-direction:column;align-items:stretch;gap:0;padding-block:8px 0;flex-wrap:nowrap}
+  .site-nav{flex-wrap:nowrap;overflow-x:auto;gap:0 18px;scrollbar-width:none;-webkit-overflow-scrolling:touch;mask-image:linear-gradient(90deg,#000 88%,transparent);-webkit-mask-image:linear-gradient(90deg,#000 88%,transparent)}
+  .site-nav::-webkit-scrollbar{display:none}
+  .site-nav a{white-space:nowrap;flex:none}
+}
+.stickybar{position:fixed;left:50%;transform:translateX(-50%);bottom:max(12px,env(safe-area-inset-bottom,0px));z-index:50;width:min(560px,calc(100% - 24px));display:flex;align-items:center;gap:10px;padding:10px 14px;min-height:48px;border:0;border-radius:12px;background:var(--band);color:var(--band-ink);box-shadow:0 6px 24px rgba(0,0,0,.28);font:inherit;text-align:left;cursor:pointer}
+.stickybar[hidden]{display:none}
+.stickybar .sb-k{font-size:13px;color:var(--band-muted);flex:0 1 auto;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:40%}
+.stickybar .sb-v{font-family:var(--mono, inherit);font-weight:700;font-size:18px;flex:1 1 auto;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--hi, var(--band-ink))}
+.stickybar .sb-go{font-size:13px;flex:none;opacity:.85}
+@media print{.stickybar{display:none!important}}
+body.has-stickybar{padding-bottom:76px}

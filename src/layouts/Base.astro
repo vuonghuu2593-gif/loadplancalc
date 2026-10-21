@@ -71,5 +71,43 @@ const fullTitle = title === SITE_NAME ? title : `${title} | ${SITE_NAME}`;
       <p>© {new Date().getFullYear()} {SITE_NAME}</p>
     </div>
   </footer>
+  <!-- UX helpers: mark the current page in the menu; on calculator pages, a bar at the bottom shows the main result while it is off screen. -->
+  <script is:inline>
+    (function () {
+      var path = location.pathname;
+      document.querySelectorAll('.site-nav a').forEach(function (a) {
+        var href = a.getAttribute('href') || '';
+        if (href !== '/' && href.charAt(0) === '/' && href.indexOf('#') < 0 && path.indexOf(href) === 0) {
+          a.setAttribute('aria-current', 'page');
+          var nav = a.parentNode; if (nav.scrollWidth > nav.clientWidth) nav.scrollLeft = a.offsetLeft - 16;
+        }
+      });
+      var res = document.querySelector('[data-result]') || document.querySelector('.result');
+      if (!res || !('IntersectionObserver' in window)) return;
+      var main = res.querySelector('.v.hi') || res.querySelector('.verdict');
+      if (!main) return;
+      var keyEl = main.previousElementSibling && main.previousElementSibling.classList.contains('k') ? main.previousElementSibling : null;
+      var bar = document.createElement('button');
+      bar.type = 'button'; bar.className = 'stickybar'; bar.hidden = true;
+      bar.setAttribute('aria-label', 'Show the full result');
+      bar.innerHTML = '<span class="sb-k"></span><span class="sb-v"></span><span class="sb-go" aria-hidden="true">Result ↓</span>';
+      document.body.appendChild(bar);
+      var touched = false, below = false;
+      function text() {
+        var v = (main.textContent || '').trim();
+        bar.querySelector('.sb-v').textContent = v;
+        bar.querySelector('.sb-k').textContent = keyEl ? keyEl.textContent.trim() : 'Result';
+        bar.hidden = !(touched && below && v && v !== '–');
+        document.body.classList.toggle('has-stickybar', !bar.hidden);
+      }
+      new IntersectionObserver(function (es) {
+        es.forEach(function (e) { below = !e.isIntersecting && e.boundingClientRect.top > 0; }); text();
+      }).observe(res);
+      new MutationObserver(text).observe(main, { childList: true, characterData: true, subtree: true });
+      document.addEventListener('input', function () { touched = true; text(); });
+      document.addEventListener('change', function () { touched = true; text(); });
+      bar.addEventListener('click', function () { res.scrollIntoView({ behavior: 'smooth', block: 'start' }); });
+    })();
+  </script>
 </body>
 </html>

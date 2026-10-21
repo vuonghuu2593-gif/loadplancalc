@@ -85,3 +85,11 @@ After every run, update Vương's Vietnamese progress dashboard exactly as towin
 ## Daily traffic review (2026-10-21)
 At the start of every run read towinglimits/ops/traffic/insights_vi.json and do the actions for this site with owner "runs"
 (see towinglimits/CLAUDE.md "Daily traffic review").
+
+## UI/UX (Vương, 2026-10-21: "phải cải tiến sao cho tối ưu UI UX")
+- Phones first: check every new or changed page at 390 px. The header menu is one swipeable row (`.site-nav`), the
+  current page is marked with `aria-current` by the script in `Base.astro`; keep new menu items short.
+- Tool and calculator pages keep their main result in `.result` (or `[data-result]`) with the headline value in
+  `.v.hi` (or `.verdict`), so the bottom result bar in `Base.astro` can show it while the result is off screen.
+- Results update as the user types (no Calculate button), defaults always show a result, inputs use `inputmode`, and
+  touch targets are at least 44 px. Do not add pop-ups, auto-playing media or anything that shifts the page while it loads.

@@ -1,7 +1,7 @@
 {
-  "updated": "2026-10-20",
-  "tools": "9f9ae8926c17eeaf2f8ff7f7960481cb2a3c33cc486b25ab9b8dff4cbbaa450c",
-  "guide": "761ecfe0a9d743bdf98cd9dd2a52053043cf85954a7ee9dcc891583feb36d177",
+  "updated": "2026-10-21",
+  "tools": "15665aaad85d156222c4d17b505a51fb40171476baebc5da7b814ab712f1ea1b",
+  "guide": "c4ce5b720a3dbbc7eb0dcc4bd7235a3b1f96f040b75e137cb92b73eb14bea00f",
   "toolPages": [
     "/container-loading-calculator/",
     "/pallet-loading-calculator/"
