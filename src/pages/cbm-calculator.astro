@@ -1,0 +1,206 @@
+---
+import ToolPage from '../layouts/ToolPage.astro';
+import cdata from '../data/containers.json';
+import { pack, validate } from '../scripts/packer.js';
+// Pure math with exact definitions: 1 in = 25.4 mm, 1 ft = 0.3048 m.
+const FT3 = 0.3048 ** 3; // m³ in one cubic foot
+const IN3 = 0.0254 ** 3; // m³ in one cubic inch
+const n = (v: number, d = 0) => v.toLocaleString('en-US', { maximumFractionDigits: d, minimumFractionDigits: 0 });
+const C = cdata.containers;
+const vol = (c: { L: number; W: number; H: number }) => (c.L * c.W * c.H) / 1e9;
+const by = (id: string) => C.find((c) => c.id === id)!;
+const dv20 = by('20dv'), dv40 = by('40dv'), hc40 = by('40hc'), hc45 = by('45hc');
+const containers = C.map((c) => ({ id: c.id, name: c.name, L: c.L, W: c.W, H: c.H, doorW: c.doorW, doorH: c.doorH, payload: c.payload }));
+
+// Defaults = the worked example in the lede (the same cartons as the container loading calculator's example).
+const defaults = [
+  { name: 'Carton A', l: 600, w: 400, h: 400, qty: 400 },
+  { name: 'Carton B', l: 500, w: 300, h: 300, qty: 500 },
+];
+const a1 = (600 * 400 * 400) / 1e9, b1 = (500 * 300 * 300) / 1e9;
+const total = a1 * 400 + b1 * 500;
+const pct = (c: typeof dv20) => (total / vol(c)) * 100;
+
+// Reference tables: carton volumes (math) and, for each container, how many cartons the volume alone would
+// allow against how many the planner's engine actually fits (computed at build time, checked by validate()).
+const MM = 25.4;
+const examples = [
+  { label: '60 × 40 × 40 cm', l: 600, w: 400, h: 400 },
+  { label: '50 × 30 × 30 cm', l: 500, w: 300, h: 300 },
+  { label: '40 × 30 × 20 cm', l: 400, w: 300, h: 200 },
+  { label: '24 × 18 × 18 in', l: 24 * MM, w: 18 * MM, h: 18 * MM },
+  { label: '18 × 12 × 12 in', l: 18 * MM, w: 12 * MM, h: 12 * MM },
+  { label: '12 × 12 × 12 in', l: 12 * MM, w: 12 * MM, h: 12 * MM },
+];
+const fitRows = examples.map((e) => {
+  const v = (e.l * e.w * e.h) / 1e9;
+  const cells = C.map((c) => {
+    const r = pack(c, [{ l: e.l, w: e.w, h: e.h, weight: 0, qty: 20000, rotation: 'any', stackable: true }], { timeMs: 3000 });
+    const errs = validate(r);
+    if (errs.length) throw new Error(`cbm table plan failed its check: ${e.label} in ${c.id}: ${errs.join(', ')}`);
+    const byVol = Math.floor(vol(c) / v + 1e-9);
+    if (r.totals.n > byVol) throw new Error(`engine count above the volume bound: ${e.label} in ${c.id}`);
+    return { fit: r.totals.n, byVol };
+  });
+  return { ...e, v, cells };
+});
+---
+<ToolPage
+  title="CBM Calculator: Cartons to Cubic Meters and Container Share"
+  description="Free CBM calculator: enter carton sizes in cm, mm or inches and quantities to get cubic meters (m³) and cubic feet, and the share of a 20ft, 40ft, 40ft high cube or 45ft container's volume."
+  h1="CBM calculator"
+  name="CBM calculator"
+  lede={`Multiply length × width × height in metres to get a carton's volume in cubic metres (CBM), then multiply by the number of cartons. For example, a 60 × 40 × 40 cm carton is 0.6 × 0.4 × 0.4 = <strong>${n(a1, 3)} m³</strong> (${n(a1 / FT3, 2)} ft³). 400 of them plus 500 cartons of 50 × 30 × 30 cm (${n(b1, 3)} m³ each) make ${n(a1 * 400, 1)} + ${n(b1 * 500, 1)} = <strong>${n(total, 1)} m³</strong> (${n(total / FT3, 2)} ft³): ${n(pct(hc40), 1)}% of a 40' high cube's inside volume of ${n(vol(hc40), 2)} m³, ${n(pct(dv40), 1)}% of a 40' standard, and more than one 20' standard holds (${n(pct(dv20), 1)}%).`}
+>
+  <section class="cbm" data-tool="cbm" data-containers={JSON.stringify(containers)} data-defaults={JSON.stringify(defaults)}>
+    <form class="panel" onsubmit="return false" aria-label="Cartons">
+      <div class="cbmhead">
+        <h2>Cartons</h2>
+        <div class="seg seg3" role="group" aria-label="Length unit">
+          <button type="button" data-unit="cm" aria-pressed="true">cm</button>
+          <button type="button" data-unit="mm" aria-pressed="false">mm</button>
+          <button type="button" data-unit="in" aria-pressed="false">in</button>
+        </div>
+      </div>
+      <p class="small" style="margin:0">Outside size of one carton and how many. Add a line for each carton size.</p>
+      <div class="cbmlines" data-lines></div>
+      <div class="addrow"><button type="button" class="btn line" data-add>+ Add carton line</button></div>
+    </form>
+
+    <div class="result" data-result aria-live="polite">
+      <div class="grid">
+        <div><div class="k">Total volume</div><div class="v hi" id="r-main" data-r="main">–</div></div>
+        <div><div class="k">In cubic feet</div><div class="v" data-r="ft3">–</div></div>
+      </div>
+      <p><span data-r="count">0</span> cartons in total.</p>
+      <p class="warn" data-r="skip" hidden></p>
+      <div>
+        <div class="k">Share of each container's inside volume</div>
+        <div class="tablebox cbmconts">
+          <table>
+            <thead><tr><th>Container</th><th class="num">Volume used</th><th>Real fit</th></tr></thead>
+            <tbody data-r="conts"></tbody>
+          </table>
+        </div>
+      </div>
+      <p class="small cbmnote">This is volume only: an upper bound. Cartons are rigid blocks and leave gaps against the walls, the roof and each other, so fewer fit than the percentage suggests (see the table below). “Plan in 3D” opens the <a href="/container-loading-calculator/">container loading calculator</a> with these cartons, for a real plan; add their weights there.</p>
+    </div>
+
+    <template id="cbm-line">
+      <fieldset class="cbmline">
+        <legend class="sr">Carton line</legend>
+        <label class="cname">Name<input data-k="name" maxlength="40" autocomplete="off"></label>
+        <label class="cqty">Quantity<input data-k="qty" inputmode="numeric" autocomplete="off"></label>
+        <label>Length <span data-ul>(cm)</span><input data-k="l" inputmode="decimal" autocomplete="off"></label>
+        <label>Width <span data-ul>(cm)</span><input data-k="w" inputmode="decimal" autocomplete="off"></label>
+        <label>Height <span data-ul>(cm)</span><input data-k="h" inputmode="decimal" autocomplete="off"></label>
+        <p class="small cout" data-out></p>
+        <button type="button" class="iconbtn cdel" data-del aria-label="Remove this carton line">Remove</button>
+      </fieldset>
+    </template>
+  </section>
+
+  <section class="prose">
+    <h2>How the calculator works</h2>
+    <p>Every size is turned into millimetres first (1 cm = 10 mm, 1 in = 25.4 mm exactly), so switching between cm, mm and inches never changes the result. Then, for each carton line:</p>
+    <ol class="plain">
+      <li><strong>CBM of one carton</strong> = length × width × height in metres (millimetres ÷ 1,000).</li>
+      <li><strong>CBM of the line</strong> = CBM of one carton × quantity. The total is the sum of all lines.</li>
+      <li><strong>Cubic feet</strong> = cubic metres ÷ 0.028316846592, because 1 ft = 0.3048 m and 0.3048³ = 0.028316846592 m³. In inches, length × width × height ÷ 1,728 gives cubic feet directly (12³ = 1,728 in³ in a cubic foot), and 1 in³ = 0.000016387064 m³.</li>
+      <li><strong>Share of a container</strong> = total m³ ÷ the container's inside volume (inside length × width × height) × 100.</li>
+    </ol>
+    <p>With your current inputs:</p>
+    <div class="formula" data-r="steps" aria-live="polite">–</div>
+  </section>
+
+  <section class="prose">
+    <h2>Container inside volumes</h2>
+    <p>The share is worked out from Hapag-Lloyd's published inside dimensions. Hapag-Lloyd also prints a capacity for three of these containers, which differs slightly from length × width × height:</p>
+    <div class="tablebox">
+      <table>
+        <thead><tr><th>Container</th><th class="num">Inside L × W × H (mm)</th><th class="num">L × W × H</th><th class="num">Capacity printed by Hapag-Lloyd</th></tr></thead>
+        <tbody>
+          {C.map((c) => <tr><td><a href={c.url} rel="noopener">{c.name}</a></td><td class="num">{n(c.L)} × {n(c.W)} × {n(c.H)}</td><td class="num">{n(vol(c), 2)} m³<br><span class="small">{n(vol(c) / FT3)} ft³</span></td><td class="num">{c.cbm ? `${c.cbm} m³` : 'not given'}</td></tr>)}
+        </tbody>
+      </table>
+    </div>
+    <p class="small">Source: Hapag-Lloyd container specification pages (linked), checked {cdata.source.checked}. {cdata.source.note} Door openings and payloads are on <a href="/shipping-container-dimensions/">shipping container dimensions</a>.</p>
+  </section>
+
+  <section class="prose">
+    <h2>CBM of example carton sizes</h2>
+    <div class="tablebox">
+      <table>
+        <thead><tr><th>Carton</th><th class="num">CBM (m³)</th><th class="num">Cubic feet</th><th class="num">Cartons per m³</th></tr></thead>
+        <tbody>
+          {fitRows.map((e) => <tr><td>{e.label}<br><span class="small">{e.l % 1 ? `${n(e.l, 1)} × ${n(e.w, 1)} × ${n(e.h, 1)} mm` : `${n(e.l / MM, 2)} × ${n(e.w / MM, 2)} × ${n(e.h / MM, 2)} in`}</span></td><td class="num">{n(e.v, 4)}</td><td class="num">{n(e.v / FT3, 3)}</td><td class="num">{n(1 / e.v, 1)}</td></tr>)}
+        </tbody>
+      </table>
+    </div>
+    <p class="small">Computed from the sizes shown (1 in = 25.4 mm). The sizes are examples, not standards. “Cartons per m³” is volume only.</p>
+  </section>
+
+  <section class="prose">
+    <h2>Volume share vs what really fits</h2>
+    <p>The first number in each cell is how many cartons of one size the <a href="/container-loading-calculator/">container loading calculator</a>'s engine fits (any side may face down, no weight limit); the second is how many the inside volume alone would allow. The difference is the space lost to gaps.</p>
+    <div class="tablebox">
+      <table>
+        <thead><tr><th>Carton</th>{C.map((c) => <th class="num">{c.name}</th>)}</tr></thead>
+        <tbody>
+          {fitRows.map((e) => <tr><td>{e.label}</td>{e.cells.map((x) => <td class="num">{n(x.fit)}<br><span class="small">of {n(x.byVol)} by volume</span></td>)}</tr>)}
+        </tbody>
+      </table>
+    </div>
+    <p class="small">Plans computed when the site is built, each checked by the planner's independent validator (inside the container, no overlaps, every carton supported, through the door). For 60 × 40 × 40 cm cartons in a 40' high cube, the volume says {n(fitRows[0].cells[2].byVol)} but {n(fitRows[0].cells[2].fit)} fit ({n((fitRows[0].cells[2].fit / fitRows[0].cells[2].byVol) * 100, 0)}%). Your carrier's container may differ by a few millimetres.</p>
+  </section>
+
+  <section class="prose">
+    <h2>Getting the volume right</h2>
+    <ul class="plain">
+      <li><strong>Measure the outside of the packed carton</strong>, at its widest point. Printed carton sizes are often inside dimensions, and a bulging carton is bigger than either.</li>
+      <li><strong>Count the pallet if the cartons ship on one.</strong> Add a line for the loaded pallet as a whole (pallet footprint × total height including the pallet) instead of the cartons. Pallet footprints and heights are on <a href="/pallet-sizes/">standard pallet sizes</a>.</li>
+      <li><strong>Volume is not the only limit.</strong> A container also has a maximum payload, and every item must pass the door opening, which is smaller than the inside. A share under 100% does not mean the cargo fits; plan it with the <a href="/container-loading-calculator/">container loading calculator</a>.</li>
+      <li><strong>Check your unit.</strong> A cubic metre is 35.3147 cubic feet (1 ÷ 0.028316846592). Mixing up cm and inches multiplies the volume by 2.54³ = 16.387.</li>
+    </ul>
+  </section>
+
+  <section class="prose">
+    <h2>Related</h2>
+    <div class="chips">
+      <a href="/container-loading-calculator/">Container loading calculator</a>
+      <a href="/shipping-container-dimensions/">Shipping container dimensions</a>
+      <a href="/how-many-pallets-fit-in-a-container/">Pallets in a container</a>
+      <a href="/pallet-loading-calculator/">Pallet loading calculator</a>
+      <a href="/pallet-sizes/">Standard pallet sizes</a>
+      <a href="/how-we-calculate/">How we calculate</a>
+    </div>
+  </section>
+</ToolPage>
+
+<script>
+  import { initCbm } from '../scripts/cbm.js';
+  const root = document.querySelector('[data-tool="cbm"]');
+  if (root) initCbm(root as HTMLElement);
+</script>
+
+<style>
+  .cbm { display: flex; flex-direction: column; gap: 14px; }
+  .cbmhead { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  .seg3 { grid-template-columns: repeat(3, minmax(0, 1fr)); min-width: 180px; }
+  .cbmlines { display: flex; flex-direction: column; gap: 12px; }
+  :global(.cbmline) { margin: 0; border: 1px solid var(--line); border-left: 8px solid var(--hi); border-radius: 8px; padding: 12px; display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 10px; min-width: 0; }
+  :global(.cbmline label) { grid-column: span 2; min-width: 0; }
+  :global(.cbmline .cname) { grid-column: span 4; }
+  :global(.cbmline .cout) { grid-column: span 4; margin: 0; align-self: center; }
+  :global(.cbmline .cdel) { grid-column: span 2; justify-self: end; align-self: center; }
+  :global(.cbmline .sr) { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  .cbmconts { background: transparent; border-color: color-mix(in srgb, var(--band-muted) 45%, transparent); }
+  .cbmconts th, .cbmconts td { border-color: color-mix(in srgb, var(--band-muted) 35%, transparent); color: var(--band-ink); }
+  .cbmconts thead th { background: transparent; color: var(--band-muted); font-size: 13px; }
+  .cbmconts .small { color: var(--band-muted); }
+  .cbmconts :global(a.planlink) { color: var(--hi); min-height: 44px; display: inline-flex; align-items: center; font-weight: 600; white-space: nowrap; }
+  .cbmconts th, .cbmconts td { padding: 8px 10px; }
+  .cbmconts :global(td .small) { display: block; white-space: normal; font-family: var(--body); }
+  .cbmnote { color: var(--band-muted) !important; }
+  .cbmnote a { color: var(--band-ink); }
+</style>

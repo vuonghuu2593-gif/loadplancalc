@@ -227,6 +227,33 @@ await pg.screenshot({ path: process.env.SHOT || '/tmp/semi.png', fullPage: true 
   await pg6.goto('http://localhost:4401/container-loading-calculator/'); await pg6.waitForTimeout(300);
   ok(await pg6.$eval('.boxcard .bpre', (e) => e.hidden), 'no pallet picker on the container loading calculator');
 }
+// CBM calculator: defaults (hand: 0.6·0.4·0.4·400 + 0.5·0.3·0.3·500 = 38.4 + 22.5 = 60.9 m³ = 2,150.66 ft³),
+// shares of Hapag-Lloyd inside volumes, unit round trips, an inch case and the "Plan in 3D" link into the planner
+{
+  const pg7 = await b.newPage({ viewport: { width: 390, height: 844 }, locale: 'en-GB' }); pg7.on('pageerror', (e) => errs.push(e.message));
+  const T = (s) => pg7.$eval(s, (e) => e.textContent.trim());
+  const shares = () => pg7.$$eval('[data-r="conts"] tr', (r) => r.map((x) => x.children[1].firstChild.textContent.trim()).join(' '));
+  await pg7.goto('http://localhost:4401/cbm-calculator/'); await pg7.waitForTimeout(300);
+  ok(await T('#r-main') === '60.9 m³' && await T('[data-r="ft3"]') === '2,150.66 ft³', 'cbm defaults 60.9 m³ = 2,150.66 ft³ (' + await T('#r-main') + ')');
+  ok(await shares() === '183.2% 89.9% 79.8% 70.7%', 'cbm shares 20/40/40HC/45HC (' + await shares() + ')');
+  ok((await T('[data-r="conts"]')).includes('at least 2 by volume'), 'cbm: 20ft needs at least 2 by volume');
+  for (let i = 0; i < 3; i++) { await pg7.click('[data-unit="in"]'); await pg7.click('[data-unit="mm"]'); await pg7.click('[data-unit="cm"]'); }
+  ok(await pg7.inputValue('.cbmline [data-k="l"]') === '60' && await T('#r-main') === '60.9 m³', 'cbm: no drift after 3 unit round trips');
+  await pg7.click('[data-unit="in"]');
+  ok(await pg7.inputValue('.cbmline [data-k="l"]') === '23.62', 'cbm: 600 mm shows 23.62 in');
+  await pg7.click('.cbmline:nth-child(2) [data-del]');
+  for (const [k, v] of [['l', '24'], ['w', '18'], ['h', '18'], ['qty', '120']]) await pg7.fill(`.cbmline [data-k="${k}"]`, v);
+  // hand: 24·18·18 = 7,776 in³ = 4.5 ft³ (÷1,728) → 540 ft³; 7,776 × 16.387064 cm³ × 120 = 15.291 m³; ÷ 33.2349 = 46.0%
+  ok(await T('#r-main') === '15.291 m³' && await T('[data-r="ft3"]') === '540 ft³' && (await shares()).startsWith('46.0% 22.6% 20.0% 17.8%'), 'cbm inch case 15.291 m³, 540 ft³, 46.0% of a 20ft (' + await T('#r-main') + ' ' + await shares() + ')');
+  await pg7.click('[data-unit="cm"]');
+  ok(await pg7.inputValue('.cbmline [data-k="l"]') === '60.96' && await T('#r-main') === '15.291 m³', 'cbm: 24 in shows 60.96 cm, total unchanged');
+  await pg7.click('[data-unit="in"]');
+  ok(await pg7.inputValue('.cbmline [data-k="l"]') === '24', 'cbm: back to 24 in');
+  const href = await pg7.$eval('[data-r="conts"] tr:nth-child(1) a', (a) => a.getAttribute('href'));
+  await pg7.goto('http://localhost:4401' + href); await pg7.waitForFunction(() => document.querySelector('#r-main').textContent.trim() !== '–', null, { timeout: 15000 }); await pg7.waitForTimeout(800);
+  ok(await pg7.inputValue('[data-f="preset"]') === '20dv' && /^\d+ of 120$/.test(await T('#r-main')) && await pg7.inputValue('.boxcard [data-b="qty"]') === '120', 'cbm "Plan in 3D" opens the 20ft plan with 120 cartons (' + await T('#r-main') + ')');
+  await pg7.close();
+}
 ok(errs.length === 0, 'no JS errors ' + errs.join(' | '));
 await b.close(); srv.close();
 console.log(fails ? fails + ' failing' : 'planner checks pass'); process.exit(fails ? 1 : 0);

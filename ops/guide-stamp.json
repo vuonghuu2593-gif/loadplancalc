@@ -1,8 +1,9 @@
 {
   "updated": "2026-10-21",
-  "tools": "bf451a8e4a2b0abe78cf99114204767b2ee4c85821e058963e3505ecaf15c716",
-  "guide": "5a0a3d9fcf74e9fbc5cc2ec515ff74b05e1e74fbb6c5794e8622015858ee18cb",
+  "tools": "7291e9f432775f399a8d51cc4676c941100fe2f858752f7cd522096031249d52",
+  "guide": "1dda52c05f571f2bf4c9c9db8e4c2e31daead34d01e17d4010146cb174004f17",
   "toolPages": [
+    "/cbm-calculator/",
     "/container-loading-calculator/",
     "/how-many-pallets-fit-in-a-container/",
     "/pallet-loading-calculator/"

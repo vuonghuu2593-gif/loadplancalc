@@ -23,6 +23,7 @@ const schema = { '@context': 'https://schema.org', '@type': 'HowTo', name: `How 
       <a href="#container-loading-calculator">Container loading calculator</a>
       <a href="#pallet-loading-calculator">Pallet loading calculator</a>
       <a href="#how-many-pallets-fit-in-a-container">Pallets in a container</a>
+      <a href="#cbm-calculator">CBM calculator</a>
       <a href="#orientation">Carton orientation</a>
       <a href="#loading-method">Automatic or step by step</a>
       <a href="#edit-by-hand">Editing by hand</a>
@@ -103,6 +104,19 @@ const schema = { '@context': 'https://schema.org', '@type': 'HowTo', name: `How 
       <li>Each pallet must pass the door as it is stowed; a loaded pallet taller than the door opening is left out and a note says so.</li>
     </ul>
     <p>The page also has a table of how many of each pallet fit in each container, one and two high, computed by the same planner.</p>
+  </section>
+
+  <section class="prose" id="cbm-calculator">
+    <h2>CBM calculator</h2>
+    <p>The <a href="/cbm-calculator/">CBM calculator</a> adds up the volume of your cartons in cubic metres (CBM) and cubic feet, and shows what share of each container's inside volume that is. It is plain arithmetic; it does not plan where the cartons go.</p>
+    <ul class="plain">
+      <li><strong>Unit (cm · mm · in):</strong> the unit for carton sizes. Sizes are kept in millimetres, so switching back and forth never changes your numbers. Your choice is remembered on this device.</li>
+      <li><strong>Carton lines:</strong> for each carton size enter a name, the quantity and the outside length, width and height. Each line shows the volume of one carton and of the whole line. <strong>+ Add carton line</strong> adds another size (up to 10); <strong>Remove</strong> deletes a line. A line with an empty or zero size or quantity is left out, and a note says so.</li>
+      <li><strong>Starting example:</strong> 400 cartons of 60 × 40 × 40 cm and 500 of 50 × 30 × 30 cm, 60.9 m³ in total.</li>
+      <li><strong>Result:</strong> total volume in m³ (the headline), the same in cubic feet, the number of cartons, and for the 20', 40', 40' high cube and 45' high cube the share of the inside volume (inside length × width × height from Hapag-Lloyd's figures). Over 100% it shows how many containers the volume needs at least. On a phone, a bar at the bottom shows the total while the result is off screen.</li>
+      <li><strong>The share is an upper bound.</strong> Rigid cartons leave gaps, so fewer fit than the percentage suggests. <strong>Plan in 3D</strong> on each container row opens the <a href="/container-loading-calculator/">container loading calculator</a> with that container and your cartons filled in (any side may face down, weight 0: add the weights there) for a real loading plan.</li>
+      <li><strong>How the calculator works</strong> below the result shows the formula with your own numbers, updated as you type.</li>
+    </ul>
   </section>
 
   <section class="prose" id="orientation">
@@ -195,6 +209,7 @@ const schema = { '@context': 'https://schema.org', '@type': 'HowTo', name: `How 
   <section class="prose" id="whats-new">
     <h2>What's new</h2>
     <ul class="plain">
+      <li><strong>October 21, 2026:</strong> new tool: <a href="/cbm-calculator/">CBM calculator</a> — carton sizes in cm, mm or inches and quantities to cubic metres and cubic feet, the share of each container's inside volume, and a “Plan in 3D” link that opens the container loading calculator with your cartons.</li>
       <li><strong>October 21, 2026:</strong> new tool: <a href="/how-many-pallets-fit-in-a-container/">how many pallets fit in a container</a> — Euro, EPAL and 48 × 40 in pallets in a 20', 40', 40' HC or 45', one or two high, with a pallet size list on each box card and a table of counts per container.</li>
       <li><strong>October 21, 2026:</strong> easier on phones: the menu fits on one line (swipe it sideways) and marks the page you are on; a result bar at the bottom while the result is off screen.</li>
       <li><strong>October 21, 2026:</strong> new <a href="/pallet-loading-calculator/">pallet loading calculator</a>: cartons on a Euro, EPAL or 48 × 40 in pallet with overhang, height and weight limits, Ti-Hi, pallets needed for your quantity, and a 3D plan built layer by layer. Fixed: editing a plan by hand with box sizes in inches no longer shows a failed check.</li>

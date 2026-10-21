@@ -15,6 +15,7 @@ import pallets from '../data/pallets.json';
     <p>When you edit a plan by hand, each move, turn or new box is checked against the rules below before it is made. The free spots offered for a box are the corners next to, beside, behind and on top of the boxes already loaded (the “extreme points” of Crainic, T.G., Perboli, G. and Tadei, R. (2008) “Extreme point-based heuristics for three-dimensional bin packing”, INFORMS Journal on Computing 20) that pass every check. “Fill the rest automatically” keeps your boxes, fills the gaps among them block by block from those corner points, and loads the empty space in front of them with the block-building method.</p>
     <p>On a pallet, the load space is the pallet's footprint plus the overhang you allow on each side, and the height limit minus the pallet's height. With one box type, the planner first plans a full pallet (as many boxes as fit, without the weight limit) and then keeps its lowest boxes, layer by layer, up to your quantity and the max load weight. Each box in such a plan stands on boxes placed before it, so it stays a valid plan, and it passes the same checks. Ti-Hi (boxes per layer × layers) is read from the layers of that full pallet, and only shown when every box stands with the same side up on a clean layer line.</p>
     <p>Whole pallets in a container are planned as boxes: the footprint of the pallet, the loaded height and the gross weight, kept “this side up”. The counts in the table on <a href="/how-many-pallets-fit-in-a-container/">how many pallets fit in a container</a> are computed by the engine when the site is built and checked by the same validator; the build stops if a plan fails the check.</p>
+    <p>The <a href="/cbm-calculator/">CBM calculator</a> is plain arithmetic: each carton's length × width × height in metres, times its quantity, summed; cubic feet = cubic metres ÷ 0.028316846592 (0.3048³). The share of a container is the total divided by the container's inside length × width × height. Because cartons leave gaps, that share is an upper bound; the table of example cartons on that page sets it against counts the engine computes at build time and the validator checks.</p>
     <p>Because it is a heuristic, a plan may occasionally fit a few boxes fewer than the best possible arrangement. It will never show an arrangement that is physically impossible: the checks below make sure of that.</p>
   </section>
   <section class="prose">
@@ -31,7 +32,7 @@ import pallets from '../data/pallets.json';
   </section>
   <section class="prose">
     <h2>Units</h2>
-    <p>Everything is calculated in millimetres and kilograms. Inches and pounds use the exact definitions 1 in = 25.4 mm and 1 lb = 0.45359237 kg.</p>
+    <p>Everything is calculated in millimetres and kilograms. Inches and pounds use the exact definitions 1 in = 25.4 mm and 1 lb = 0.45359237 kg; volumes use 1 ft = 0.3048 m (1 ft³ = 0.028316846592 m³, 1 in³ = 16.387064 cm³).</p>
   </section>
   <section class="prose">
     <h2>Sources</h2>

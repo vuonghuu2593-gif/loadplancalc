@@ -14,7 +14,7 @@ import { fileURLToPath } from 'url';
 // What counts as a tool and which files describe how the tools work (this site: the load planner).
 const FULL = ['src/scripts', 'src/components'];          // fingerprinted in full
 const USAGE = ['src/pages', 'src/layouts'];              // forms, inline scripts and component tags only
-const isTool = (route, html) => html.includes('class="planner"');
+const isTool = (route, html) => html.includes('class="planner"') || html.includes('data-tool="');  // the load planner and other calculators
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const STAMP = path.join(ROOT, 'ops/guide-stamp.json');
