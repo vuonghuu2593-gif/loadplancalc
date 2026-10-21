@@ -26,6 +26,7 @@ const schema = { '@context': 'https://schema.org', '@type': 'HowTo', name: `How 
       <a href="#how-many-pallets-fit-in-a-container">Pallets in a container</a>
       <a href="#how-many-pallets-fit-in-a-53-foot-trailer">Pallets in a 53 ft trailer</a>
       <a href="#cbm-calculator">CBM calculator</a>
+      <a href="#dimensional-weight-calculator">Dimensional weight calculator</a>
       <a href="#orientation">Carton orientation</a>
       <a href="#loading-method">Automatic or step by step</a>
       <a href="#edit-by-hand">Editing by hand</a>
@@ -133,6 +134,20 @@ const schema = { '@context': 'https://schema.org', '@type': 'HowTo', name: `How 
     </ul>
   </section>
 
+  <section class="prose" id="dimensional-weight-calculator">
+    <h2>Dimensional weight calculator</h2>
+    <p>The <a href="/dimensional-weight-calculator/">dimensional weight calculator</a> works out the dimensional (DIM) weight and the billable weight of one package from its size and actual weight. It is plain arithmetic and updates as you type.</p>
+    <ul class="plain">
+      <li><strong>Units (in · lb / cm · kg):</strong> the unit for sizes and weight. Values are kept in millimetres and kilograms, so switching back and forth never changes your numbers. Your choice is remembered on this device.</li>
+      <li><strong>Rule:</strong> <strong>USPS: Priority Mail, Ground Advantage (retail), Parcel Select Destination Entry</strong> (the starting choice) or <strong>USPS: Priority Mail (commercial)</strong> follow the USPS Domestic Mail Manual: each side rounded up to a whole inch (centimetres are converted first), length × width × height, and only above 1,728 in³ divided by 139 and rounded up to a whole pound. <strong>Your carrier's divisor</strong> lets you enter any divisor in in³ per lb or cm³ per kg (it starts at the USPS 139); then nothing is rounded.</li>
+      <li><strong>Length, width, height, actual weight:</strong> the outside size of the packed package and what it weighs. <strong>Packages:</strong> how many identical packages, for the totals.</li>
+      <li><strong>Shape (USPS rules only):</strong> <strong>Not rectangular</strong> (a tube or a ball) measures each side at its widest and multiplies the volume by 0.785, as the DMM says. For commercial Priority Mail the DMM text for this case rounds sides off (to the nearest inch) and divides by 166, and the calculator follows it.</li>
+      <li><strong>Starting example:</strong> an 18 × 14 × 12 in box of 10 lb: 3,024 in³ ÷ 139 = 21.76, rounded up to 22 lb billable.</li>
+      <li><strong>Result:</strong> the billable weight (the headline, the greater of actual and dimensional weight, with the kg or lb equivalent), the dimensional weight (or “Not applied” at 1,728 in³ or less), which of the two you pay for, the weight it is priced at in whole pounds, and totals for several packages. A note appears when the dimensional weight is over 70 lb (the customer pays the 70-pound price) or the actual weight is over 70 lb. On a phone, a bar at the bottom shows the billable weight while the result is off screen.</li>
+      <li><strong>How the calculator works</strong> below the result shows each step with your own numbers. The page also quotes the USPS rule and has a table of common box sizes.</li>
+    </ul>
+  </section>
+
   <section class="prose" id="orientation">
     <h2>Carton orientation</h2>
     <p>A carton can sit in six positions: one of its three sides faces up, and its length runs either along the container (toward the door) or across it. For each box type choose under <strong>Orientation</strong>:</p>
@@ -223,6 +238,7 @@ const schema = { '@context': 'https://schema.org', '@type': 'HowTo', name: `How 
   <section class="prose" id="whats-new">
     <h2>What's new</h2>
     <ul class="plain">
+      <li><strong>October 22, 2026:</strong> new tool: <a href="/dimensional-weight-calculator/">dimensional weight calculator</a> — box size in inches or cm and weight in lb or kg to dimensional and billable weight under the USPS rule (rectangular or not), or with your carrier's divisor.</li>
       <li><strong>October 22, 2026:</strong> new tool: <a href="/how-many-pallets-fit-in-a-53-foot-trailer/">how many pallets fit in a 53 ft trailer</a> — 48 × 40 in, Euro and EPAL pallets in a 53' dry van (three Hyundai Translead models), one or two high, with a table of counts. The container loading calculator's list now also has these 53' trailers (no door or payload filled in: enter your own).</li>
       <li><strong>October 21, 2026:</strong> new tool: <a href="/cbm-calculator/">CBM calculator</a> — carton sizes in cm, mm or inches and quantities to cubic metres and cubic feet, the share of each container's inside volume, and a “Plan in 3D” link that opens the container loading calculator with your cartons.</li>
       <li><strong>October 21, 2026:</strong> new tool: <a href="/how-many-pallets-fit-in-a-container/">how many pallets fit in a container</a> — Euro, EPAL and 48 × 40 in pallets in a 20', 40', 40' HC or 45', one or two high, with a pallet size list on each box card and a table of counts per container.</li>

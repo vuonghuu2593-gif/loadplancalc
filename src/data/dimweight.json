@@ -1,0 +1,70 @@
+{
+  "source": {
+    "publisher": "USPS Domestic Mail Manual (DMM), Postal Explorer",
+    "checked": "2026-10-22",
+    "revision": "7-12-26",
+    "note": "Read twice: curl + HTML-to-text, and a headless-browser page load (innerText); identical. Lines marked [7-12-26] in the DMM were revised for July 12, 2026. UPS and FedEx pages could not be read (Access Denied to the run), so no UPS or FedEx divisor is given."
+  },
+  "rules": [
+    {
+      "id": "usps",
+      "label": "USPS: Priority Mail, Ground Advantage (retail), Parcel Select Destination Entry",
+      "short": "USPS",
+      "threshold_in3": 1728,
+      "cap_lb": 70,
+      "rect": { "round": "up", "factor": 1, "divisor": 139 },
+      "nonrect": { "round": "up", "factor": 0.785, "divisor": 139 },
+      "sections": [
+        { "service": "Priority Mail (retail)", "ref": "DMM 123 1.3", "url": "https://pe.usps.com/text/dmm300/123.htm" },
+        { "service": "USPS Ground Advantage — Retail", "ref": "DMM 133 1.4", "url": "https://pe.usps.com/text/dmm300/133.htm" },
+        { "service": "Parcel Select Destination Entry", "ref": "DMM 253 1.2", "url": "https://pe.usps.com/text/dmm300/253.htm" }
+      ]
+    },
+    {
+      "id": "usps-pm-commercial",
+      "label": "USPS: Priority Mail (commercial)",
+      "short": "USPS Priority Mail commercial",
+      "threshold_in3": 1728,
+      "cap_lb": 70,
+      "rect": { "round": "up", "factor": 1, "divisor": 139 },
+      "nonrect": { "round": "off", "factor": 0.785, "divisor": 166 },
+      "sections": [
+        { "service": "Priority Mail (commercial)", "ref": "DMM 223 1.4", "url": "https://pe.usps.com/text/dmm300/223.htm" }
+      ]
+    }
+  ],
+  "quotes": {
+    "general": "Postage for parcels addressed for delivery to Zones 1-9 and exceeding 1 cubic foot (1,728 cubic inches) is based on the actual weight or the dimensional weight (as calculated in 1.3.2 or 1.3.3), whichever is greater.",
+    "rect": [
+      "[7-12-26] Measure the length, width, and height in inches. Round up (see 604.7.0) each measurement to the nearest whole inch.",
+      "Multiply the length by the width by the height.",
+      "[7-12-26] If the result exceeds 1,728 cubic inches, divide the result by 139 and round up (see 604.7.0) to the next whole number to determine the dimensional weight in pounds.",
+      "If the dimensional weight exceeds 70 pounds, the customer pays the 70-pound price."
+    ],
+    "nonrect": [
+      "[7-12-26] Measure the length, width, and height in inches at their extreme dimensions. Round up (see 604.7.0) each measurement to the nearest whole inch.",
+      "Multiply the length by the width by the height.",
+      "Multiply the result by an adjustment factor of 0.785.",
+      "[7-12-26] If the final result exceeds 1,728 cubic inches, divide the result by 139 and round up (see 604.7.0) to the next whole number to determine the dimensional weight in pounds.",
+      "If the dimensional weight exceeds 70 pounds, the mailer pays the 70-pound price."
+    ],
+    "commercialNonrect": [
+      "Measure the length, width, and height in inches at their extreme dimensions. Round off (see 604.7.0) each measurement to the nearest whole inch.",
+      "Multiply the length by the width by the height.",
+      "Multiply the result by an adjustment factor of 0.785.",
+      "If the final result exceeds 1,728 cubic inches, divide the result by 166 and round up (see 604.7.0) to the next whole number to determine the dimensional weight in pounds.",
+      "If the dimensional weight exceeds 70 pounds, the customer pays the 70-pound price."
+    ],
+    "roundUp": "Round up requires increasing by 1 the last digit to be kept if there are any digits to its right, regardless of significance (e.g., rounding up either 3.3701 or 3.379 to two decimal places yields 3.38).",
+    "roundOff": "Round off requires increasing by 1 the last digit to be kept if the digit to its right, which is not to be kept, is 5 or greater. If that digit is 4 or less, the last digit kept is unchanged (e.g., 3.376 rounded off to two decimal places is 3.38, 3.374 is 3.37).",
+    "pmIncrement": "Except under 1.4 through 1.6, Priority Mail retail prices are based on weight and zone and are charged per pound; any fraction of a pound is rounded up to the next whole pound. For example, if a piece weighs 1.2 pounds, the weight (postage) increment is 2 pounds. The minimum postage amount per addressed piece is the 1-pound price.",
+    "gaIncrement": "Per pound from more than 1 pound through 70 pounds. Any fraction of a pound is considered a whole pound. For example, if an item weighs 1.25 pounds, the weight (price) increment is 2 pounds.",
+    "pmMax": "Priority Mail is an expedited service and may contain any mailable matter weighing no more than 70 pounds"
+  },
+  "refs": {
+    "round": { "ref": "DMM 604.7.1.3", "url": "https://pe.usps.com/text/dmm300/604.htm" },
+    "pmIncrement": { "ref": "DMM 123 1.1", "url": "https://pe.usps.com/text/dmm300/123.htm" },
+    "gaIncrement": { "ref": "DMM 133 1.2", "url": "https://pe.usps.com/text/dmm300/133.htm" },
+    "pmMax": { "ref": "DMM 123 2.1", "url": "https://pe.usps.com/text/dmm300/123.htm" }
+  }
+}

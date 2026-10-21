@@ -306,6 +306,53 @@ await pg.screenshot({ path: process.env.SHOT || '/tmp/semi.png', fullPage: true 
   ok(await pg7.inputValue('[data-f="preset"]') === '20dv' && /^\d+ of 120$/.test(await T('#r-main')) && await pg7.inputValue('.boxcard [data-b="qty"]') === '120', 'cbm "Plan in 3D" opens the 20ft plan with 120 cartons (' + await T('#r-main') + ')');
   await pg7.close();
 }
+// Dimensional weight calculator (USPS DMM rule): hand checks
+// defaults 18 x 14 x 12 in = 3,024 in³ ÷ 139 = 21.76 → 22 lb (10 lb actual); 50 x 40 x 30 cm → 19.69 x 15.75 x 11.81 → 20 x 16 x 12 = 3,840 ÷ 139 = 27.63 → 28 lb;
+// 12 in cube = 1,728 in³ → none; 24 in cube = 13,824 ÷ 139 = 99.45 → 100 lb (70-pound price); 20 in cube not rectangular 8,000 × 0.785 = 6,280 ÷ 139 = 45.18 → 46;
+// commercial PM not rectangular 20.4 x 20.5 x 20 → rounded off 20 x 21 x 20 = 8,400 × 0.785 = 6,594 ÷ 166 = 39.72 → 40; custom 6,000 cm³/kg: 60,000 cm³ → 10 kg
+{
+  const pg9 = await b.newPage({ viewport: { width: 390, height: 844 }, locale: 'en-GB' }); pg9.on('pageerror', (e) => errs.push(e.message));
+  const T = (s) => pg9.$eval(s, (e) => e.textContent.trim());
+  const V = (k) => pg9.inputValue(`[data-f="${k}"]`);
+  const fill = async (o) => { for (const [k, v] of Object.entries(o)) await pg9.fill(`[data-f="${k}"]`, v); };
+  await pg9.goto('http://localhost:4401/dimensional-weight-calculator/'); await pg9.waitForTimeout(300);
+  ok(await T('#r-main') === '22 lb' && await T('[data-r="dim"]') === '22 lb' && await T('[data-r="mainsub"]') === '9.98 kg', 'dim defaults: 22 lb billable, 22 lb dimensional, 9.98 kg (' + await T('#r-main') + ')');
+  ok(await V('l') === '45.72' && await V('w') === '35.56' && await V('h') === '30.48' && await V('wt') === '4.54', 'dim: en-GB starts in cm · kg, 18 in = 45.72 cm, 10 lb = 4.54 kg');
+  await pg9.click('[data-units="imperial"]');
+  ok(await V('l') === '18' && await V('wt') === '10', 'dim: imperial shows 18 in, 10 lb');
+  for (let i = 0; i < 3; i++) { await pg9.click('[data-units="metric"]'); await pg9.click('[data-units="imperial"]'); }
+  ok(await V('l') === '18' && await V('h') === '12' && await V('wt') === '10' && await T('#r-main') === '22 lb', 'dim: no drift after 3 unit round trips');
+  await pg9.fill('[data-f="qty"]', '4');
+  ok((await T('[data-r="total"]')).includes('88 lb billable'), 'dim: 4 packages = 88 lb (' + await T('[data-r="total"]') + ')');
+  await pg9.evaluate(() => window.scrollTo(0, 0)); await pg9.waitForTimeout(400);
+  ok(await pg9.$eval('.stickybar', (e) => !e.hidden && e.textContent.includes('22 lb')), 'dim: bottom result bar shows 22 lb');
+  await pg9.fill('[data-f="qty"]', '1');
+  await pg9.click('[data-units="metric"]'); await fill({ l: '50', w: '40', h: '30', wt: '8' });
+  ok(await T('#r-main') === '28 lb' && await T('[data-r="mainsub"]') === '12.7 kg' && (await T('[data-r="steps"]')).includes('20 × 16 × 12'), 'dim: 50 x 40 x 30 cm, 8 kg → 20 x 16 x 12 in → 28 lb (' + await T('#r-main') + ')');
+  await pg9.click('[data-units="imperial"]');
+  ok(await V('l') === '19.69' && await V('wt') === '17.64', 'dim: 50 cm shows 19.69 in, 8 kg shows 17.64 lb');
+  await fill({ l: '12', w: '12', h: '12', wt: '5' });
+  ok(await T('#r-main') === '5 lb' && await T('[data-r="dim"]') === 'Not applied', 'dim: 12 in cube (1,728 in³) has none, 5 lb billable');
+  await fill({ h: '12.1' });
+  ok(await T('#r-main') === '14 lb', 'dim: 12 x 12 x 12.1 → 13 in → 1,872 in³ → 14 lb (' + await T('#r-main') + ')');
+  await fill({ l: '24', w: '24', h: '24', wt: '30' });
+  ok(await T('#r-main') === '100 lb' && (await T('[data-r="warn"]')).includes('70-pound price') && (await T('[data-r="price"]')).includes('70 lb'), 'dim: 24 in cube → 100 lb, priced at the 70-pound price');
+  await fill({ l: '20', w: '20', h: '20', wt: '10' }); await pg9.click('[data-shape="nonrect"]');
+  ok(await T('#r-main') === '46 lb', 'dim: 20 in not rectangular → 6,280 in³ → 46 lb (' + await T('#r-main') + ')');
+  await pg9.selectOption('[data-f="rule"]', 'usps-pm-commercial'); await fill({ l: '20.4', w: '20.5' });
+  ok(await T('#r-main') === '40 lb', 'dim: commercial PM not rectangular, rounded off, ÷ 166 → 40 lb (' + await T('#r-main') + ')');
+  await pg9.selectOption('[data-f="rule"]', 'custom');
+  ok(await pg9.$eval('[data-shapebox]', (e) => e.hidden) && await V('divisor') === '139', 'dim: custom divisor starts at 139, shape hidden');
+  await pg9.click('[data-units="metric"]'); await pg9.selectOption('[data-f="dunit"]', 'cm3kg');
+  ok(await V('divisor') === '5021.69', 'dim: 139 in³/lb = 139 × 16.387064 ÷ 0.45359237 = 5,021.69 cm³/kg (' + await V('divisor') + ')');
+  await fill({ divisor: '6000', l: '50', w: '40', h: '30', wt: '8' });
+  ok(await T('#r-main') === '10 kg' && await T('[data-r="dim"]') === '10 kg', 'dim: custom 6,000 cm³/kg, 50 x 40 x 30 cm → 10 kg (' + await T('#r-main') + ')');
+  await pg9.selectOption('[data-f="dunit"]', 'in3lb');
+  ok(await V('divisor') === '166.08' && await T('#r-main') === '22.05 lb', 'dim: same divisor in in³/lb 166.08, 22.05 lb (' + await V('divisor') + ' ' + await T('#r-main') + ')');
+  await pg9.selectOption('[data-f="dunit"]', 'cm3kg');
+  ok(await V('divisor') === '6000', 'dim: divisor back to 6000 cm³/kg without drift');
+  await pg9.close();
+}
 ok(errs.length === 0, 'no JS errors ' + errs.join(' | '));
 await b.close(); srv.close();
 console.log(fails ? fails + ' failing' : 'planner checks pass'); process.exit(fails ? 1 : 0);
