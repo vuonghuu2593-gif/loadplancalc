@@ -262,5 +262,22 @@ ok(badF === 0, `25 random "remove some, fill again" plans valid (${badF} bad)`);
   // payload: 25 Euro pallets possible, 28,750 kg / 1,200 kg = 23.96 -> 23
   run("Euro pallets 1200 kg each, 40' DV payload 28,750 kg", { ...dv40, maxWeight: 28750 }, [{ ...eur, weight: 1200 }], (r) => ok(r.totals.n === 23, `23 pallets (got ${r.totals.n})`));
 }
+// Pallets in a 53' trailer (/how-many-pallets-fit-in-a-53-foot-trailer/): Hyundai Translead interiors, 630 in long, 110 in high,
+// 101.5 in (Composite) and 98.5 in (Original) wide; no door, no payload. 48 x 40 in: 48 in side across, two side by side
+// (96 in), 15 rows of 40 in (600 of 630 in) = 30; 48 in side along only: 13 rows (624 in) x 2 = 26; two high at 50 in
+// (100 <= 110 in) = 60. Euro 1200 x 800: two crosswise (2400 mm of 2578.1), 20 rows of 800 (16,000 of 16,002 mm) = 40;
+// 1200 x 805: 13 rows of three lengthwise (3 x 805 = 2415 mm, 13 x 1200 = 15,600 mm) = 39.
+{
+  const IN = 25.4, comp = { L: 630 * IN, W: 101.5 * IN, H: 110 * IN }, orig = { ...comp, W: 98.5 * IN };
+  const p48 = { l: 48 * IN, w: 40 * IN, h: 50 * IN, weight: 0, qty: 500, rotation: 'upright', stackable: false };
+  const eur = { ...p48, l: 1200, w: 800 };
+  for (const [nm, C, it, want] of [
+    ["48 x 40 in one high, 53' Composite", comp, p48, 30], ["48 x 40 in one high, 53' Original (98.5 in)", orig, p48, 30],
+    ["48 x 40 in, 48 in side along only, 53' Composite", comp, { ...p48, rotation: 'custom', orients: [0] }, 26],
+    ["48 x 40 in two high at 50 in, 53' Composite", comp, { ...p48, stackable: true }, 60],
+    ["Euro pallets one high, 53' Composite", comp, eur, 40], ["Euro pallets one high, 53' Original", orig, eur, 40],
+    ["Euro 1200 x 805 one high, 53' Composite", comp, { ...eur, w: 805 }, 39],
+  ]) run(nm, C, [it], (r) => ok(r.totals.n === want, `${want} pallets (got ${r.totals.n})`));
+}
 console.log(fails ? `${fails} failing` : 'all engine tests pass');
 process.exit(fails ? 1 : 0);

@@ -227,6 +227,58 @@ await pg.screenshot({ path: process.env.SHOT || '/tmp/semi.png', fullPage: true 
   await pg6.goto('http://localhost:4401/container-loading-calculator/'); await pg6.waitForTimeout(300);
   ok(await pg6.$eval('.boxcard .bpre', (e) => e.hidden), 'no pallet picker on the container loading calculator');
 }
+// Pallets in a 53' trailer: /how-many-pallets-fit-in-a-53-foot-trailer/ (Hyundai Translead interiors, no door, no payload)
+{
+  const T = (k) => pg.$eval(`[data-r="${k}"]`, (e) => e.textContent.trim());
+  const V = (sel) => pg.inputValue(sel);
+  await pg.goto('http://localhost:4401/how-many-pallets-fit-in-a-53-foot-trailer/'); await pg.evaluate(() => { localStorage.setItem('lpc-units', 'imperial'); history.replaceState(null, '', location.pathname); }); await pg.reload(); await settle();
+  // hand: 48 in side across, 2 x 48 = 96 <= 101.5 in; 15 rows x 40 = 600 <= 630 in -> 30 of 36; 30 x 1,500 lb = 45,000 lb
+  ok(await main() === '30 of 36', 'trailer defaults: 30 of 36 pallets of 48 x 40 in (' + await main() + ')');
+  ok(await pg.$eval('[data-f="preset"]', (e) => e.value) === '53ht-composite' && await pg.$eval('.boxcard [data-b="bpreset"]', (e) => e.value) === 'chep4840', 'defaults: Composite trailer, 48 x 40 in picker');
+  ok(await V('[data-f="L"]') === '630' && await V('[data-f="W"]') === '101.5' && await V('[data-f="H"]') === '110' && await V('[data-f="doorW"]') === '' && await V('[data-f="doorH"]') === '' && await V('[data-f="maxWeight"]') === '', 'trailer fields 630 x 101.5 x 110 in, door and payload empty');
+  ok(await V('.boxcard [data-b="l"]') === '48' && await V('.boxcard [data-b="h"]') === '50' && await V('.boxcard [data-b="weight"]') === '1500', 'pallet 48 in, 50 in high, 1,500 lb');
+  ok(await T('wt') === '45,000 lb' && await T('wtLeft') === 'No limit set' && !(await T('warn')).includes('failed its own check'), '45,000 lb, no limit set, plan passes the check (' + await T('wt') + ')');
+  ok((await pg.$eval('[data-f="srcnote"]', (e) => e.textContent)).includes('Hyundai Translead (Composite)'), 'source note names Hyundai Translead');
+  ok((await pg.$eval('.planner h2', (e) => e.textContent)) === 'Trailer', 'form heading says Trailer');
+  // bottom result bar: after an input with the result off screen it shows the headline value
+  await pg.evaluate(() => window.scrollTo(0, 0)); await pg.fill('.boxcard [data-b="qty"]', '80'); await settle();
+  ok(await pg.$eval('.stickybar', (e) => !e.hidden && e.textContent.includes('30 of 80')), 'result bar shows 30 of 80 while the result is off screen');
+  await pg.check('.boxcard [data-b="stackable"]'); await settle();
+  ok(await main() === '60 of 80', 'two high (2 x 50 = 100 <= 110 in): 60 of 80 (' + await main() + ')');
+  await pg.uncheck('.boxcard [data-b="stackable"]');
+  await pg.selectOption('[data-f="preset"]', '53ht-original'); await settle();
+  ok(await V('[data-f="W"]') === '98.5' && await main() === '30 of 80', 'Original (98.5 in wide): still 30 (' + await main() + ')');
+  // 48 in side along only (position 0): 13 rows x 2 = 26
+  await pg.selectOption('[data-f="preset"]', '53ht-composite');
+  await pg.selectOption('.boxcard [data-b="rotation"]', 'custom'); await settle();
+  for (const k of [1, 2, 3, 4, 5]) { const on = await pg.$eval(`.boxcard .ochip[data-o="${k}"]`, (e) => e.getAttribute('aria-pressed') === 'true'); if (on) await pg.click(`.boxcard .ochip[data-o="${k}"]`); }
+  await settle();
+  ok(await main() === '26 of 80', '48 in side along the trailer only: 26 (' + await main() + ')');
+  await pg.selectOption('.boxcard [data-b="rotation"]', 'upright');
+  // Euro pallets, second case: two crosswise x 20 rows = 40
+  await pg.selectOption('.boxcard [data-b="bpreset"]', 'epal1'); await settle();
+  ok(await main() === '40 of 80', 'Euro pallets: 2 crosswise x 20 rows = 40 (' + await main() + ')');
+  for (let i = 0; i < 3; i++) { await pg.click('[data-units="metric"]'); await pg.click('[data-units="imperial"]'); }
+  await settle();
+  ok(await V('[data-f="L"]') === '630' && await V('[data-f="W"]') === '101.5' && await V('.boxcard [data-b="h"]') === '50' && await V('.boxcard [data-b="weight"]') === '1500' && await main() === '40 of 80', 'trailer: no drift after 3 unit round trips');
+  await pg.click('[data-units="metric"]'); await settle();
+  ok(await V('[data-f="L"]') === '1600.2' && await V('[data-f="W"]') === '257.8' && await V('[data-f="H"]') === '279.4' && await V('.boxcard [data-b="l"]') === '120' && await V('.boxcard [data-b="h"]') === '127' && await V('.boxcard [data-b="weight"]') === '680.39', 'metric: 1600.2 x 257.8 x 279.4 cm, Euro 120 cm, 127 cm, 680.39 kg');
+  ok(await T('wt') === '27,216 kg', '40 x 680.39 kg = 27,216 kg (' + await T('wt') + ')');
+  await pg.waitForTimeout(300);
+  const pg8 = await b.newPage({ viewport: { width: 390, height: 844 } }); pg8.on('pageerror', (e) => errs.push(e.message));
+  await pg8.goto(pg.url()); await pg8.waitForTimeout(400); await pg8.waitForFunction(() => document.querySelector('#r-main').textContent.trim() !== '–', null, { timeout: 15000 }); await pg8.waitForTimeout(500);
+  ok(await pg8.$eval('#r-main', (e) => e.textContent.trim()) === '40 of 80' && await pg8.$eval('[data-f="preset"]', (e) => e.value) === '53ht-composite', 'trailer share link reproduces 40 in the Composite');
+  // the container loading calculator lists the trailers too; picking one clears the door and payload
+  await pg8.goto('http://localhost:4401/container-loading-calculator/'); await pg8.evaluate(() => { localStorage.setItem('lpc-units', 'metric'); history.replaceState(null, '', location.pathname); }); await pg8.reload(); await pg8.waitForTimeout(400);
+  await pg8.waitForFunction(() => !document.querySelector('[data-result]').classList.contains('busy') && document.querySelector('#r-main').textContent.trim() !== '–', null, { timeout: 15000 });
+  ok(await pg8.$eval('#r-main', (e) => e.textContent.trim()) === '900 of 900' && await pg8.$eval('[data-f="preset"] option:checked', (e) => e.value) === '40hc', 'container calculator defaults unchanged');
+  await pg8.selectOption('[data-f="preset"]', '53ht-hycube'); await pg8.waitForTimeout(400);
+  await pg8.waitForFunction(() => !document.querySelector('[data-result]').classList.contains('busy'), null, { timeout: 15000 });
+  ok(await pg8.inputValue('[data-f="L"]') === '1600.2' && await pg8.inputValue('[data-f="W"]') === '256.5' && await pg8.inputValue('[data-f="doorW"]') === '' && await pg8.inputValue('[data-f="maxWeight"]') === '' && await pg8.$eval('#r-main', (e) => e.textContent.trim()) === '900 of 900' && await pg8.$eval('[data-r="wtLeft"]', (e) => e.textContent.trim()) === 'No limit set', 'container calculator: HY-Cube trailer preset, door and payload empty, 900 of 900');
+  await pg8.selectOption('[data-f="preset"]', '40hc'); await pg8.waitForTimeout(400);
+  ok(await pg8.inputValue('[data-f="doorW"]') === '234' && await pg8.inputValue('[data-f="maxWeight"]') === '28600', 'back to the 40\' HC: door and payload filled again');
+  await pg8.close();
+}
 // CBM calculator: defaults (hand: 0.6·0.4·0.4·400 + 0.5·0.3·0.3·500 = 38.4 + 22.5 = 60.9 m³ = 2,150.66 ft³),
 // shares of Hapag-Lloyd inside volumes, unit round trips, an inch case and the "Plan in 3D" link into the planner
 {

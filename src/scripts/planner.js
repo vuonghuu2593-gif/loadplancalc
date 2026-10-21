@@ -83,7 +83,7 @@ export function initPlanner(root) {
     if (mode === 'pallet') {
       const u = U[units];
       f('srcnote').innerHTML = p && p.url ? `Pallet length, width and height from <a href="${p.url}" rel="noopener" target="_blank">${esc(p.source)}</a>, and its safe working load (${fmt(u.fromKG(p.maxWeight), 0)} ${u.wt}) as the starting max load weight. The max height is your own limit (racking, trailer, customer or warehouse rule); the ${fmt(u.fromMM(1800), units === 'metric' ? 0 : 1)} ${u.len} filled in is only an example.` : 'Enter your pallet size and height, how far the load may overhang each side, the max height of the loaded pallet and the max load weight.';
-    } else f('srcnote').innerHTML = p && p.url ? `Preset figures from <a href="${p.url}" rel="noopener" target="_blank">${p.source || 'Hapag-Lloyd'}</a>. Containers vary by maker and series; check the CSC plate or your booking for the exact unit.` : 'Enter the inside dimensions of your container.';
+    } else f('srcnote').innerHTML = p && p.url ? `Preset figures from <a href="${p.url}" rel="noopener" target="_blank">${esc(p.source || 'Hapag-Lloyd')}</a>. ${p.note ? esc(p.note) : 'Containers vary by maker and series; check the CSC plate or your booking for the exact unit.'}` : 'Enter the inside dimensions of your container or trailer.';
   }
   function paintBoxes() {
     const host = $('[data-boxes]'); host.innerHTML = '';

@@ -3,21 +3,24 @@
 // mode "pallet": boxes onto a pallet (the pallet top + allowed overhang is the floor, max height is the ceiling).
 // boxPresets (optional): footprints [{ id, name, L, W }] offered as a "Pallet size" picker on each box card,
 // for pages that load whole pallets as boxes. Picking one sets the box length and width; the height stays.
+// spacePresets (optional, container mode): the load spaces offered instead of the Hapag-Lloyd containers,
+// e.g. 53' trailers from trailers.json ({ id, name, L, W, H, doorW, doorH, payload, url, source, note }).
+// spaceLabel / presetLabel rename the form heading and the preset list ("Trailer", "Trailer model").
 import data from '../data/containers.json';
-interface Props { mode?: 'container' | 'pallet'; defaults: Record<string, unknown>; palletPresets?: unknown[]; boxPresets?: unknown[] }
-const { mode = 'container', defaults, palletPresets = [], boxPresets = [] } = Astro.props;
-const presets = mode === 'container' ? data.containers : palletPresets;
+interface Props { mode?: 'container' | 'pallet'; defaults: Record<string, unknown>; palletPresets?: unknown[]; boxPresets?: unknown[]; spacePresets?: unknown[]; spaceLabel?: string; presetLabel?: string }
+const { mode = 'container', defaults, palletPresets = [], boxPresets = [], spacePresets, spaceLabel, presetLabel } = Astro.props;
+const presets = mode === 'container' ? (spacePresets || data.containers) : palletPresets;
 ---
 <div class="planner" data-mode={mode} data-defaults={JSON.stringify(defaults)} data-presets={JSON.stringify(presets)} data-boxpresets={JSON.stringify(boxPresets)}>
   <form class="panel noprint" autocomplete="off" onsubmit="return false">
     <div class="viewbar">
-      <h2 style="flex:1 1 auto">{mode === 'container' ? 'Container' : 'Pallet'}</h2>
+      <h2 style="flex:1 1 auto">{spaceLabel || (mode === 'container' ? 'Container' : 'Pallet')}</h2>
       <div class="seg" role="group" aria-label="Units" style="flex:0 0 190px;grid-template-columns:repeat(2,minmax(0,1fr))">
         <button type="button" data-units="metric" aria-pressed="true">cm · kg</button>
         <button type="button" data-units="imperial" aria-pressed="false">in · lb</button>
       </div>
     </div>
-    <label>{mode === 'container' ? 'Container type' : 'Pallet size'}
+    <label>{presetLabel || (mode === 'container' ? 'Container type' : 'Pallet size')}
       <select data-f="preset">
         {presets.map((p: any) => <option value={p.id}>{p.name}</option>)}
         <option value="custom">Custom size</option>

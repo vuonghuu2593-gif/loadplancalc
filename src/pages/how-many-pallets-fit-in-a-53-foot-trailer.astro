@@ -1,0 +1,166 @@
+---
+import ToolPage from '../layouts/ToolPage.astro';
+import LoadPlanner from '../components/LoadPlanner.astro';
+import pdata from '../data/pallets.json';
+import tdata from '../data/trailers.json';
+import { trailerPresets } from '../data/trailers.js';
+import { pack, validate } from '../scripts/packer.js';
+const MM_PER_IN = 25.4, KG_PER_LB = 0.45359237;
+const n = (v: number, d = 0) => v.toLocaleString('en-US', { maximumFractionDigits: d, minimumFractionDigits: 0 });
+const inch = (mm: number, d = 1) => n(mm / MM_PER_IN, d);
+// Pallet footprints from pallets.json (EPAL / CHEP); the CHEP pallet as exactly 48 × 40 in (1,219.2 × 1,016 mm).
+const pallets = pdata.pallets.map((x) => ({ id: x.id, name: x.name, url: x.url, publisher: x.publisher, H: x.H,
+  L: x.Lin ? x.Lin * MM_PER_IN : x.L, W: x.Win ? x.Win * MM_PER_IN : x.W }));
+const boxPresets = pallets.map((p) => ({ id: p.id, name: p.name, L: p.L, W: p.W }));
+// 53' dry vans: Hyundai Translead's printed interior sizes (inches, converted exactly). No door or payload published.
+const T = tdata.trailers;
+const comp = T.find((t) => t.id === '53ht-composite')!, orig = T.find((t) => t.id === '53ht-original')!;
+const euro = pallets.find((p) => p.id === 'epal1')!, chep = pallets.find((p) => p.id === 'chep4840')!;
+// Examples, not standards: loaded pallet height (pallet + goods) and gross weight per loaded pallet.
+const EX_H = 50 * MM_PER_IN, EX_LB = 1500, EX_KG = EX_LB * KG_PER_LB;
+const defaults = {
+  cont: { preset: comp.id, L: comp.L, W: comp.W, H: comp.H, doorW: null, doorH: null, maxWeight: 0 },
+  priority: false,
+  items: [{ name: 'Loaded 48 × 40 in pallet', l: chep.L, w: chep.W, h: EX_H, weight: EX_KG, qty: 36, rotation: 'upright', stackable: false }],
+};
+
+// Every count on this page is computed by the engine at build time and checked by the independent
+// validator; the build fails if a plan does not pass.
+type Sp = { L: number; W: number; H: number };
+function fit(c: Sp, p: { L: number; W: number }, twoHigh: boolean, extra: Record<string, unknown> = {}) {
+  const r = pack({ L: c.L, W: c.W, H: c.H }, [{ l: p.L, w: p.W, h: EX_H, weight: 0, qty: 500, rotation: 'upright', stackable: twoHigh, ...extra }], { timeMs: 3000 });
+  const errs = validate(r);
+  if (errs.length) throw new Error(`pallet-in-trailer plan failed its check: ${p.L} x ${p.W} in ${c.L} x ${c.W}: ${errs.join(', ')}`);
+  return r.totals.n;
+}
+// Straight lanes by hand: a lanes of pallets turned crosswise (lane width = pallet length) and b lanes
+// lengthwise (lane width = pallet width), a·L + b·W ≤ inside width.
+function lanes(c: Sp, p: { L: number; W: number }) {
+  let best = { n: 0, a: 0, b: 0, na: 0, nb: 0 };
+  for (let a = 0; a * p.L <= c.W; a++) for (let b = 0; a * p.L + b * p.W <= c.W; b++) {
+    const na = Math.floor(c.L / p.W + 1e-9), nb = Math.floor(c.L / p.L + 1e-9), t = a * na + b * nb;
+    if (t > best.n) best = { n: t, a, b, na, nb };
+  }
+  return best;
+}
+const table = pallets.map((p) => ({ p, cells: T.map((c) => ({ c, one: fit(c, p, false), two: fit(c, p, true), hand: lanes(c, p) })) }));
+const same = table.every((r) => r.cells.every((x) => x.one === r.cells[0].one && x.two === r.cells[0].two));
+const allLanes = table.every((r) => r.cells.every((x) => x.one === x.hand.n && x.two === 2 * x.one));
+// worked example (lede) and the second case: engine and hand must agree
+const exChep = fit(comp, chep, false), hChep = lanes(comp, chep);
+const chepAlong = fit(comp, chep, false, { rotation: 'custom', orients: [0] }); // 48 in side along the trailer only
+const exChepTwo = fit(comp, chep, true), exChepOrig = fit(orig, chep, false);
+const exEuro = fit(comp, euro, false), hEuro = lanes(comp, euro), exEuroOrig = fit(orig, euro, false);
+if (exChep !== 30 || hChep.n !== 30 || hChep.a !== 2 || hChep.na !== 15 || chepAlong !== 26 || exChepTwo !== 60 || exChepOrig !== 30)
+  throw new Error(`48 x 40 in example changed: ${exChep}/${hChep.n}, 48 along ${chepAlong}, two high ${exChepTwo}, Original ${exChepOrig}; update the lede`);
+if (exEuro !== 40 || hEuro.n !== 40 || hEuro.a !== 2 || hEuro.na !== 20 || exEuroOrig !== 40) throw new Error(`Euro example changed: ${exEuro}/${hEuro.n}, Original ${exEuroOrig}; update the lede`);
+// a loaded Euro pallet 5 mm wider (1,200 × 805 mm, e.g. stretch wrap): 20 crosswise rows no longer fit in 16,002 mm.
+// Hand check by rows across the trailer: x rows of pallets crosswise (depth 805, floor(W / 1200) per row) and
+// y rows lengthwise (depth 1200, floor(W / 805) per row), x·805 + y·1200 ≤ L; the engine must match the best.
+const WIDE = { L: 1200, W: 805 };
+function rowsMix(c: Sp, p: { L: number; W: number }) {
+  const pa = Math.floor(c.W / p.L + 1e-9), pb = Math.floor(c.W / p.W + 1e-9);
+  let best = { n: 0, x: 0, y: 0, pa, pb };
+  for (let x = 0; x * p.W <= c.L; x++) { const y = Math.floor((c.L - x * p.W) / p.L + 1e-9); if (x * pa + y * pb > best.n) best = { n: x * pa + y * pb, x, y, pa, pb }; }
+  return best;
+}
+const euroWide = fit(comp, WIDE, false), hWide = rowsMix(comp, WIDE);
+if (euroWide !== hWide.n || euroWide >= exEuro) throw new Error(`1200 x 805 case: engine ${euroWide}, rows ${hWide.n}`);
+// how far each 48 × 40 in pallet may overhang per side and still go two across with the 48 in side across
+const ohMax = (t: typeof comp) => (t.Win - 2 * 48) / 4;
+const short = (t: typeof comp) => t.model;
+---
+<ToolPage
+  title="How Many Pallets Fit in a 53 Foot Trailer? Calculator"
+  description="How many 48 × 40 in, Euro and EPAL pallets fit in a 53 ft dry van, one or two high, from a trailer maker's published inside dimensions. Free calculator with a 3D plan."
+  h1="How many pallets fit in a 53 ft trailer?"
+  name="Pallets in a 53 ft trailer calculator"
+  lede={`Pick the trailer and the pallet, enter how high and heavy each loaded pallet is, and see how many fit, one or two high, with a 3D plan. For example, 48 × 40 in pallets on the floor of a 53' dry van with Hyundai Translead's published interior of ${comp.printed.length.replace(/.*Interior /, '')} (${comp.Lin} in) × ${comp.Win} in: <strong>${exChep} pallets</strong> one high. Turn them so the 48 in side runs across: two side by side take 2 × 48 = 96 in of the ${comp.Win} in width, and 15 rows of 40 in take 15 × 40 = 600 in of the ${comp.Lin} in length (16 rows would need 640 in). With the 48 in side along the trailer only ${chepAlong} fit: 13 rows (13 × 48 = 624 in) of two (2 × 40 = 80 in; three across would need 120 in). Euro pallets (${n(euro.L)} × ${n(euro.W)} mm) fit <strong>${exEuro}</strong>: two crosswise (2 × ${n(euro.L)} = 2,400 mm of the ${n(comp.W, 1)} mm width) in 20 rows (20 × ${n(euro.W)} = 16,000 mm of ${n(comp.L)} mm). Stacked two high, which works when each loaded pallet is at most ${comp.Hin / 2} in tall (the inside height is ${comp.Hin} in), the 48 × 40 in count doubles to ${exChepTwo}.`}
+>
+  <LoadPlanner mode="container" defaults={defaults} boxPresets={boxPresets} spacePresets={trailerPresets} spaceLabel="Trailer" presetLabel="Trailer model" />
+
+  <section class="prose">
+    <h2>Setting up your pallets</h2>
+    <p>The planner treats each loaded pallet as one box. The example above is filled in: 36 pallets of 48 × 40 in, each 50 in ({n(EX_H)} mm) high including the pallet and {n(EX_LB)} lb ({n(EX_KG, 1)} kg), in the Hyundai Translead Composite. That height and weight are only an example; enter your own.</p>
+    <ul class="plain">
+      <li><strong>Trailer model:</strong> three 53' dry vans with the interior sizes Hyundai Translead prints for them (table below). They differ only in inside width. Pick <strong>Custom size</strong> and type the inside length, width and height of your own trailer if you know them.</li>
+      <li><strong>Max payload and door:</strong> left empty, because the maker's pages give no payload and no rear door opening. Empty means no weight limit and no door check. Enter the payload your carrier gives you, and the door width and height you measured, to have them checked.</li>
+      <li><strong>Pallet size (footprint):</strong> pick the pallet on the box card; it fills in the length and width ({pallets.map((p) => `${p.name.replace(/ \(.*\)/, '')} ${n(p.L, 1)} × ${n(p.W)} mm`).join(', ')}). Type your own size for anything else.</li>
+      <li><strong>Height:</strong> the loaded pallet from the floor to the top of the goods, pallet included (the CHEP 48 × 40 in pallet itself is {chep.H} mm, a Euro pallet {euro.H} mm; see <a href="/pallet-sizes/">standard pallet sizes</a>). To work out the goods on each pallet first, use the <a href="/pallet-loading-calculator/">pallet loading calculator</a>.</li>
+      <li><strong>Weight:</strong> the gross weight of one loaded pallet (goods plus pallet). With a payload entered, the plan stops when it is reached.</li>
+      <li><strong>One high or two high:</strong> leave <strong>Can carry boxes on top</strong> unticked to keep every pallet on the floor. Tick it to let the planner stack pallets where two fit under the inside height. Only tick it if your goods can carry a loaded pallet on top.</li>
+      <li><strong>Orientation:</strong> keep <strong>this side up</strong>: the planner may turn a pallet flat (48 in side across or along the trailer) but never tips it. To force one way, choose the positions allowed under <strong>Orientation</strong>.</li>
+    </ul>
+    <p>Switch to <strong>cm · kg</strong> for metric: the same example reads {n(chep.L, 1)} × {n(chep.W)} mm pallets, {n(EX_H / 10, 1)} cm high and {n(EX_KG, 2)} kg each, {exChep} loaded for {n(exChep * EX_KG, 2)} kg ({n(exChep * EX_LB)} lb).</p>
+  </section>
+
+  <section class="prose">
+    <h2>How the calculator works</h2>
+    <p>It is the same planner as the <a href="/container-loading-calculator/">container loading calculator</a>, with the trailer's inside size as the load space. It fills the trailer from the nose toward the rear doors with blocks of identical pallets — rows, columns and layers in one orientation — tries many variations and keeps the plan that loads the most. With pallets that means rows across the trailer, turned whichever way fills the width best.</p>
+    <p>Before a plan is shown, an independent check confirms that no two pallets overlap, every pallet is inside the trailer, none is tipped, every stacked pallet stands fully on pallets below it, nothing stands on a pallet that may not carry a load, and the payload (if you entered one) is not exceeded. With a door width and height entered, each pallet must also pass the door as it is stowed.</p>
+    <ul class="plain">
+      <li><strong>Why turning matters:</strong> these 53' vans are {orig.Win} to {comp.Win} in wide inside, a little more than two 48 in sides (96 in) and far less than three 40 in sides (120 in). So two pallets go across either way, and the count depends on which side runs along the 630 in length: 630 ÷ 40 = 15.75 → 15 rows, but 630 ÷ 48 = 13.1 → 13 rows.</li>
+      <li><strong>Average weight:</strong> once you know your payload, divide it by the pallet count for the most each pallet may weigh on average.</li>
+    </ul>
+    <p>The formula lines under the 3D view repeat the volume and weight steps with your numbers.</p>
+  </section>
+
+  <section class="prose">
+    <h2>How many pallets fit in a 53 ft trailer</h2>
+    <p>Computed with the planner for each pallet and trailer, pallets turned either way, on the floor (one high), and two high when each loaded pallet is 50 in ({n(EX_H)} mm) tall. Weight is not limited here: check your gross weight against your payload.</p>
+    <div class="tablebox">
+      <table>
+        {same ? <thead><tr><th>Pallet (L × W)</th><th class="num">One high</th><th class="num">Two high</th></tr></thead>
+          : <thead><tr><th>Pallet (L × W)</th>{T.map((t) => <th class="num">{short(t)}<br><span class="small">{t.Win} in wide<br>one · two high</span></th>)}</tr></thead>}
+        <tbody>
+          {table.map(({ p, cells }) => <tr>
+            <td><a href={p.url} rel="noopener">{p.name}</a><br><span class="small">{n(p.L, 1)} × {n(p.W)} mm{p.id === 'chep4840' ? ' (48 × 40 in)' : ''}</span></td>
+            {same ? <><td class="num"><strong>{cells[0].one}</strong></td><td class="num">{cells[0].two}</td></> : cells.map((x) => <td class="num"><strong>{x.one}</strong> · {x.two}</td>)}
+          </tr>)}
+        </tbody>
+      </table>
+    </div>
+    <p class="small">Inside sizes from Hyundai Translead's product specifications (checked {tdata.source.checked}), converted exactly at 1 in = 25.4 mm: {T.map((t) => `${t.model} ${t.Lin} × ${t.Win} × ${t.Hin} in (${n(t.L)} × ${n(t.W, 1)} × ${n(t.H)} mm)`).join('; ')}. Pallet footprints from EPAL's and CHEP's product pages (<a href="/pallet-sizes/">standard pallet sizes</a>); the CHEP pallet is entered as exactly 48 × 40 in. {allLanes ? 'In every cell the one-high count equals the best layout of straight lanes, crosswise and lengthwise side by side, worked out with the lane arithmetic of the example above, and two high doubles it.' : ''} {same ? `The counts are the same in all three models (${T.map((t) => `${t.model} ${t.Win} in wide`).join(', ')}): the narrowest,` : 'The narrowest,'} {orig.Win} in ({n(orig.W, 1)} mm), still takes two 48 in sides (96 in) or two Euro pallets crosswise (2,400 mm). Two high needs at most {comp.Hin / 2} in ({n(comp.H / 2)} mm) per loaded pallet.</p>
+  </section>
+
+  <section class="prose">
+    <h2>The trailers in the presets</h2>
+    <div class="tablebox">
+      <table>
+        <thead><tr><th>53' dry van</th><th>Interior L × W × H</th><th class="num">Volume</th></tr></thead>
+        <tbody>
+          {T.map((t) => <tr>
+            <td><a href={t.url} rel="noopener">Hyundai Translead {t.model}</a></td>
+            <td>{t.printed.length.replace(/.*Interior /, '')} × {t.Win}″ × {t.Hin}″{/lining/.test(t.printed.width) ? <><br><span class="small">width lining to lining</span></> : ''}</td>
+            <td class="num">{n(t.cuft)} cu ft</td>
+          </tr>)}
+        </tbody>
+      </table>
+    </div>
+    <p class="small">Source: Hyundai Translead's model pages (linked), Product Specifications, checked {tdata.source.checked}. The printed volume matches length × width × height: for example {comp.Lin} × {comp.Win} × {comp.Hin} = {n(comp.Lin * comp.Win * comp.Hin)} in³ ÷ 1,728 = {n(comp.Lin * comp.Win * comp.Hin / 1728, 1)} cu ft. All three are 53′ 0″ long and 102.36″ wide outside, with a GVWR of {T.map((t) => n(t.gvwrLb)).filter((v, i, a) => a.indexOf(v) === i).join(' / ')} lb. The pages give no rear door opening and no payload, so the planner leaves them empty. Trailers from other makers, and other builds of these models, can differ by an inch or more: measure yours.</p>
+  </section>
+
+  <section class="prose">
+    <h2>Practical points before you load</h2>
+    <ul class="plain">
+      <li><strong>Turn 48 × 40 in pallets with the 40 in side along the trailer.</strong> In the example that is {exChep} pallets instead of {chepAlong}. The 48 in side goes across, two side by side.</li>
+      <li><strong>Overhang eats the spare width.</strong> Two 48 in sides leave {n(comp.Win - 96, 1)} in in the Composite and {n(orig.Win - 96, 1)} in in the Original, so goods may stick out at most {n(ohMax(comp), 3)} in and {n(ohMax(orig), 3)} in past each edge of each pallet before the second pallet no longer fits beside the first. Enter the outside size of the loaded pallet, not of the empty one.</li>
+      <li><strong>The Euro pallet count is tight.</strong> 20 rows of 800 mm take 16,000 of the {n(comp.L)} mm length. If each loaded Euro pallet is 5 mm wider (1,200 × 805 mm, for example from stretch wrap), 20 rows would need 16,100 mm and the count drops to {euroWide}: the best is {hWide.y} rows of {hWide.pb} lengthwise ({hWide.y} × 1,200 = {n(hWide.y * 1200)} mm){hWide.x ? ` and ${hWide.x} rows of ${hWide.pa} crosswise (${hWide.x} × 805 = ${n(hWide.x * 805)} mm)` : ''}.</li>
+      <li><strong>Check the door.</strong> A loaded pallet goes in through the rear door. The maker's pages give no door opening, so measure it and enter the door width and height: the planner then leaves out any pallet that does not pass.</li>
+      <li><strong>Weight.</strong> The planner only checks a weight limit you enter. Hyundai Translead lists a GVWR of {n(comp.gvwrLb)} lb for these trailers. That is not the cargo limit: US federal rules define GVWR as “the value specified by the manufacturer as the loaded weight of a single vehicle” (<a href="https://www.ecfr.gov/current/title-49/subtitle-B/chapter-V/part-571/subpart-A/section-571.3" rel="noopener">49 CFR 571.3</a>), so the trailer's own weight counts toward it, and road weight limits apply as well. Ask your carrier for the payload you can load and enter it.</li>
+      <li><strong>Stacking limits of the pallet.</strong> Two high puts a whole loaded pallet on the goods below: EPAL gives the most the bottom pallet may carry when laden pallets are stacked, and CHEP how many high its pallets may be block stacked (see <a href="/pallet-sizes/">stacking limits</a>).</li>
+    </ul>
+  </section>
+
+  <section class="prose">
+    <h2>Related</h2>
+    <div class="chips">
+      <a href="/how-many-pallets-fit-in-a-container/">Pallets in a container</a>
+      <a href="/pallet-loading-calculator/">Pallet loading calculator</a>
+      <a href="/container-loading-calculator/">Container loading calculator</a>
+      <a href="/pallet-sizes/">Standard pallet sizes</a>
+      <a href="/cbm-calculator/">CBM calculator</a>
+      <a href="/how-we-calculate/">How we calculate</a>
+    </div>
+  </section>
+</ToolPage>

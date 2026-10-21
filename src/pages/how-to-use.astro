@@ -4,6 +4,7 @@
 import Base from '../layouts/Base.astro';
 import data from '../data/containers.json';
 import pallets from '../data/pallets.json';
+import trailers from '../data/trailers.json';
 import stamp from '../../ops/guide-stamp.json';
 import { SITE_NAME } from '../site.js';
 const updated = new Date(stamp.updated + 'T00:00:00Z').toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' });
@@ -23,6 +24,7 @@ const schema = { '@context': 'https://schema.org', '@type': 'HowTo', name: `How 
       <a href="#container-loading-calculator">Container loading calculator</a>
       <a href="#pallet-loading-calculator">Pallet loading calculator</a>
       <a href="#how-many-pallets-fit-in-a-container">Pallets in a container</a>
+      <a href="#how-many-pallets-fit-in-a-53-foot-trailer">Pallets in a 53 ft trailer</a>
       <a href="#cbm-calculator">CBM calculator</a>
       <a href="#orientation">Carton orientation</a>
       <a href="#loading-method">Automatic or step by step</a>
@@ -36,8 +38,8 @@ const schema = { '@context': 'https://schema.org', '@type': 'HowTo', name: `How 
   <section class="prose" id="quick-start">
     <h2>Quick start</h2>
     <ol class="plain">
-      <li>Open the <a href="/container-loading-calculator/">container loading calculator</a> (or the <a href="/pallet-loading-calculator/">pallet loading calculator</a> for cartons on one pallet, or <a href="/how-many-pallets-fit-in-a-container/">how many pallets fit in a container</a> for whole pallets). It already shows a worked example, so you can see a result before typing anything.</li>
-      <li>Choose your container under <strong>Container type</strong>, or pick <strong>Custom size</strong> and type its inside size.</li>
+      <li>Open the <a href="/container-loading-calculator/">container loading calculator</a> (or the <a href="/pallet-loading-calculator/">pallet loading calculator</a> for cartons on one pallet, or <a href="/how-many-pallets-fit-in-a-container/">how many pallets fit in a container</a> for whole pallets, or <a href="/how-many-pallets-fit-in-a-53-foot-trailer/">how many pallets fit in a 53 ft trailer</a> for a truck). It already shows a worked example, so you can see a result before typing anything.</li>
+      <li>Choose your container under <strong>Container type</strong> (<strong>Container or trailer</strong> on the container loading calculator, <strong>Trailer model</strong> on the 53 ft trailer page), or pick <strong>Custom size</strong> and type its inside size.</li>
       <li>Under <strong>Boxes</strong>, change the example cartons to yours: size, weight and quantity. Add more box types with <strong>+ Add box type</strong>.</li>
       <li>The result updates as you type: how many boxes fit, the volume and weight used, and a 3D plan you can turn and step through. On a phone, while you edit the boxes and the result is below the screen, a bar at the bottom shows how many boxes are loaded; tap it to jump to the result.</li>
       <li>Use <strong>Copy link to this plan</strong> to send it to a colleague, or <strong>Print plan</strong>.</li>
@@ -53,7 +55,7 @@ const schema = { '@context': 'https://schema.org', '@type': 'HowTo', name: `How 
 
     <h3>Container</h3>
     <ul class="plain">
-      <li><strong>Container type:</strong> {data.containers.map((c) => c.name).join(', ')}. These presets fill in the inside length, width and height, the door opening and the maximum payload from the carrier's published figures (see <a href="/shipping-container-dimensions/">shipping container dimensions</a>).</li>
+      <li><strong>Container or trailer:</strong> {data.containers.map((c) => c.name).join(', ')}. These presets fill in the inside length, width and height, the door opening and the maximum payload from the carrier's published figures (see <a href="/shipping-container-dimensions/">shipping container dimensions</a>). The list also has three 53' dry vans: {trailers.trailers.map((t) => t.model).join(', ')}, with the inside length, width and height Hyundai Translead publishes. Their door and payload fields stay empty, because the maker gives no figures for them; enter your own to have them checked.</li>
       <li><strong>Custom size:</strong> chosen automatically as soon as you change any container figure. Use it for your exact unit; the CSC plate or your booking has the real figures.</li>
       <li><strong>Max payload:</strong> the most cargo weight allowed. Leave it empty for no weight limit.</li>
       <li><strong>Door width and height:</strong> every box must pass the door the way it is stowed. Leave them empty to skip this check.</li>
@@ -104,6 +106,18 @@ const schema = { '@context': 'https://schema.org', '@type': 'HowTo', name: `How 
       <li>Each pallet must pass the door as it is stowed; a loaded pallet taller than the door opening is left out and a note says so.</li>
     </ul>
     <p>The page also has a table of how many of each pallet fit in each container, one and two high, computed by the same planner.</p>
+  </section>
+
+  <section class="prose" id="how-many-pallets-fit-in-a-53-foot-trailer">
+    <h2>How many pallets fit in a 53 ft trailer</h2>
+    <p><a href="/how-many-pallets-fit-in-a-53-foot-trailer/">How many pallets fit in a 53 ft trailer</a> is the same planner set up for whole pallets in a 53' dry van: each loaded pallet is one box. Units, boxes, results, loading steps, hand editing, sharing and printing work as described in the rest of this guide.</p>
+    <ul class="plain">
+      <li><strong>Trailer model:</strong> {trailers.trailers.map((t) => `${t.model} (${t.Win} in wide)`).join(', ')}, all 52′ 6″ long and 110 in high inside, as Hyundai Translead prints them. Changing any size switches it to <strong>Custom size</strong> for your own trailer.</li>
+      <li><strong>Max payload, door width and door height</strong> start empty: the maker publishes no figures for them. Empty means no weight limit and no door check. Enter your carrier's payload and your measured door opening to have them checked.</li>
+      <li><strong>Starting example:</strong> 36 loaded 48 × 40 in pallets, each 50 in high (pallet included) and 1,500 lb, one high in the Composite: 30 fit, two across with the 48 in side across. The height and weight are only an example; enter your own.</li>
+      <li><strong>Pallet size (footprint)</strong> on each box card, <strong>Height</strong>, <strong>Weight</strong>, <strong>Can carry boxes on top</strong> (two high) and <strong>Orientation</strong> work as on <a href="#how-many-pallets-fit-in-a-container">pallets in a container</a>. To force the 48 in side along the trailer, choose the positions allowed under Orientation.</li>
+    </ul>
+    <p>The page also has a table of how many of each pallet fit in each trailer model, one and two high, computed by the same planner.</p>
   </section>
 
   <section class="prose" id="cbm-calculator">
@@ -209,6 +223,7 @@ const schema = { '@context': 'https://schema.org', '@type': 'HowTo', name: `How 
   <section class="prose" id="whats-new">
     <h2>What's new</h2>
     <ul class="plain">
+      <li><strong>October 22, 2026:</strong> new tool: <a href="/how-many-pallets-fit-in-a-53-foot-trailer/">how many pallets fit in a 53 ft trailer</a> — 48 × 40 in, Euro and EPAL pallets in a 53' dry van (three Hyundai Translead models), one or two high, with a table of counts. The container loading calculator's list now also has these 53' trailers (no door or payload filled in: enter your own).</li>
       <li><strong>October 21, 2026:</strong> new tool: <a href="/cbm-calculator/">CBM calculator</a> — carton sizes in cm, mm or inches and quantities to cubic metres and cubic feet, the share of each container's inside volume, and a “Plan in 3D” link that opens the container loading calculator with your cartons.</li>
       <li><strong>October 21, 2026:</strong> new tool: <a href="/how-many-pallets-fit-in-a-container/">how many pallets fit in a container</a> — Euro, EPAL and 48 × 40 in pallets in a 20', 40', 40' HC or 45', one or two high, with a pallet size list on each box card and a table of counts per container.</li>
       <li><strong>October 21, 2026:</strong> easier on phones: the menu fits on one line (swipe it sideways) and marks the page you are on; a result bar at the bottom while the result is off screen.</li>

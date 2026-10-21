@@ -1,0 +1,25 @@
+{
+  "source": {
+    "publisher": "Hyundai Translead",
+    "note": "Figures as printed in each model's Product Specifications on hyundaitranslead.com (inches). Hyundai Translead says it is committed to customization, so a trailer built to order can differ; no rear door opening or payload is published on these pages.",
+    "checked": "2026-10-21",
+    "reads": "Read twice: page text via curl + HTML-to-text, and a fresh download with Python urllib parsed cell by cell; both reads gave the same figures."
+  },
+  "trailers": [
+    { "id": "53ht-composite", "name": "53' dry van, Hyundai Translead Composite", "model": "Composite",
+      "Lin": 630, "Win": 101.5, "Hin": 110, "L": 16002, "W": 2578.1, "H": 2794,
+      "printed": { "length": "Exterior 53′ 0″, Interior 52′ 6″", "width": "Exterior 102.36″, Interior 101.5″", "height": "Exterior 13′ 6″, Interior 110″" },
+      "cuft": 4070, "gvwrLb": 68000, "standardWeightLb": 13350,
+      "url": "https://www.hyundaitranslead.com/product/dry-van/composite/" },
+    { "id": "53ht-hycube", "name": "53' dry van, Hyundai Translead HY-Cube", "model": "HY-Cube",
+      "Lin": 630, "Win": 101, "Hin": 110, "L": 16002, "W": 2565.4, "H": 2794,
+      "printed": { "length": "Exterior 53′ 0″, Interior 52′ 6″", "width": "Exterior 102.36″, Interior 101″ lining to lining", "height": "Exterior 13′ 6″, Interior 110″" },
+      "cuft": 4050, "gvwrLb": 68000, "standardWeightLb": 13855,
+      "url": "https://www.hyundaitranslead.com/product/dry-van/hy-cube/" },
+    { "id": "53ht-original", "name": "53' dry van, Hyundai Translead Original", "model": "Original",
+      "Lin": 630, "Win": 98.5, "Hin": 110, "L": 16002, "W": 2501.9, "H": 2794,
+      "printed": { "length": "Exterior 53′ 0″, Interior 52′ 6″", "width": "Exterior 102.36″, Interior 98.5″ lining to lining", "height": "Exterior 13′ 6”, Interior 110″" },
+      "cuft": 3950, "gvwrLb": 68000, "standardWeightLb": 13510,
+      "url": "https://www.hyundaitranslead.com/product/dry-van/original/" }
+  ]
+}
