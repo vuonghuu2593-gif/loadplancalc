@@ -1,9 +1,10 @@
 {
   "updated": "2026-10-21",
-  "tools": "15665aaad85d156222c4d17b505a51fb40171476baebc5da7b814ab712f1ea1b",
-  "guide": "c4ce5b720a3dbbc7eb0dcc4bd7235a3b1f96f040b75e137cb92b73eb14bea00f",
+  "tools": "bf451a8e4a2b0abe78cf99114204767b2ee4c85821e058963e3505ecaf15c716",
+  "guide": "5a0a3d9fcf74e9fbc5cc2ec515ff74b05e1e74fbb6c5794e8622015858ee18cb",
   "toolPages": [
     "/container-loading-calculator/",
+    "/how-many-pallets-fit-in-a-container/",
     "/pallet-loading-calculator/"
   ]
 }

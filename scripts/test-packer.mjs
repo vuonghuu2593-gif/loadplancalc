@@ -243,5 +243,24 @@ ok(badF === 0, `25 random "remove some, fill again" plans valid (${badF} bad)`);
   }
   ok(badP === 0, `20 random pallets valid and not below the ordinary plan (${badP} bad)`);
 }
+// Pallets in containers (/how-many-pallets-fit-in-a-container/): hand-checked lane counts, Hapag-Lloyd inside sizes.
+// Euro 1200 x 800 in 40' DV (12032 x 2352): 15 crosswise (15 x 800) + 10 lengthwise (10 x 1200), 1200 + 800 = 2000 wide;
+// 20' (5900): 7 + 4 = 11; 45' (13556): 16 + 11 = 27. 48 x 40 in (1219.2 x 1016) in 40' HC (12032 x 2350): 11 + 9 = 20,
+// two high at 50 in (2 x 1270 = 2540 <= 2700) = 40, but 2540 > 2395 in a 40' DV -> 20. Door 2292 mm: a 2300 mm pallet stays out.
+{
+  const IN = 25.4, eur = { l: 1200, w: 800, h: 1100, weight: 0, qty: 500, rotation: 'upright', stackable: false };
+  const dv40 = { L: 12032, W: 2352, H: 2395, doorW: 2340, doorH: 2292 }, dv20 = { ...dv40, L: 5900 }, hc45 = { L: 13556, W: 2352, H: 2700, doorW: 2340, doorH: 2597 }, hc40 = { L: 12032, W: 2350, H: 2700, doorW: 2340, doorH: 2597 };
+  for (const [nm, C, it, want] of [
+    ["Euro pallets one high, 40' DV", dv40, eur, 25], ["Euro pallets one high, 20' DV", dv20, eur, 11], ["Euro pallets one high, 45' HC", hc45, eur, 27],
+    ["Euro pallets two high (1100 mm), 40' DV", dv40, { ...eur, stackable: true }, 50],
+    ["48 x 40 in one high, 40' HC", hc40, { ...eur, l: 48 * IN, w: 40 * IN }, 20],
+    ["48 x 40 in two high at 50 in, 40' HC", hc40, { ...eur, l: 48 * IN, w: 40 * IN, h: 50 * IN, stackable: true }, 40],
+    ["48 x 40 in at 50 in, 40' DV: no room for two high", dv40, { ...eur, l: 48 * IN, w: 40 * IN, h: 50 * IN, stackable: true }, 20],
+    ["EPAL 6 800 x 600, 20' DV: 9 + 9 + 7", dv20, { ...eur, l: 800, w: 600 }, 25],
+    ['loaded pallet 2300 mm high: taller than the 2292 mm door', dv40, { ...eur, h: 2300 }, 0],
+  ]) run(nm, C, [it], (r) => ok(r.totals.n === want, `${want} pallets (got ${r.totals.n})`));
+  // payload: 25 Euro pallets possible, 28,750 kg / 1,200 kg = 23.96 -> 23
+  run("Euro pallets 1200 kg each, 40' DV payload 28,750 kg", { ...dv40, maxWeight: 28750 }, [{ ...eur, weight: 1200 }], (r) => ok(r.totals.n === 23, `23 pallets (got ${r.totals.n})`));
+}
 console.log(fails ? `${fails} failing` : 'all engine tests pass');
 process.exit(fails ? 1 : 0);

@@ -1,12 +1,14 @@
 ---
 // Interactive load planner. mode "container": boxes into a container (presets from containers.json).
 // mode "pallet": boxes onto a pallet (the pallet top + allowed overhang is the floor, max height is the ceiling).
+// boxPresets (optional): footprints [{ id, name, L, W }] offered as a "Pallet size" picker on each box card,
+// for pages that load whole pallets as boxes. Picking one sets the box length and width; the height stays.
 import data from '../data/containers.json';
-interface Props { mode?: 'container' | 'pallet'; defaults: Record<string, unknown>; palletPresets?: unknown[] }
-const { mode = 'container', defaults, palletPresets = [] } = Astro.props;
+interface Props { mode?: 'container' | 'pallet'; defaults: Record<string, unknown>; palletPresets?: unknown[]; boxPresets?: unknown[] }
+const { mode = 'container', defaults, palletPresets = [], boxPresets = [] } = Astro.props;
 const presets = mode === 'container' ? data.containers : palletPresets;
 ---
-<div class="planner" data-mode={mode} data-defaults={JSON.stringify(defaults)} data-presets={JSON.stringify(presets)}>
+<div class="planner" data-mode={mode} data-defaults={JSON.stringify(defaults)} data-presets={JSON.stringify(presets)} data-boxpresets={JSON.stringify(boxPresets)}>
   <form class="panel noprint" autocomplete="off" onsubmit="return false">
     <div class="viewbar">
       <h2 style="flex:1 1 auto">{mode === 'container' ? 'Container' : 'Pallet'}</h2>
@@ -171,6 +173,7 @@ const presets = mode === 'container' ? data.containers : palletPresets;
     <label class="name">Name<input data-b="name" maxlength="40"></label>
     <label class="qty">Quantity<input data-b="qty" inputmode="numeric"></label>
     <label class="wt"><span>Weight <span class="small" data-uw></span></span><input data-b="weight" inputmode="decimal"></label>
+    <label class="bpre" hidden>Pallet size (footprint)<select data-b="bpreset"></select></label>
     <label class="dim"><span>Length <span class="small" data-ul></span></span><input data-b="l" inputmode="decimal"></label>
     <label class="dim"><span>Width <span class="small" data-ul></span></span><input data-b="w" inputmode="decimal"></label>
     <label class="dim"><span>Height <span class="small" data-ul></span></span><input data-b="h" inputmode="decimal"></label>

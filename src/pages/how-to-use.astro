@@ -22,6 +22,7 @@ const schema = { '@context': 'https://schema.org', '@type': 'HowTo', name: `How 
       <a href="#quick-start">Quick start</a>
       <a href="#container-loading-calculator">Container loading calculator</a>
       <a href="#pallet-loading-calculator">Pallet loading calculator</a>
+      <a href="#how-many-pallets-fit-in-a-container">Pallets in a container</a>
       <a href="#orientation">Carton orientation</a>
       <a href="#loading-method">Automatic or step by step</a>
       <a href="#edit-by-hand">Editing by hand</a>
@@ -34,7 +35,7 @@ const schema = { '@context': 'https://schema.org', '@type': 'HowTo', name: `How 
   <section class="prose" id="quick-start">
     <h2>Quick start</h2>
     <ol class="plain">
-      <li>Open the <a href="/container-loading-calculator/">container loading calculator</a> (or the <a href="/pallet-loading-calculator/">pallet loading calculator</a> for cartons on one pallet). It already shows a worked example, so you can see a result before typing anything.</li>
+      <li>Open the <a href="/container-loading-calculator/">container loading calculator</a> (or the <a href="/pallet-loading-calculator/">pallet loading calculator</a> for cartons on one pallet, or <a href="/how-many-pallets-fit-in-a-container/">how many pallets fit in a container</a> for whole pallets). It already shows a worked example, so you can see a result before typing anything.</li>
       <li>Choose your container under <strong>Container type</strong>, or pick <strong>Custom size</strong> and type its inside size.</li>
       <li>Under <strong>Boxes</strong>, change the example cartons to yours: size, weight and quantity. Add more box types with <strong>+ Add box type</strong>.</li>
       <li>The result updates as you type: how many boxes fit, the volume and weight used, and a 3D plan you can turn and step through. On a phone, while you edit the boxes and the result is below the screen, a bar at the bottom shows how many boxes are loaded; tap it to jump to the result.</li>
@@ -88,6 +89,20 @@ const schema = { '@context': 'https://schema.org', '@type': 'HowTo', name: `How 
       <li><strong>Notes:</strong> boxes that do not fit on this pallet (they go on the next pallets: see Pallets for your quantity), the max load weight being reached, and the centre of gravity of the load: how far it is off the middle of the pallet along the length and across the width, and how high above the deck.</li>
       <li>When editing by hand, the push buttons are <strong>← Back edge</strong> and <strong>Front edge →</strong> instead of back wall and door; left and right are as seen from the front edge.</li>
     </ul>
+  </section>
+
+  <section class="prose" id="how-many-pallets-fit-in-a-container">
+    <h2>How many pallets fit in a container</h2>
+    <p><a href="/how-many-pallets-fit-in-a-container/">How many pallets fit in a container</a> is the container loading calculator set up for whole pallets: each loaded pallet is one box. Container type, units, results, loading steps, hand editing, sharing and printing work as described in the rest of this guide.</p>
+    <ul class="plain">
+      <li><strong>Starting example:</strong> 50 loaded Euro pallets, each 1,100 mm high (pallet included) and 500 kg, one high in a 40' Standard: 25 fit. The height and weight are only an example; enter your own.</li>
+      <li><strong>Pallet size (footprint):</strong> a list on each box card: {pallets.pallets.map((x) => x.name).join(', ')}. Picking one fills in the box length and width (the 48 × 40 in pallet as exactly 48 × 40 in); the height stays as you set it. Typing your own length or width switches it to <strong>Custom size</strong>.</li>
+      <li><strong>Height:</strong> the loaded pallet from the floor to the top of the goods, pallet included. <strong>Weight:</strong> the gross weight of one loaded pallet.</li>
+      <li><strong>One high or two high:</strong> leave <strong>Can carry boxes on top</strong> unticked to keep every pallet on the floor. Tick it to let pallets stack where two (or more) fit under the inside height; with the example, 50 then fit.</li>
+      <li><strong>Orientation</strong> starts at “this side up”: pallets may be turned lengthwise or crosswise but are never tipped.</li>
+      <li>Each pallet must pass the door as it is stowed; a loaded pallet taller than the door opening is left out and a note says so.</li>
+    </ul>
+    <p>The page also has a table of how many of each pallet fit in each container, one and two high, computed by the same planner.</p>
   </section>
 
   <section class="prose" id="orientation">
@@ -180,6 +195,7 @@ const schema = { '@context': 'https://schema.org', '@type': 'HowTo', name: `How 
   <section class="prose" id="whats-new">
     <h2>What's new</h2>
     <ul class="plain">
+      <li><strong>October 21, 2026:</strong> new tool: <a href="/how-many-pallets-fit-in-a-container/">how many pallets fit in a container</a> — Euro, EPAL and 48 × 40 in pallets in a 20', 40', 40' HC or 45', one or two high, with a pallet size list on each box card and a table of counts per container.</li>
       <li><strong>October 21, 2026:</strong> easier on phones: the menu fits on one line (swipe it sideways) and marks the page you are on; a result bar at the bottom while the result is off screen.</li>
       <li><strong>October 21, 2026:</strong> new <a href="/pallet-loading-calculator/">pallet loading calculator</a>: cartons on a Euro, EPAL or 48 × 40 in pallet with overhang, height and weight limits, Ti-Hi, pallets needed for your quantity, and a 3D plan built layer by layer. Fixed: editing a plan by hand with box sizes in inches no longer shows a failed check.</li>
       <li><strong>October 20, 2026:</strong> new reference page: <a href="/pallet-sizes/">standard pallet sizes</a> (EPAL and 48 × 40 in), with how to enter pallets in the planner.</li>

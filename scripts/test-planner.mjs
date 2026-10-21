@@ -181,6 +181,52 @@ await pg.screenshot({ path: process.env.SHOT || '/tmp/semi.png', fullPage: true 
   ok(await T('tihi') === '–' && (await T('tihiSub')).includes('one box type'), 'two box types: Ti-Hi not shown');
   await pg.screenshot({ path: process.env.PSHOT || '/tmp/pallet.png', fullPage: true });
 }
+// Pallets in a container: /how-many-pallets-fit-in-a-container/
+{
+  const T = (k) => pg.$eval(`[data-r="${k}"]`, (e) => e.textContent.trim());
+  const V = (sel) => pg.inputValue(sel);
+  await pg.goto('http://localhost:4401/how-many-pallets-fit-in-a-container/'); await pg.evaluate(() => { localStorage.setItem('lpc-units', 'metric'); history.replaceState(null, '', location.pathname); }); await pg.reload(); await settle();
+  // 40' DV 12032 x 2352: Euro pallets 15 crosswise + 10 lengthwise = 25; 25 x 500 kg = 12,500 kg
+  ok(await main() === '25 of 50', 'pallets defaults: 25 of 50 Euro pallets in a 40\' DV (' + await main() + ')');
+  ok(await pg.$eval('[data-f="preset"]', (e) => e.value) === '40dv' && await pg.$eval('.boxcard [data-b="bpreset"]', (e) => e.value) === 'epal1' && await V('.boxcard [data-b="h"]') === '110', 'defaults: 40\' Standard, Euro pallet footprint, 110 cm high');
+  ok(await T('wt') === '12,500 kg' && !(await T('warn')).includes('failed its own check'), '25 x 500 kg = 12,500 kg, plan passes the check');
+  await pg.check('.boxcard [data-b="stackable"]'); await settle();
+  ok(await main() === '50 of 50', 'two high (2 x 1100 = 2200 <= 2395): 50 of 50 (' + await main() + ')');
+  await pg.uncheck('.boxcard [data-b="stackable"]');
+  await pg.selectOption('[data-f="preset"]', '20dv'); await settle();
+  ok(await main() === '11 of 50', '20\' DV: 7 + 4 = 11 (' + await main() + ')');
+  await pg.selectOption('.boxcard [data-b="bpreset"]', 'epal2'); await settle();
+  ok(await V('.boxcard [data-b="l"]') === '120' && await V('.boxcard [data-b="w"]') === '100' && await main() === '9 of 50', 'pallet picker EPAL 2: 120 x 100 cm, 5 + 4 = 9 in a 20\' (' + await main() + ')');
+  await pg.fill('.boxcard [data-b="w"]', '80'); await settle();
+  ok(await pg.$eval('.boxcard [data-b="bpreset"]', (e) => e.value) === 'epal1', 'typing 120 x 80 cm shows the Euro pallet in the picker');
+  await pg.fill('.boxcard [data-b="w"]', '81'); await settle();
+  ok(await pg.$eval('.boxcard [data-b="bpreset"]', (e) => e.value) === 'custom', 'typing 120 x 81 cm switches the picker to Custom size');
+  // too tall for the door: 230 cm > 229.2 cm door of a 20'
+  await pg.fill('.boxcard [data-b="w"]', '80'); await pg.fill('.boxcard [data-b="h"]', '230'); await settle();
+  ok(await main() === '0 of 50' && (await T('warn')).includes('door opening'), 'a 230 cm loaded pallet does not pass the 229.2 cm door: 0, note shown');
+  // second case in inches: 48 x 40 in, 50 in high, 1,500 lb, stacking allowed, 40' HC -> 11 + 9 = 20 per layer x 2 = 40
+  await pg.click('[data-units="imperial"]');
+  await pg.selectOption('[data-f="preset"]', '40hc');
+  await pg.selectOption('.boxcard [data-b="bpreset"]', 'chep4840');
+  await pg.fill('.boxcard [data-b="h"]', '50'); await pg.fill('.boxcard [data-b="weight"]', '1500');
+  await pg.check('.boxcard [data-b="stackable"]'); await settle();
+  ok(await V('.boxcard [data-b="l"]') === '48' && await V('.boxcard [data-b="w"]') === '40' && await main() === '40 of 50', '48 x 40 in at 50 in, two high in a 40\' HC: 40 of 50 (' + await main() + ')');
+  ok(await T('wt') === '60,000 lb', '40 x 1,500 lb = 60,000 lb (' + await T('wt') + ')');
+  await pg.selectOption('[data-f="preset"]', '40dv'); await settle();
+  ok(await main() === '20 of 50', '40\' DV (94.29 in inside): no room for two high, 20 (' + await main() + ')');
+  for (let i = 0; i < 3; i++) { await pg.click('[data-units="metric"]'); await pg.click('[data-units="imperial"]'); }
+  await settle();
+  ok(await V('.boxcard [data-b="l"]') === '48' && await V('.boxcard [data-b="h"]') === '50' && await V('.boxcard [data-b="weight"]') === '1500' && await pg.$eval('.boxcard [data-b="bpreset"]', (e) => e.value) === 'chep4840' && await main() === '20 of 50', 'no drift after 3 unit round trips, picker still 48 x 40 in');
+  await pg.click('[data-units="metric"]'); await settle();
+  ok(await V('.boxcard [data-b="l"]') === '121.9' && await V('.boxcard [data-b="h"]') === '127' && await V('.boxcard [data-b="weight"]') === '680.39', 'metric: 121.9 cm, 127 cm, 680.39 kg');
+  await pg.waitForTimeout(300);
+  const pg6 = await b.newPage({ viewport: { width: 390, height: 844 } }); pg6.on('pageerror', (e) => errs.push(e.message));
+  await pg6.goto(pg.url()); await pg6.waitForTimeout(400); await pg6.waitForFunction(() => document.querySelector('#r-main').textContent.trim() !== '–', null, { timeout: 15000 }); await pg6.waitForTimeout(500);
+  ok(await pg6.$eval('#r-main', (e) => e.textContent.trim()) === '20 of 50' && await pg6.$eval('.boxcard [data-b="bpreset"]', (e) => e.value) === 'chep4840', 'share link reproduces 20 and the 48 x 40 in picker');
+  // container calculator has no pallet picker
+  await pg6.goto('http://localhost:4401/container-loading-calculator/'); await pg6.waitForTimeout(300);
+  ok(await pg6.$eval('.boxcard .bpre', (e) => e.hidden), 'no pallet picker on the container loading calculator');
+}
 ok(errs.length === 0, 'no JS errors ' + errs.join(' | '));
 await b.close(); srv.close();
 console.log(fails ? fails + ' failing' : 'planner checks pass'); process.exit(fails ? 1 : 0);

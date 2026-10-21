@@ -42,6 +42,10 @@ export function initPlanner(root) {
   const mode = root.dataset.mode;
   const presets = JSON.parse(root.dataset.presets || '[]');
   const defaults = JSON.parse(root.dataset.defaults || '{}');
+  // optional pallet footprints for boxes that are whole pallets; the picker shows the footprint that matches
+  // the box length and width (either way round), else "Custom size", so nothing extra is stored or shared
+  const boxPresets = JSON.parse(root.dataset.boxpresets || '[]');
+  const bpOf = (it) => (boxPresets.find((p) => (Math.abs(it.l - p.L) < 0.05 && Math.abs(it.w - p.W) < 0.05) || (Math.abs(it.l - p.W) < 0.05 && Math.abs(it.w - p.L) < 0.05))?.id) || 'custom';
   const $ = (s) => root.querySelector(s);
   const f = (name) => root.querySelector(`[data-f="${name}"]`);
   const R = (name) => root.querySelector(`[data-r="${name}"]`);
@@ -92,6 +96,12 @@ export function initPlanner(root) {
       node.querySelector('[data-b="weight"]').value = showWt(it.weight);
       node.querySelector('[data-b="rotation"]').value = it.rotation || 'any';
       node.querySelector('[data-b="stackable"]').checked = it.stackable !== false;
+      if (boxPresets.length) {
+        node.querySelector('.bpre').hidden = false;
+        const sel = node.querySelector('[data-b="bpreset"]');
+        sel.innerHTML = boxPresets.map((p) => `<option value="${esc(p.id)}">${esc(p.name)}</option>`).join('') + '<option value="custom">Custom size</option>';
+        sel.value = bpOf(it);
+      }
       node.querySelector('[data-del]').hidden = state.items.length < 2;
       node.dataset.i = i;
       paintOrients(node, it, i);
@@ -171,7 +181,16 @@ export function initPlanner(root) {
         if (t.value === 'custom' && !Array.isArray(it.orients)) it.orients = it.rotation === 'upright' ? [0, 1] : [0, 1, 2, 3, 4, 5];
         it.rotation = t.value; paintOrients(t.closest('.boxcard'), it, i);
       } else if (k === 'stackable') it.stackable = t.checked;
-      else { const v = readLen(t.value); if (v !== null) { it[k] = v; if (it.rotation === 'custom') paintOrients(t.closest('.boxcard'), it, i); } }
+      else if (k === 'bpreset') {
+        const p = boxPresets.find((x) => x.id === t.value); if (!p) return;
+        const card = t.closest('.boxcard'); it.l = p.L; it.w = p.W;
+        card.querySelector('[data-b="l"]').value = showLen(it.l); card.querySelector('[data-b="w"]').value = showLen(it.w);
+        if (it.rotation === 'custom') paintOrients(card, it, i);
+      } else {
+        const v = readLen(t.value);
+        if (v !== null) { it[k] = v; if (it.rotation === 'custom') paintOrients(t.closest('.boxcard'), it, i); }
+        const bp = t.closest('.boxcard').querySelector('[data-b="bpreset"]'); if (boxPresets.length && bp) bp.value = bpOf(it);
+      }
       if (state.mode === 'semi' && k !== 'qty' && k !== 'weight' && k !== 'stackable') paintSteps();
       schedule();
     } else if (t.dataset.s) {
