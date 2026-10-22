@@ -1,10 +1,11 @@
 {
   "updated": "2026-10-22",
-  "tools": "61951a08b2fa0a436177d5ab53b2d04e3d8a9870d2cf55ad86ebdcfd93bfce87",
-  "guide": "59496259bd9e2a6b56de365477e018eeacb3db9857aa128c730f9587509bae94",
+  "tools": "8e1920c166e57fe7ba531dff03116318aa97cd30c4b818f09493af222c76fca4",
+  "guide": "e735516941f61a8b47ffef4c5902925051756db9f80bf48c226e39df735e19c9",
   "toolPages": [
     "/cbm-calculator/",
     "/container-loading-calculator/",
+    "/cubic-feet-calculator/",
     "/dimensional-weight-calculator/",
     "/how-many-pallets-fit-in-a-53-foot-trailer/",
     "/how-many-pallets-fit-in-a-container/",

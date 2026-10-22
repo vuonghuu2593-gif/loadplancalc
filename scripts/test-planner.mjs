@@ -482,5 +482,43 @@ await pg.screenshot({ path: process.env.SHOT || '/tmp/semi.png', fullPage: true 
   await pgL.close();
 }
 ok(errs.length === 0, 'no JS errors ' + errs.join(' | '));
+// Cubic feet calculator: hand checks
+// defaults 24·18·18 = 7,776 in³ ÷ 1,728 = 4.5 ft³ × 100 = 450, + 12³ = 1 ft³ × 50 = 50 → 500 ft³ × 0.028316846592 = 14.158 m³, ÷ 27 = 18.519 yd³,
+// 14,158.4 L, 864,000 in³ ÷ 231 = 3,740.3 US gal; shares 500 ÷ 1,173.68 (20') = 42.6%, ÷ 2,393.51 = 20.9%, ÷ 2,696.03 (40' HC) = 18.5%, ÷ 4,070.57 (53') = 12.3%;
+// 60 × 40 × 40 cm × 100 = 9.6 m³ ÷ 0.028316846592 = 339.02 ft³; 10 × 8 × 8 ft = 640 ft³ = 18.123 m³ = 23.704 yd³; converter 100 ft³ = 2.831685 m³, 1 m³ = 35.3147 ft³
+{
+  const pc = await b.newPage({ viewport: { width: 390, height: 844 }, locale: 'en-GB' }); pc.on('pageerror', (e) => errs.push(e.message));
+  const T = (s) => pc.$eval(s, (e) => e.textContent.trim());
+  const V = (k) => pc.inputValue(`.cuftline [data-k="${k}"]`);
+  const shares = () => pc.$$eval('[data-r="spaces"] li strong', (r) => r.map((x) => x.textContent).join(' '));
+  await pc.goto('http://localhost:4401/cubic-feet-calculator/'); await pc.evaluate(() => localStorage.removeItem('lpc-cuft-unit')); await pc.reload(); await pc.waitForTimeout(300);
+  ok(await T('#r-main') === '500 ft³' && await T('[data-r="m3"]') === '14.158 m³' && await T('[data-r="yd3"]') === '18.519 yd³', 'cuft defaults 500 ft³ = 14.158 m³ = 18.519 yd³ (' + await T('#r-main') + ' ' + await T('[data-r="m3"]') + ')');
+  ok(await T('[data-r="L"]') === '14,158.4 L' && await T('[data-r="gal"]') === '3,740.3 US gal' && await T('[data-r="count"]') === '150', 'cuft defaults 14,158.4 L, 3,740.3 US gal, 150 items');
+  ok(await shares() === '42.6% 20.9% 18.5% 12.3%', 'cuft shares 20/40/40HC/53 (' + await shares() + ')');
+  ok(await pc.inputValue('[data-conv="m3"]') === '2.831685', 'cuft converter: 100 ft³ = 2.831685 m³ (' + await pc.inputValue('[data-conv="m3"]') + ')');
+  await pc.fill('[data-conv="m3"]', '1');
+  ok(await pc.inputValue('[data-conv="ft3"]') === '35.3147' && (await T('[data-r="convOut"]')).includes('35.3147 ft³'), 'cuft converter: 1 m³ = 35.3147 ft³ (' + await pc.inputValue('[data-conv="ft3"]') + ')');
+  await pc.fill('[data-conv="ft3"]', '27');
+  ok(await pc.inputValue('[data-conv="m3"]') === '0.764555' && (await T('[data-r="convOut"]')).includes('= 1 yd³'), 'cuft converter: 27 ft³ = 0.764555 m³ = 1 yd³');
+  const seen = [];
+  for (const u of ['ft', 'cm', 'm', 'mm', 'in']) { await pc.click(`[data-unit="${u}"]`); seen.push(await V('l')); }
+  ok(seen.join(' ') === '2 60.96 0.6096 609.6 24' && await T('#r-main') === '500 ft³', 'cuft: 24 in = 2 ft = 60.96 cm = 0.6096 m = 609.6 mm, back to 24 in (' + seen.join(' ') + ')');
+  for (let i = 0; i < 3; i++) for (const u of ['mm', 'ft', 'cm', 'm', 'in']) await pc.click(`[data-unit="${u}"]`);
+  ok(await V('l') === '24' && await V('w') === '18' && await T('#r-main') === '500 ft³', 'cuft: no drift after 3 rounds through all five units');
+  await pc.click('.cuftline:nth-child(2) [data-del]'); await pc.click('[data-unit="cm"]');
+  for (const [k, v] of [['l', '60'], ['w', '40'], ['h', '40'], ['qty', '100']]) await pc.fill(`.cuftline [data-k="${k}"]`, v);
+  ok(await T('#r-main') === '339.02 ft³' && await T('[data-r="m3"]') === '9.6 m³' && (await shares()).startsWith('28.9%'), 'cuft cm case: 60 × 40 × 40 cm × 100 = 9.6 m³ = 339.02 ft³, 28.9% of a 20ft (' + await T('#r-main') + ')');
+  await pc.click('[data-unit="in"]');
+  ok(await V('l') === '23.62' && await T('#r-main') === '339.02 ft³', 'cuft: 60 cm shows 23.62 in, total unchanged');
+  await pc.click('[data-unit="cm"]');
+  ok(await V('l') === '60' && await T('#r-main') === '339.02 ft³', 'cuft: back to 60 cm');
+  await pc.click('[data-unit="ft"]');
+  for (const [k, v] of [['l', '10'], ['w', '8'], ['h', '8'], ['qty', '1']]) await pc.fill(`.cuftline [data-k="${k}"]`, v);
+  ok(await T('#r-main') === '640 ft³' && await T('[data-r="m3"]') === '18.123 m³' && await T('[data-r="yd3"]') === '23.704 yd³' && (await T('[data-r="steps"]')).includes('10 × 8 × 8 ft = 640 ft³'), 'cuft ft case: 10 × 8 × 8 ft = 640 ft³ = 18.123 m³ = 23.704 yd³');
+  await pc.fill('.cuftline [data-k="h"]', '');
+  ok(await T('#r-main') === '–' && !(await pc.$eval('[data-r="skip"]', (e) => e.hidden)), 'cuft: empty height → no total, note shown');
+  await pc.evaluate(() => localStorage.removeItem('lpc-cuft-unit'));
+  await pc.close();
+}
 await b.close(); srv.close();
 console.log(fails ? fails + ' failing' : 'planner checks pass'); process.exit(fails ? 1 : 0);

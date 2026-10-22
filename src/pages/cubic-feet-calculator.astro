@@ -1,0 +1,239 @@
+---
+// Cubic feet calculator: imperial-first volume tool (the CBM calculator is the metric, container-share tool).
+// Exact definitions only: 1 in = 25.4 mm, 1 ft = 0.3048 m, 1 ft³ = 0.028316846592 m³ = 1,728 in³,
+// 1 yd³ = 27 ft³, 1 L = 0.001 m³, 1 US gallon = 231 in³.
+import ToolPage from '../layouts/ToolPage.astro';
+import cdata from '../data/containers.json';
+import tdata from '../data/trailers.json';
+const FT3 = 0.3048 ** 3;
+const IN = 25.4;
+const n = (v: number, d = 0) => v.toLocaleString('en-US', { maximumFractionDigits: d, minimumFractionDigits: 0 });
+const ftin = (mm: number) => { const inches = mm / IN; const ft = Math.floor(inches / 12 + 1e-9); return `${ft}′ ${n(inches - ft * 12, 1)}″`; };
+const C = cdata.containers;
+const by = (id: string) => C.find((c) => c.id === id)!;
+const cft = (c: { L: number; W: number; H: number }) => (c.L * c.W * c.H) / 1e9 / FT3;
+const comp = tdata.trailers.find((t) => t.id === '53ht-composite')!;
+const trFt3 = (t: { Lin: number; Win: number; Hin: number }) => (t.Lin * t.Win * t.Hin) / 1728;
+for (const t of tdata.trailers) if (Math.abs(trFt3(t) - t.cuft) > 1) throw new Error(`${t.model}: printed ${t.cuft} cu ft vs ${trFt3(t)}`);
+const dv20 = by('20dv'), dv40 = by('40dv'), hc40 = by('40hc');
+const spaces = [
+  { name: "20' standard", ft3: cft(dv20) },
+  { name: "40' standard", ft3: cft(dv40) },
+  { name: "40' high cube", ft3: cft(hc40) },
+  { name: "53' dry van (Composite)", ft3: trFt3(comp) },
+];
+
+// Defaults = the worked example in the lede: 100 cartons of 24 × 18 × 18 in and 50 boxes of 12 × 12 × 12 in.
+const defaults = [
+  { name: 'Carton', l: 24 * IN, w: 18 * IN, h: 18 * IN, qty: 100 },
+  { name: 'Small box', l: 12 * IN, w: 12 * IN, h: 12 * IN, qty: 50 },
+];
+// checked by hand: 24 × 18 × 18 = 7,776 in³ ÷ 1,728 = 4.5 ft³ → × 100 = 450; 12³ = 1,728 in³ = 1 ft³ → × 50 = 50;
+// total 500 ft³ × 0.028316846592 = 14.158423296 m³; ÷ 27 = 18.52 yd³; 40' HC 12.032 × 2.35 × 2.7 = 76.34304 m³ = 2,696.03 ft³ → 18.5%
+const total = (24 * 18 * 18 * 100 + 12 * 12 * 12 * 50) / 1728;
+if (total !== 500 || Math.abs(total * FT3 - 14.158423296) > 1e-9 || Math.round(cft(hc40)) !== 2696) throw new Error('worked example changed; update the lede');
+
+const rows = [
+  ...C.map((c) => ({ name: c.name, href: c.url, src: 'Hapag-Lloyd', L: c.L, W: c.W, H: c.H, ft3: cft(c), printed: c.cbm ? `${c.cbm} m³` : 'not given' })),
+  ...tdata.trailers.map((t) => ({ name: `53' dry van, ${t.model}`, href: t.url, src: 'Hyundai Translead', L: t.L, W: t.W, H: t.H, ft3: trFt3(t), printed: `${n(t.cuft)} cu ft` })),
+];
+const MM = IN;
+const cartons = [
+  { label: '12 × 12 × 12 in', l: 12, w: 12, h: 12 },
+  { label: '16 × 12 × 12 in', l: 16, w: 12, h: 12 },
+  { label: '18 × 18 × 16 in', l: 18, w: 18, h: 16 },
+  { label: '18 × 18 × 24 in', l: 18, w: 18, h: 24 },
+  { label: '24 × 18 × 18 in', l: 24, w: 18, h: 18 },
+  { label: '24 × 24 × 24 in', l: 24, w: 24, h: 24 },
+].map((c) => ({ ...c, in3: c.l * c.w * c.h }));
+const metricCartons = [
+  { label: '60 × 40 × 40 cm', l: 600, w: 400, h: 400 },
+  { label: '50 × 30 × 30 cm', l: 500, w: 300, h: 300 },
+  { label: '40 × 30 × 20 cm', l: 400, w: 300, h: 200 },
+];
+const ftList = [1, 5, 10, 25, 50, 100, 250, 500, 1000, 2000];
+const mList = [1, 2, 5, 10, 20, 33, 50, 67, 76, 100];
+---
+<ToolPage
+  title="Cubic Feet Calculator: Inches, Feet, cm to ft³ and m³"
+  description="Free cubic feet calculator: length × width × height in inches, feet, cm, m or mm to cubic feet, cubic meters, cubic yards and litres, for several items at once, plus a cubic feet to cubic meters converter."
+  h1="Cubic feet calculator"
+  name="Cubic feet calculator"
+  lede={`Multiply length × width × height in feet, or in inches and divide by 1,728 (12 × 12 × 12). For example, a 24 × 18 × 18 in carton is 7,776 in³ ÷ 1,728 = <strong>4.5 ft³</strong>. 100 of them plus 50 boxes of 12 × 12 × 12 in (exactly 1 ft³ each) make 450 + 50 = <strong>${n(total)} ft³</strong>, which is ${n(total * FT3, 3)} m³ (× 0.028316846592) or ${n(total / 27, 2)} cubic yards (÷ 27): ${n((total / cft(hc40)) * 100, 1)}% of a 40' high cube's ${n(cft(hc40))} ft³ inside.`}
+>
+  <section class="cuft" data-tool="cuft" data-spaces={JSON.stringify(spaces)} data-defaults={JSON.stringify(defaults)}>
+    <form class="panel" onsubmit="return false" aria-label="Items">
+      <div class="cufthead">
+        <h2>Items</h2>
+        <div class="seg seg5" role="group" aria-label="Length unit">
+          <button type="button" data-unit="in" aria-pressed="true">in</button>
+          <button type="button" data-unit="ft" aria-pressed="false">ft</button>
+          <button type="button" data-unit="cm" aria-pressed="false">cm</button>
+          <button type="button" data-unit="m" aria-pressed="false">m</button>
+          <button type="button" data-unit="mm" aria-pressed="false">mm</button>
+        </div>
+      </div>
+      <p class="small" style="margin:0">Length, width and height of one item, and how many. Add a line for each size.</p>
+      <div class="cuftlines" data-lines></div>
+      <div class="addrow"><button type="button" class="btn line" data-add>+ Add item line</button></div>
+    </form>
+
+    <div class="result" data-result aria-live="polite">
+      <div class="grid">
+        <div><div class="k">Total volume</div><div class="v hi" id="r-main" data-r="main">–</div></div>
+        <div><div class="k">In cubic meters</div><div class="v" data-r="m3">–</div></div>
+        <div><div class="k">Cubic yards</div><div class="v sm" data-r="yd3">–</div></div>
+        <div><div class="k">Litres</div><div class="v sm" data-r="L">–</div><div class="sub" data-r="gal">–</div></div>
+      </div>
+      <p><span data-r="count">0</span> items in total.</p>
+      <p class="warn" data-r="skip" hidden></p>
+      <div>
+        <div class="k">Share of the inside volume</div>
+        <ul class="cuftspaces" data-r="spaces"></ul>
+      </div>
+      <p class="small cuftnote">Volume only. Rigid boxes leave gaps, so fewer fit than the share suggests; plan a real load with the <a href="/container-loading-calculator/">container loading calculator</a>.</p>
+    </div>
+
+    <template id="cuft-line">
+      <fieldset class="cuftline">
+        <legend class="sr">Item line</legend>
+        <label class="cname">Name<input data-k="name" maxlength="40" autocomplete="off"></label>
+        <label class="cqty">Quantity<input data-k="qty" inputmode="numeric" autocomplete="off"></label>
+        <label>Length <span data-ul>(in)</span><input data-k="l" inputmode="decimal" autocomplete="off"></label>
+        <label>Width <span data-ul>(in)</span><input data-k="w" inputmode="decimal" autocomplete="off"></label>
+        <label>Height <span data-ul>(in)</span><input data-k="h" inputmode="decimal" autocomplete="off"></label>
+        <p class="small cout" data-out></p>
+        <button type="button" class="iconbtn cdel" data-del aria-label="Remove this item line">Remove</button>
+      </fieldset>
+    </template>
+  </section>
+
+  <section class="prose" id="convert">
+    <h2>Cubic feet to cubic meters converter</h2>
+    <p>Type in either box; the other one follows. 1 ft³ = 0.028316846592 m³ exactly, and 1 m³ = 35.3147 ft³.</p>
+    <form class="panel convpanel" onsubmit="return false" aria-label="Cubic feet to cubic meters converter">
+      <div class="convgrid">
+        <label>Cubic feet (ft³)<input data-conv="ft3" inputmode="decimal" autocomplete="off" value="100"></label>
+        <label>Cubic meters (m³)<input data-conv="m3" inputmode="decimal" autocomplete="off"></label>
+      </div>
+      <p class="formula convout" data-r="convOut" aria-live="polite">–</p>
+    </form>
+  </section>
+
+  <section class="prose">
+    <h2>How the calculator works</h2>
+    <p>Every size is turned into millimetres first (1 in = 25.4 mm, 1 ft = 304.8 mm, 1 cm = 10 mm, 1 m = 1,000 mm, all exact), so switching units never changes the result. Then, for each line:</p>
+    <ol class="plain">
+      <li><strong>Cubic feet of one item</strong> = length × width × height in feet. In inches, length × width × height ÷ 1,728, because a cubic foot is 12 × 12 × 12 = 1,728 in³. In metric units, the volume in m³ ÷ 0.028316846592.</li>
+      <li><strong>Cubic feet of the line</strong> = one item × quantity. The total is the sum of all lines.</li>
+      <li><strong>Other units</strong>: cubic meters = ft³ × 0.028316846592 (0.3048³); cubic yards = ft³ ÷ 27 (3 × 3 × 3); litres = m³ × 1,000; US gallons = in³ ÷ 231 (the gallon is defined as 231 in³).</li>
+      <li><strong>Share of a container or trailer</strong> = total ft³ ÷ its inside length × width × height.</li>
+    </ol>
+    <p>With your current inputs:</p>
+    <div class="formula" data-r="steps" aria-live="polite">–</div>
+    <p class="small">Working in cubic meters with carton sizes in cm and many containers to compare? The <a href="/cbm-calculator/">CBM calculator</a> gives the total in m³, the share of each container and opens a 3D plan; this page is for cubic feet first, any unit in, and the unit conversions.</p>
+  </section>
+
+  <section class="prose">
+    <h2>Cubic feet of containers and 53' trailers</h2>
+    <p>Inside length × width × height of the published inside dimensions, worked out here; the last column is the capacity each maker prints, which can differ slightly.</p>
+    <div class="tablebox">
+      <table>
+        <thead><tr><th>Container or trailer, inside L × W × H</th><th class="num">Cubic feet</th><th class="num">Cubic meters</th><th class="num">Printed capacity</th></tr></thead>
+        <tbody>
+          {rows.map((r) => <tr><td class="dims"><a href={r.href} rel="noopener">{r.name}</a> <span class="small">({r.src})</span><br><span class="small">{ftin(r.L)} × {ftin(r.W)} × {ftin(r.H)}<br>{n(r.L)} × {n(r.W, 1)} × {n(r.H)} mm</span></td><td class="num">{n(r.ft3)} ft³</td><td class="num">{n(r.ft3 * FT3, 2)} m³</td><td class="num">{r.printed}</td></tr>)}
+        </tbody>
+      </table>
+    </div>
+    <p class="small">Sources: Hapag-Lloyd container specification pages (checked {cdata.source.checked}; {cdata.source.note}) and Hyundai Translead product specifications in inches (checked {tdata.source.checked}). Door openings and payloads are on <a href="/shipping-container-dimensions/">shipping container dimensions</a> and <a href="/53-foot-trailer-dimensions/">53 ft trailer dimensions</a>. A 40' high cube holds {n(cft(hc40))} ft³, a 53' Composite dry van {n(trFt3(comp))} ft³: about {n(trFt3(comp) / cft(hc40), 2)} times as much.</p>
+  </section>
+
+  <section class="prose">
+    <h2>Cubic feet of common carton sizes</h2>
+    <div class="tablebox">
+      <table>
+        <thead><tr><th>Carton</th><th class="num">in³</th><th class="num">ft³</th><th class="num">m³</th></tr></thead>
+        <tbody>
+          {cartons.map((c) => <tr><td class="clabel">{c.label}</td><td class="num">{n(c.in3)}</td><td class="num">{n(c.in3 / 1728, 3)}</td><td class="num">{n((c.in3 * 0.0254 ** 3), 4)}</td></tr>)}
+          {metricCartons.map((c) => <tr><td class="clabel">{c.label}<br><span class="small">{n(c.l / MM, 2)} × {n(c.w / MM, 2)} × {n(c.h / MM, 2)} in</span></td><td class="num">{n((c.l * c.w * c.h) / MM ** 3)}</td><td class="num">{n((c.l * c.w * c.h) / 1e9 / FT3, 3)}</td><td class="num">{n((c.l * c.w * c.h) / 1e9, 4)}</td></tr>)}
+        </tbody>
+      </table>
+    </div>
+    <p class="small">Computed from the sizes shown (1 in = 25.4 mm). The sizes are examples, not standards.</p>
+  </section>
+
+  <section class="prose">
+    <h2>Cubic feet to cubic meters chart</h2>
+    <div class="charts">
+      <div class="tablebox">
+        <table>
+          <thead><tr><th class="num">Cubic feet</th><th class="num">Cubic meters</th></tr></thead>
+          <tbody>{ftList.map((v) => <tr><td class="num">{n(v)} ft³</td><td class="num">{n(v * FT3, 4)} m³</td></tr>)}</tbody>
+        </table>
+      </div>
+      <div class="tablebox">
+        <table>
+          <thead><tr><th class="num">Cubic meters</th><th class="num">Cubic feet</th></tr></thead>
+          <tbody>{mList.map((v) => <tr><td class="num">{n(v)} m³</td><td class="num">{n(v / FT3, 2)} ft³</td></tr>)}</tbody>
+        </table>
+      </div>
+    </div>
+    <p class="small">ft³ × 0.028316846592 = m³; m³ ÷ 0.028316846592 = ft³ (× 35.3147, rounded).</p>
+  </section>
+
+  <section class="prose">
+    <h2>Getting the volume right</h2>
+    <ul class="plain">
+      <li><strong>Keep one unit per measurement.</strong> 3 ft 6 in is 3.5 ft or 42 in, not 3.6 ft. Mixing inches and feet in one formula is the most common mistake: a 24 in side entered as 24 ft makes the volume 1,728 times too big.</li>
+      <li><strong>Measure the outside of packed cartons</strong>, at the widest point. Printed carton sizes are often inside sizes, and a bulging carton is bigger than either.</li>
+      <li><strong>Cubic feet are not what fits.</strong> A container's cubic feet is the empty space; boxes leave gaps against the walls, the roof and each other, and each container has a payload and a door opening. Use the <a href="/container-loading-calculator/">container loading calculator</a> to see how many really fit, or <a href="/how-many-pallets-fit-in-a-container/">how many pallets fit in a container</a> for pallet loads.</li>
+      <li><strong>Pallets count as a block.</strong> For palletised goods, enter the pallet footprint and the total loaded height as one item. Footprints and heights are on <a href="/pallet-sizes/">standard pallet sizes</a>.</li>
+      <li><strong>Sending boxes as parcels?</strong> Carriers bill bulky parcels by size: the <a href="/dimensional-weight-calculator/">dimensional weight calculator</a> turns cubic inches into billable weight.</li>
+    </ul>
+  </section>
+
+  <section class="prose">
+    <h2>Related</h2>
+    <div class="chips">
+      <a href="/cbm-calculator/">CBM calculator</a>
+      <a href="/container-loading-calculator/">Container loading calculator</a>
+      <a href="/shipping-container-dimensions/">Shipping container dimensions</a>
+      <a href="/53-foot-trailer-dimensions/">53 ft trailer dimensions</a>
+      <a href="/dimensional-weight-calculator/">Dimensional weight calculator</a>
+      <a href="/pallet-sizes/">Standard pallet sizes</a>
+      <a href="/how-we-calculate/">How we calculate</a>
+    </div>
+  </section>
+</ToolPage>
+
+<script>
+  import { initCuft } from '../scripts/cuft.js';
+  const root = document.querySelector('[data-tool="cuft"]');
+  if (root) initCuft(root as HTMLElement);
+</script>
+
+<style>
+  .cuft { display: flex; flex-direction: column; gap: 14px; }
+  .cufthead { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  .seg5 { grid-template-columns: repeat(5, minmax(0, 1fr)); min-width: 240px; flex: 0 1 300px; }
+  .cuftlines { display: flex; flex-direction: column; gap: 12px; }
+  :global(.cuftline) { margin: 0; border: 1px solid var(--line); border-left: 8px solid var(--hi); border-radius: 8px; padding: 12px; display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 10px; min-width: 0; }
+  :global(.cuftline label) { grid-column: span 2; min-width: 0; }
+  :global(.cuftline .cname) { grid-column: span 4; }
+  :global(.cuftline .cout) { grid-column: span 4; margin: 0; align-self: center; }
+  :global(.cuftline .cdel) { grid-column: span 2; justify-self: end; align-self: center; }
+  :global(.cuftline .sr) { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  .result .v.sm { font-size: clamp(18px, 5vw, 24px); }
+  .cuftspaces { list-style: none; margin: 4px 0 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+  .cuftspaces :global(li) { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: baseline; font-size: 15px; }
+  .cuftspaces :global(li span:first-child) { min-width: 0; flex: 1 1 160px; }
+  .cuftspaces :global(strong) { font-family: var(--mono); color: var(--hi); }
+  .cuftspaces :global(.small), .cuftnote { color: var(--band-muted) !important; }
+  .cuftnote a { color: var(--band-ink); }
+  .convgrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+  .convgrid label { min-width: 0; }
+  .convout { margin: 0; }
+  .dims { min-width: 170px; white-space: normal; }
+  .clabel { min-width: 110px; }
+  .charts { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
+</style>

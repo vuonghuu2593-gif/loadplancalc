@@ -26,6 +26,7 @@ const schema = { '@context': 'https://schema.org', '@type': 'HowTo', name: `How 
       <a href="#how-many-pallets-fit-in-a-container">Pallets in a container</a>
       <a href="#how-many-pallets-fit-in-a-53-foot-trailer">Pallets in a 53 ft trailer</a>
       <a href="#cbm-calculator">CBM calculator</a>
+      <a href="#cubic-feet-calculator">Cubic feet calculator</a>
       <a href="#dimensional-weight-calculator">Dimensional weight calculator</a>
       <a href="#orientation">Carton orientation</a>
       <a href="#loading-method">Automatic or step by step</a>
@@ -141,6 +142,19 @@ const schema = { '@context': 'https://schema.org', '@type': 'HowTo', name: `How 
       <li><strong>Result:</strong> total volume in m³ (the headline), the same in cubic feet, the number of cartons, and for the 20', 40', 40' high cube and 45' high cube the share of the inside volume (inside length × width × height from Hapag-Lloyd's figures). Over 100% it shows how many containers the volume needs at least. On a phone, a bar at the bottom shows the total while the result is off screen.</li>
       <li><strong>The share is an upper bound.</strong> Rigid cartons leave gaps, so fewer fit than the percentage suggests. <strong>Plan in 3D</strong> on each container row opens the <a href="/container-loading-calculator/">container loading calculator</a> with that container and your cartons filled in (any side may face down, weight 0: add the weights there) for a real loading plan.</li>
       <li><strong>How the calculator works</strong> below the result shows the formula with your own numbers, updated as you type.</li>
+    </ul>
+  </section>
+
+  <section class="prose" id="cubic-feet-calculator">
+    <h2>Cubic feet calculator</h2>
+    <p>The <a href="/cubic-feet-calculator/">cubic feet calculator</a> works out the volume of one or more items in cubic feet, with the same total in cubic meters, cubic yards, litres and US gallons. It is plain arithmetic and updates as you type; for the share of each shipping container in cubic meters and a 3D plan, use the CBM calculator above.</p>
+    <ul class="plain">
+      <li><strong>Unit (in · ft · cm · m · mm):</strong> the unit for all sizes. Sizes are kept in millimetres, so switching back and forth never changes your numbers. The page starts in inches; your choice is remembered on this device.</li>
+      <li><strong>Item lines:</strong> for each size enter a name, the quantity and the length, width and height. Each line shows the cubic feet of one item and of the whole line. <strong>+ Add item line</strong> adds another size (up to 10); <strong>Remove</strong> deletes a line. A line with an empty or zero size or quantity is left out, and a note says so.</li>
+      <li><strong>Starting example:</strong> 100 cartons of 24 × 18 × 18 in (4.5 ft³ each) and 50 boxes of 12 × 12 × 12 in (1 ft³ each), 500 ft³ in total.</li>
+      <li><strong>Result:</strong> total cubic feet (the headline), cubic meters, cubic yards, litres and US gallons, the number of items, and the share of the inside volume of a 20' and 40' standard container, a 40' high cube and a 53' dry van (Hyundai Translead Composite). The share is volume only: boxes leave gaps, so fewer fit. On a phone, a bar at the bottom shows the total while the result is off screen.</li>
+      <li><strong>Cubic feet to cubic meters converter:</strong> type a number in <strong>Cubic feet</strong> or in <strong>Cubic meters</strong>; the other box follows, and the line below shows the conversion and the same volume in cubic yards, cubic inches and litres. It starts at 100 ft³.</li>
+      <li><strong>How the calculator works</strong> below shows the formula with your own numbers, updated as you type. The page also has tables of container and trailer volumes in cubic feet, common carton sizes and a conversion chart.</li>
     </ul>
   </section>
 
@@ -263,6 +277,7 @@ const schema = { '@context': 'https://schema.org', '@type': 'HowTo', name: `How 
   <section class="prose" id="whats-new">
     <h2>What's new</h2>
     <ul class="plain">
+      <li><strong>October 23, 2026:</strong> new tool: <a href="/cubic-feet-calculator/">cubic feet calculator</a> — length × width × height in inches, feet, cm, m or mm for several items to cubic feet, cubic meters, cubic yards, litres and US gallons, the share of a container or 53' trailer, and a two-way cubic feet ⇄ cubic meters converter.</li>
       <li><strong>October 22, 2026:</strong> a <a href="#results">loading list</a> under every container and pallet plan: sections from the back wall to the door, each layer from the floor up with box type, count, position, distances and running totals, in the same order as the loading step slider. <a href="#share">Download loading list (CSV)</a> saves it, and Print plan includes it.</li>
       <li><strong>October 22, 2026:</strong> <a href="#import">import a box list</a> in the container and pallet calculators: <strong>Import from Excel / CSV</strong> reads an .xlsx or CSV file, and <strong>Paste from Excel</strong> takes rows copied from a spreadsheet, so sizes, weights and quantities no longer have to be typed. Templates in Excel and CSV are linked under the box list.</li>
       <li><strong>October 22, 2026:</strong> new reference page: <a href="/53-foot-trailer-dimensions/">53 ft trailer dimensions</a> (inside and outside sizes of 53' dry vans and reefers from the makers, with pallet and carton counts). Nothing changed in the calculators.</li>
