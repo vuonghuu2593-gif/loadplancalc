@@ -2,8 +2,8 @@
   "source": {
     "publisher": "Hyundai Translead",
     "note": "Figures as printed in each model's Product Specifications on hyundaitranslead.com (inches). Hyundai Translead says it is committed to customization, so a trailer built to order can differ; no rear door opening or payload is published on these pages.",
-    "checked": "2026-10-21",
-    "reads": "Read twice: page text via curl + HTML-to-text, and a fresh download with Python urllib parsed cell by cell; both reads gave the same figures."
+    "checked": "2026-10-22",
+    "reads": "Read twice: page text via curl + HTML-to-text, and a fresh download with Python urllib parsed cell by cell; both reads gave the same figures. Re-read 2026-10-22 (curl now gets a Cloudflare block): headless Chromium page text, then a separate browser session reading the spec table cell by cell, plus the dry van overview page; identical."
   },
   "trailers": [
     { "id": "53ht-composite", "name": "53' dry van, Hyundai Translead Composite", "model": "Composite",

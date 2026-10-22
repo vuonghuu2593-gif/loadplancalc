@@ -2,6 +2,7 @@
 import Base from '../layouts/Base.astro';
 import data from '../data/containers.json';
 import sp from '../data/special-containers.json';
+import tdata from '../data/trailers.json';
 const n = (v: number, d = 0) => v.toLocaleString('en-US', { maximumFractionDigits: d });
 const ftin = (mm: number) => { const tin = mm / 25.4; const ft = Math.floor(tin / 12); const inch = tin - ft * 12; return `${ft}′ ${n(inch, 1)}″`; };
 const cbm = (c: any) => (c.L * c.W * c.H) / 1e9;
@@ -9,6 +10,7 @@ const cuft = (c: any) => (c.L * c.W * c.H) / (304.8 ** 3);
 const lb = (kg: number) => kg / 0.45359237;
 const hc = data.containers.find((c) => c.id === '40hc')!;
 const s20 = data.containers.find((c) => c.id === '20dv')!;
+const tr = tdata.trailers.find((t) => t.id === '53ht-composite')!;
 const rf20 = sp.reefers[0], rf40 = sp.reefers[1], ot40 = sp.opentops[1];
 const url = new URL('/shipping-container-dimensions/', 'https://loadplancalc.com').href;
 const schema = { '@context': 'https://schema.org', '@type': 'Article', headline: 'Shipping container dimensions', dateModified: data.source.checked, mainEntityOfPage: url };
@@ -48,7 +50,7 @@ const schema = { '@context': 'https://schema.org', '@type': 'Article', headline:
         </tbody>
       </table>
     </div>
-    <p class="small">Inside volume is length × width × height of the figures above. Hapag-Lloyd lists the capacity as 33.2 m³ (20'), 67.7 m³ (40'), and 86.0 m³ (45' high cube). Pounds are converted from kilograms (1 lb = 0.45359237 kg). To see what share of these volumes your cartons take, use the <a href="/cbm-calculator/">CBM calculator</a>.</p>
+    <p class="small">Inside volume is length × width × height of the figures above. Hapag-Lloyd lists the capacity as 33.2 m³ (20'), 67.7 m³ (40'), and 86.0 m³ (45' high cube). Pounds are converted from kilograms (1 lb = 0.45359237 kg). To see what share of these volumes your cartons take, use the <a href="/cbm-calculator/">CBM calculator</a>. Sending a few cartons as parcels instead of a container load? Parcel carriers bill by size as well as weight: the <a href="/dimensional-weight-calculator/">dimensional weight calculator</a> works out the billable weight of each box.</p>
   </section>
 
   <section class="prose" id="reefer-open-top">
@@ -107,6 +109,7 @@ const schema = { '@context': 'https://schema.org', '@type': 'Article', headline:
       <li><strong>Tare</strong> is the empty container's own weight. <strong>Max payload</strong> is the most cargo it may carry, and <strong>max gross</strong> is tare plus payload: the most the loaded container may weigh.</li>
       <li>A high cube is about 30 cm (one foot) taller inside than a standard container of the same length: here {n(hc.H)} mm against {n(s20.H)} mm.</li>
       <li>The door opening is smaller than the inside, so the door — not the inside — limits the largest item you can load.</li>
+      <li>A 53' dry van trailer is longer and wider inside than a 40' high cube: {n(tr.Lin)} × {tr.Win} × {tr.Hin} in ({n(tr.L)} × {n(tr.W, 1)} × {n(tr.H)} mm, {n(cbm(tr), 1)} m³) for Hyundai Translead's Composite against {n(cbm(hc), 1)} m³. See <a href="/53-foot-trailer-dimensions/">53 ft trailer dimensions</a> for the inside sizes of several makers' vans and reefers, and <a href="/how-many-pallets-fit-in-a-53-foot-trailer/">how many pallets fit in a 53 ft trailer</a> for pallet counts, one or two high.</li>
       <li>These are one carrier's figures. Containers from other owners and manufacturing series differ by a few millimetres or kilograms; the data plate on the container door and your booking confirmation give the figures for your unit.</li>
     </ul>
   </section>

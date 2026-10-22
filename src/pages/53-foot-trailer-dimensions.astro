@@ -1,0 +1,183 @@
+---
+// Reference page: inside (and outside) dimensions of 53' trailers as the makers publish them.
+// Inch figures as printed (trailers.json + trailer-specs.json); mm converted exactly (1 in = 25.4 mm).
+// Every count on this page is computed by the engine at build time and checked by validate(); the build fails otherwise.
+import Base from '../layouts/Base.astro';
+import tdata from '../data/trailers.json';
+import xs from '../data/trailer-specs.json';
+import cdata from '../data/containers.json';
+import pdata from '../data/pallets.json';
+import { pack, validate } from '../scripts/packer.js';
+const IN = 25.4;
+const n = (v: number, d = 0) => v.toLocaleString('en-US', { maximumFractionDigits: d, minimumFractionDigits: 0 });
+// 630 → 52′ 6″, 101.5 → 8′ 5.5″
+const ftin = (inches: number) => { const ft = Math.floor(inches / 12 + 1e-9); const r = Math.round((inches - ft * 12) * 1000) / 1000; return `${ft}′ ${n(r, 3)}″`; };
+const mm = (inches: number) => inches * IN;
+type Tr = { id: string; model: string; kind: string; Lin: number; Win: number; Hin: number; cuft: number; gvwrLb: number; standardWeightLb: number; standardWeightNote?: string; widthNote: string; url: string };
+const presetNote = (w: string) => (/lining to lining/.test(w) ? 'lining to lining' : '');
+const presets: Tr[] = tdata.trailers.map((t) => ({ id: t.id, model: t.model, kind: 'dry van', Lin: t.Lin, Win: t.Win, Hin: t.Hin, cuft: t.cuft, gvwrLb: t.gvwrLb, standardWeightLb: t.standardWeightLb, widthNote: presetNote(t.printed.width), url: t.url }));
+const order = ['Original', 'HY-Cube', 'Composite', 'Composite XT', 'ThermoTech'];
+const HT: Tr[] = [...presets, ...(xs.hyundai as Tr[])].sort((a, b) => order.indexOf(a.model) - order.indexOf(b.model));
+if (HT.length !== 5) throw new Error('expected 5 Hyundai Translead models');
+const comp = HT.find((t) => t.model === 'Composite')!, orig = HT.find((t) => t.model === 'Original')!, reefer = HT.find((t) => t.model === 'ThermoTech')!;
+const in3 = (t: Tr) => t.Lin * t.Win * t.Hin;
+const cuft = (t: Tr) => in3(t) / 1728;
+const m3 = (t: Tr) => (mm(t.Lin) * mm(t.Win) * mm(t.Hin)) / 1e9;
+// every printed volume must match L × W × H ÷ 1,728 to within 1 cu ft (the maker rounds down)
+for (const t of HT) if (Math.abs(cuft(t) - t.cuft) > 1) throw new Error(`${t.model}: printed ${t.cuft} cu ft vs ${cuft(t)}`);
+// worked example (lede), checked by hand: 630 × 101.5 × 110 = 7,033,950 in³; ÷ 1,728 = 4,070.6 ft³; 16.002 × 2.5781 × 2.794 = 115.27 m³
+if (in3(comp) !== 7033950 || Math.abs(m3(comp) - 115.2658) > 0.001) throw new Error('Composite volume example changed; update the lede');
+const hc = cdata.containers.find((c) => c.id === '40hc')!;
+const hcM3 = (hc.L * hc.W * hc.H) / 1e9;
+
+// What fits: computed by the engine for each Hyundai Translead model, checked by validate().
+const chep = pdata.pallets.find((p) => p.id === 'chep4840')!, euro = pdata.pallets.find((p) => p.id === 'epal1')!;
+const PH = 50 * IN; // example loaded pallet height (pallet + goods), not a standard
+type Load = { key: string; label: string; l: number; w: number; h: number; rotation: string; stackable: boolean };
+const loads: Load[] = [
+  { key: 'chep1', label: '48 × 40 in pallets, one high', l: 48 * IN, w: 40 * IN, h: PH, rotation: 'upright', stackable: false },
+  { key: 'chep2', label: '48 × 40 in pallets, two high', l: 48 * IN, w: 40 * IN, h: PH, rotation: 'upright', stackable: true },
+  { key: 'euro1', label: 'Euro pallets 1,200 × 800 mm, one high', l: euro.L, w: euro.W, h: PH, rotation: 'upright', stackable: false },
+  { key: 'euro2', label: 'Euro pallets 1,200 × 800 mm, two high', l: euro.L, w: euro.W, h: PH, rotation: 'upright', stackable: true },
+  { key: 'c1', label: 'Cartons 600 × 400 × 400 mm', l: 600, w: 400, h: 400, rotation: 'any', stackable: true },
+  { key: 'c2', label: 'Cartons 24 × 16 × 12 in', l: 24 * IN, w: 16 * IN, h: 12 * IN, rotation: 'any', stackable: true },
+];
+function fit(t: Tr, x: Load) {
+  const r = pack({ L: mm(t.Lin), W: mm(t.Win), H: mm(t.Hin) }, [{ l: x.l, w: x.w, h: x.h, weight: 0, qty: 5000, rotation: x.rotation, stackable: x.stackable }], { timeMs: 3000 });
+  const errs = validate(r);
+  if (errs.length) throw new Error(`53' trailer plan failed its check: ${t.model} ${x.key}: ${errs.join(', ')}`);
+  return r.totals.n;
+}
+// best single block of one orientation (a lower bound the engine must reach)
+const perms = (a: number, b: number, c: number, any: boolean) => any ? [[a, b, c], [a, c, b], [b, a, c], [b, c, a], [c, a, b], [c, b, a]] : [[a, b, c], [b, a, c]];
+const block = (t: Tr, x: Load) => Math.max(...perms(x.l, x.w, x.h, x.rotation === 'any').map(([l, w, h]) =>
+  Math.floor(mm(t.Lin) / l + 1e-9) * Math.floor(mm(t.Win) / w + 1e-9) * (x.stackable ? Math.floor(mm(t.Hin) / h + 1e-9) : 1)));
+const fits = HT.map((t) => ({ t, c: Object.fromEntries(loads.map((x) => { const v = fit(t, x); if (v < block(t, x)) throw new Error(`${t.model} ${x.key}: engine ${v} < block ${block(t, x)}`); return [x.key, v]; })) as Record<string, number> }));
+const fo = fits.find((f) => f.t.model === 'Original')!.c, fc = fits.find((f) => f.t.model === 'Composite')!.c, fr = fits.find((f) => f.t.model === 'ThermoTech')!.c;
+// hand checks quoted in the text: Composite 48 × 40 in 30 (2 across × 15 rows of 40 in), Euro 40 (2 × 20 rows of 800 mm),
+// 600 × 400 × 400 mm 960 (4 across × 40 rows × 6 layers); ThermoTech Euro 39 (626 in = 15,900.4 mm: 20 rows need 16,000 mm)
+if (fc.chep1 !== 30 || fc.euro1 !== 40 || fc.c1 !== 960 || fc.chep2 !== 60 || fr.euro1 !== 39 || fr.chep1 !== 30)
+  throw new Error(`hand-checked counts changed: ${JSON.stringify(fc)} / ${JSON.stringify(fr)}; update the text`);
+
+const O = xs.others;
+const law = xs.law;
+const url = new URL('/53-foot-trailer-dimensions/', 'https://loadplancalc.com').href;
+const schema = { '@context': 'https://schema.org', '@type': 'Article', headline: '53 ft trailer dimensions', dateModified: xs.checked, mainEntityOfPage: url };
+const wall = (t: Tr) => (102.36 - t.Win) / 2;
+---
+<Base title="53 ft Trailer Dimensions: Inside Length, Width, Height" description="Inside length, width and height of 53 ft dry van and reefer trailers in feet, inches and mm, with volume, door opening and outside size from the makers' spec sheets, and how many pallets fit." schema={schema}>
+  <section class="prose">
+    <h1>53 ft trailer dimensions</h1>
+    <p class="lede">A 53' dry van is 53′ 0″ long and 102.36″ wide outside, but the space you can load is smaller. Hyundai Translead's Composite dry van, for example, is {ftin(comp.Lin)} ({comp.Lin} in, {n(mm(comp.Lin))} mm) long, {comp.Win} in ({n(mm(comp.Win), 1)} mm) wide and {comp.Hin} in ({n(mm(comp.Hin))} mm) high inside. That is {comp.Lin} × {comp.Win} × {comp.Hin} = {n(in3(comp))} in³, and ÷ 1,728 = <strong>{n(cuft(comp), 1)} ft³</strong> (the maker prints {n(comp.cuft)} cu ft), or 16.002 × 2.5781 × 2.794 m = <strong>{n(m3(comp), 2)} m³</strong> — about {n(m3(comp) / hcM3, 1)} times a 40' high cube container ({n(hcM3, 2)} m³). Below are the inside sizes of every 53' van for which Hyundai Translead publishes them, the widths and heights Utility and Stoughton publish, and how many pallets and cartons fit.</p>
+  </section>
+
+  <section class="prose">
+    <h2>Inside dimensions of 53' dry vans and reefers</h2>
+    <div class="tablebox">
+      <table>
+        <thead><tr><th>Hyundai Translead model</th><th class="num">Inside length</th><th class="num">Inside width</th><th class="num">Inside height</th></tr></thead>
+        <tbody>
+          {HT.map((t) => <tr>
+            <td><a href={t.url} rel="noopener">{t.model}</a><br><span class="small">{t.kind}</span></td>
+            <td class="num">{ftin(t.Lin)}<br><span class="small">{t.Lin} in · {n(mm(t.Lin), 1)} mm</span></td>
+            <td class="num">{n(t.Win, 2)} in<br><span class="small">{ftin(t.Win)} · {n(mm(t.Win), 1)} mm{t.widthNote ? <><br>{t.widthNote}</> : ''}</span></td>
+            <td class="num">{n(t.Hin, 1)} in<br><span class="small">{ftin(t.Hin)} · {n(mm(t.Hin), 1)} mm</span></td>
+          </tr>)}
+        </tbody>
+      </table>
+    </div>
+    <p class="small">Inch figures as printed in each model's Product Specifications on hyundaitranslead.com (linked), checked {xs.checked}. Millimetres are converted at exactly 1 in = 25.4 mm and rounded to 0.1 mm. All five are 53′ 0″ long, 102.36″ wide and 13′ 6″ high outside. Hyundai Translead says it customizes its trailers, so a trailer built to order can differ.</p>
+
+    <h3>Volume and weight</h3>
+    <div class="tablebox">
+      <table>
+        <thead><tr><th>Model</th><th class="num">Volume (maker)</th><th class="num">L × W × H</th><th class="num">Standard weight</th><th class="num">GVWR</th></tr></thead>
+        <tbody>
+          {HT.map((t) => <tr>
+            <td>{t.model}</td>
+            <td class="num">{n(t.cuft)} cu ft</td>
+            <td class="num">{n(cuft(t), 1)} ft³<br><span class="small">{n(m3(t), 2)} m³</span></td>
+            <td class="num">{n(t.standardWeightLb)} lb<br><span class="small">{n(t.standardWeightLb * 0.45359237)} kg{t.standardWeightNote ? <><br>{t.standardWeightNote}</> : ''}</span></td>
+            <td class="num">{n(t.gvwrLb)} lb<br><span class="small">{n(t.gvwrLb * 0.45359237)} kg</span></td>
+          </tr>)}
+        </tbody>
+      </table>
+    </div>
+    <p class="small">“Volume (maker)” is the interior volume Hyundai Translead prints; “L × W × H” is the inside length × width × height above ÷ 1,728 (ft³) or in metres (m³). Kilograms are converted at 1 lb = 0.45359237 kg. GVWR is not the cargo limit: US federal rules define it as “the value specified by the manufacturer as the loaded weight of a single vehicle” (<a href="https://www.ecfr.gov/current/title-49/subtitle-B/chapter-V/part-571/subpart-A/section-571.3" rel="noopener">49 CFR 571.3</a>), so the trailer's own weight counts toward it. No rear door opening or payload is published on these pages.</p>
+  </section>
+
+  <section class="prose">
+    <h2>Other makers: inside width and height</h2>
+    <p>Utility Trailer and Stoughton Trailers publish the inside width and height of their 53' vans, but not the inside length, so they are listed here without one. Measure the length of your trailer from the nose wall to the rear door frame before you plan a tight load.</p>
+    <div class="tablebox">
+      <table>
+        <thead><tr><th>53' trailer</th><th class="num">Inside width</th><th class="num">Inside height</th><th class="num">Other figures (as printed)</th></tr></thead>
+        <tbody>
+          {O.map((o) => <tr>
+            <td><a href={o.url} rel="noopener">{o.maker}</a><br><span class="small">{o.model}, {o.kind}</span></td>
+            <td class="num">{o.widths.map((w) => `${n(w, 3)} in`).join(' or ')}<br><span class="small">{o.widths.map((w) => `${n(mm(w), 1)} mm`).join(' or ')}{o.widthNote ? <><br>{o.widthNote}</> : ''}</span></td>
+            <td class="num">{o.heights.front === o.heights.rear ? `${n(o.heights.front, 3)} in` : `${n(o.heights.front, 3)} in front, ${n(o.heights.rear, 3)} in rear`}<br><span class="small">{o.heights.front === o.heights.rear ? `${n(mm(o.heights.front), 1)} mm` : `${n(mm(o.heights.front), 1)} / ${n(mm(o.heights.rear), 1)} mm`}{o.id.startsWith('stoughton') ? <><br>front and rear</> : ''}</span></td>
+            <td class="num"><span class="small">{'doorHin' in o && o.doorHin ? <>Door opening {n(o.doorHin as number, 3)} in ({n(mm(o.doorHin as number), 1)} mm), listed under height<br></> : ''}{'payloadLb' in o && o.payloadLb ? <>Payload capacity {n(o.payloadLb as number)} lb ({n((o.payloadLb as number) * 0.45359237)} kg), GVWR {n(o.gvwrLb as number)} lb<br></> : ''}Overall {o.overall.length} × {n(o.overall.widthIn, 3)} in × {o.overall.height}</span></td>
+          </tr>)}
+        </tbody>
+      </table>
+    </div>
+    <p class="small">From Utility Trailer's dry van and reefer specification pages and Stoughton's model pages (linked), checked {xs.checked}; fractions written as decimals (110½ = 110.5, 104⅛ = 104.125, 100-3/4 = 100.75, 109-7/8 = 109.875 in), millimetres converted at 1 in = 25.4 mm. Utility lists two inside widths for its dry van, both “at wearband” (the protective band along the lower side wall). Great Dane and Wabash were checked but publish no inside dimensions we could read, so they are not listed.</p>
+  </section>
+
+  <section class="prose">
+    <h2>How many pallets and cartons fit in a 53 ft trailer</h2>
+    <p>Computed with the <a href="/container-loading-calculator/">load planner</a>'s engine for each Hyundai Translead model's inside size, and checked by its independent validator. Pallets are kept this side up (turned either way flat), 50 in ({n(PH)} mm) high when loaded; two high means one loaded pallet on another. Cartons may stand any way up. Weight is not limited here.</p>
+    <div class="tablebox">
+      <table>
+        <thead><tr><th>Load</th>{HT.map((t) => <th class="num">{t.model}</th>)}</tr></thead>
+        <tbody>
+          {loads.map((x) => <tr><td>{x.label}</td>{fits.map((f) => <td class="num">{n(f.c[x.key])}</td>)}</tr>)}
+        </tbody>
+      </table>
+    </div>
+    <p class="small">Hand check for the Composite: 48 × 40 in pallets go two across with the 48 in side across (2 × 48 = 96 of {comp.Win} in) in 15 rows of 40 in (600 of {comp.Lin} in) = {fc.chep1}; Euro pallets two crosswise (2,400 of {n(mm(comp.Win), 1)} mm) in 20 rows of 800 mm (16,000 of {n(mm(comp.Lin))} mm) = {fc.euro1}; 600 × 400 × 400 mm cartons four across (4 × 600 = 2,400 mm) in 40 rows of 400 mm (16,000 mm) and 6 layers (2,400 of {n(mm(comp.Hin))} mm) = {fc.c1}. The ThermoTech reefer is {comp.Lin - reefer.Lin} in shorter ({n(mm(reefer.Lin), 1)} mm): 20 rows of Euro pallets would need 16,000 mm, so it takes {fr.euro1}. For your own pallet size, height and weight, use <a href="/how-many-pallets-fit-in-a-53-foot-trailer/">how many pallets fit in a 53 ft trailer</a>.</p>
+  </section>
+
+  <section class="prose">
+    <h2>Inside versus outside dimensions</h2>
+    <ul class="plain">
+      <li><strong>Width.</strong> The walls take {n(wall(comp), 2)} in per side in the Composite ({comp.Win} in inside of 102.36 in outside) but {n(wall(orig), 2)} in in the Original ({orig.Win} in, lining to lining). Two 48 in pallet sides (96 in) fit across all of them, but the extra width can matter for cartons: {n(fo.c2)} cartons of 24 × 16 × 12 in in the Original against {n(fc.c2)} in the Composite (table above).</li>
+      <li><strong>Length.</strong> These 53′ 0″ vans are {ftin(comp.Lin)} inside, 6 in less than outside. The ThermoTech reefer is {ftin(reefer.Lin)} inside.</li>
+      <li><strong>Height.</strong> The outside height is 13′ 6″ (162 in) against {comp.Hin} in inside. Utility and Stoughton give their overall height for a set fifth-wheel height (46½ in and 47 in), so the overall height depends on the coupling height of the truck.</li>
+      <li><strong>Reefers.</strong> A refrigerated trailer has insulated walls, floor and roof and is smaller inside: {reefer.Win} × {reefer.Hin} in for the ThermoTech and {O.find((o) => o.id === 'utility-reefer')!.widths[0]} × {n(O.find((o) => o.id === 'utility-reefer')!.heights.front, 3)} in for Utility's reefer, against {orig.Win}–{comp.Win} × {comp.Hin} in for Hyundai's dry vans.</li>
+    </ul>
+  </section>
+
+  <section class="prose">
+    <h2>Legal outside width and length in the US</h2>
+    <ul class="plain">
+      <li><strong>Width:</strong> “No State shall impose a width limitation of more or less than 102 inches, or its approximate metric equivalent, 2.6 meters (102.36 inches) on a vehicle operating on the National Network”, except Hawaii, which keeps 108 inches (<a href={law.width.url} rel="noopener">{law.width.ref}</a>). That 102.36 in is the outside width Hyundai Translead prints for its vans.</li>
+      <li><strong>Length:</strong> federal rules set a floor, not a ceiling: “No State shall impose a length limitation of less than 48 feet on a semitrailer operating in a truck tractor-semitrailer combination” (<a href={law.length.url} rel="noopener">{law.length.ref}</a>), and states must allow semitrailer dimensions that were in lawful use there on December 1, 1982. Whether a 53 ft semitrailer may run on a given road is set by state law; check the states on your route.</li>
+    </ul>
+    <p class="small">Quoted from the Electronic Code of Federal Regulations (eCFR), checked {xs.checked}. These rules apply on the National Network of highways; state permits and other roads have their own limits.</p>
+  </section>
+
+  <section class="prose">
+    <h2>Before you plan a load</h2>
+    <ul class="plain">
+      <li><strong>Check the door, not only the inside.</strong> Stoughton lists a door opening of 109.875 in under height against 110 in inside; a load that just fits the inside height may not pass the door. Measure the door of your trailer and enter its width and height in the planner to have every box checked.</li>
+      <li><strong>Inside width depends on where it is measured.</strong> Utility gives its widths at the wearband, Hyundai Translead gives “lining to lining” for some models and “above side scuff, wall to wall” for the Composite XT. For pallets two across, measure the narrowest point of your trailer.</li>
+      <li><strong>Heights can differ front to rear.</strong> Utility's dry van is 110.5 in high at the front and 111 in at the rear; plan with the lower figure.</li>
+      <li><strong>Payload is not always published.</strong> Hyundai Translead prints a GVWR and a standard weight, not a payload; Utility prints a payload capacity of 55,000 lb. Ask your carrier what you may load, including road weight limits, and enter it in the planner.</li>
+      <li><strong>Plan it in 3D.</strong> The <a href="/container-loading-calculator/">container loading calculator</a> has the Hyundai Translead Original, HY-Cube and Composite in its list (choose <strong>Custom size</strong> for any other trailer and type the inside size). For a container instead of a trailer, see <a href="/shipping-container-dimensions/">shipping container dimensions</a>.</li>
+    </ul>
+  </section>
+
+  <section class="prose">
+    <h2>Related</h2>
+    <div class="chips">
+      <a href="/how-many-pallets-fit-in-a-53-foot-trailer/">Pallets in a 53 ft trailer</a>
+      <a href="/container-loading-calculator/">Container loading calculator</a>
+      <a href="/shipping-container-dimensions/">Shipping container dimensions</a>
+      <a href="/pallet-sizes/">Standard pallet sizes</a>
+      <a href="/cbm-calculator/">CBM calculator</a>
+      <a href="/how-we-calculate/">How we calculate</a>
+    </div>
+  </section>
+</Base>
