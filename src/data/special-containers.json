@@ -1,0 +1,31 @@
+{
+  "source": {
+    "publisher": "Hapag-Lloyd",
+    "note": "Hapag-Lloyd states its figures are examples; containers vary by manufacturer and series. Reference rows only: these containers are not planner presets.",
+    "checked": "2026-10-22",
+    "reads": "Each spec page read twice in separate headless-browser sessions (page text, and table cells read one by one); both reads gave the same figures. Load-line and booklet figures read from the PDF text (pdfplumber) and checked against the rendered page image.",
+    "booklet": {
+      "title": "Hapag-Lloyd Container Specification (booklet)",
+      "url": "https://www.hapag-lloyd.com/content/dam/website/downloads/pdf/17038_Update_Container_Specification_engl_sRGB.pdf"
+    }
+  },
+  "reefers": [
+    { "id": "20rf", "name": "20' Reefer", "iso": "22R1", "L": 5450, "W": 2280, "H": 2159, "doorW": 2290, "doorH": 2264,
+      "tare": 2860, "payload": 29140, "gross": 32000, "cbm": "28.1",
+      "booklet": { "series": "HLXU 374050–375049", "page": 41, "insideH": 2259, "loadLineH": 2159 },
+      "url": "https://www.hapag-lloyd.com/en/services-information/cargo-fleet/container/20-reefer.html" },
+    { "id": "40rh", "name": "40' Reefer High Cube", "iso": "45R1", "L": 11599, "W": 2290, "H": 2425, "doorW": 2290, "doorH": 2557,
+      "tare": 4420, "payload": 29580, "gross": 34000, "cbm": "67.7",
+      "booklet": { "series": "HLXU 877530–880529", "page": 43, "insideH": 2545, "loadLineH": null },
+      "url": "https://www.hapag-lloyd.com/en/services-information/cargo-fleet/container/40-reefer-high-cube.html" }
+  ],
+  "opentops": [
+    { "id": "20ot", "name": "20' Open Top", "iso": "22U1", "L": 5895, "W": 2350, "H": 2340, "doorW": 2338, "doorH": 2280,
+      "roofW": 2230, "roofL": 5338, "tare": 2450, "payload": 30050, "gross": 32500, "cbm": "32.5",
+      "url": "https://www.hapag-lloyd.com/en/services-information/cargo-fleet/container/20-open-top.html" },
+    { "id": "40ot", "name": "40' Open Top", "iso": "42U1", "L": 12029, "W": 2350, "H": 2344, "Hnobows": 2420, "doorW": 2340, "doorH": 2276,
+      "roofW": 2230, "roofL": 11552, "tare": 4050, "payload": 28450, "gross": 32500, "cbm": "66.8",
+      "printedFtH": "7' 7 1/4\"",
+      "url": "https://www.hapag-lloyd.com/en/services-information/cargo-fleet/container/40-open-top.html" }
+  ]
+}

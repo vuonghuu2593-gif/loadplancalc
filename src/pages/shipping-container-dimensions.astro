@@ -1,6 +1,7 @@
 ---
 import Base from '../layouts/Base.astro';
 import data from '../data/containers.json';
+import sp from '../data/special-containers.json';
 const n = (v: number, d = 0) => v.toLocaleString('en-US', { maximumFractionDigits: d });
 const ftin = (mm: number) => { const tin = mm / 25.4; const ft = Math.floor(tin / 12); const inch = tin - ft * 12; return `${ft}′ ${n(inch, 1)}″`; };
 const cbm = (c: any) => (c.L * c.W * c.H) / 1e9;
@@ -8,13 +9,14 @@ const cuft = (c: any) => (c.L * c.W * c.H) / (304.8 ** 3);
 const lb = (kg: number) => kg / 0.45359237;
 const hc = data.containers.find((c) => c.id === '40hc')!;
 const s20 = data.containers.find((c) => c.id === '20dv')!;
+const rf20 = sp.reefers[0], rf40 = sp.reefers[1], ot40 = sp.opentops[1];
 const url = new URL('/shipping-container-dimensions/', 'https://loadplancalc.com').href;
 const schema = { '@context': 'https://schema.org', '@type': 'Article', headline: 'Shipping container dimensions', dateModified: data.source.checked, mainEntityOfPage: url };
 ---
-<Base title="Shipping Container Dimensions: 20ft, 40ft, High Cube" description="Inside dimensions, door openings, volume and payload of 20ft, 40ft, 40ft high cube and 45ft high cube dry containers, in mm and feet, from Hapag-Lloyd's published specifications." schema={schema}>
+<Base title="Shipping Container Dimensions: 20ft, 40ft, High Cube, Reefer" description="Inside dimensions, door openings, volume and payload of 20ft, 40ft and high cube dry containers, plus 20ft and 40ft high cube reefers and open tops, in mm and feet, from Hapag-Lloyd's specifications." schema={schema}>
   <section class="prose">
     <h1>Shipping container dimensions</h1>
-    <p class="lede">A 20' standard container measures {n(s20.L)} × {n(s20.W)} × {n(s20.H)} mm inside ({ftin(s20.L)} × {ftin(s20.W)} × {ftin(s20.H)}), and a 40' high cube {n(hc.L)} × {n(hc.W)} × {n(hc.H)} mm ({ftin(hc.L)} × {ftin(hc.W)} × {ftin(hc.H)}), according to Hapag-Lloyd's specifications. The tables below give the inside size, door opening, volume and weights of the four common dry containers.</p>
+    <p class="lede">A 20' standard container measures {n(s20.L)} × {n(s20.W)} × {n(s20.H)} mm inside ({ftin(s20.L)} × {ftin(s20.W)} × {ftin(s20.H)}), and a 40' high cube {n(hc.L)} × {n(hc.W)} × {n(hc.H)} mm ({ftin(hc.L)} × {ftin(hc.W)} × {ftin(hc.H)}), according to Hapag-Lloyd's specifications. The tables below give the inside size, door opening, volume and weights of the four common dry containers, then of <a href="#reefer-open-top">reefer and open top containers</a>.</p>
   </section>
 
   <section class="prose">
@@ -47,6 +49,56 @@ const schema = { '@context': 'https://schema.org', '@type': 'Article', headline:
       </table>
     </div>
     <p class="small">Inside volume is length × width × height of the figures above. Hapag-Lloyd lists the capacity as 33.2 m³ (20'), 67.7 m³ (40'), and 86.0 m³ (45' high cube). Pounds are converted from kilograms (1 lb = 0.45359237 kg). To see what share of these volumes your cartons take, use the <a href="/cbm-calculator/">CBM calculator</a>.</p>
+  </section>
+
+  <section class="prose" id="reefer-open-top">
+    <h2>Reefer and open top container dimensions</h2>
+    <p>A refrigerated (reefer) container is smaller inside than a dry container of the same length. Hapag-Lloyd lists its 20' reefer at {n(rf20.L)} × {n(rf20.W)} × {n(rf20.H)} mm ({ftin(rf20.L)} × {ftin(rf20.W)} × {ftin(rf20.H)}) and its 40' high cube reefer at {n(rf40.L)} × {n(rf40.W)} × {n(rf40.H)} mm ({ftin(rf40.L)} × {ftin(rf40.W)} × {ftin(rf40.H)}). An open top is closed with a removable tarpaulin instead of a fixed roof; Hapag-Lloyd describes it as designed for over-height cargo, heavy loads and loading from the top, for example by crane.</p>
+    <div class="tablebox">
+      <table>
+        <thead><tr><th>Container</th><th class="num">Inside length</th><th class="num">Inside width</th><th class="num">Height</th><th class="num">Door width</th><th class="num">Door height</th></tr></thead>
+        <tbody>
+          {[...sp.reefers, ...sp.opentops].map((c) => <tr><td><a href={c.url} rel="noopener">{c.name}</a><br><span class="small">ISO {c.iso}</span></td>
+            <td class="num">{n(c.L)} mm<br><span class="small">{ftin(c.L)}</span></td><td class="num">{n(c.W)} mm<br><span class="small">{ftin(c.W)}</span></td><td class="num">{n(c.H)} mm<br><span class="small">{ftin(c.H)}</span></td>
+            <td class="num">{n(c.doorW)} mm<br><span class="small">{ftin(c.doorW)}</span></td><td class="num">{n(c.doorH)} mm<br><span class="small">{ftin(c.doorH)}</span></td></tr>)}
+        </tbody>
+      </table>
+    </div>
+    <p class="small">Millimetre figures are from each container's Hapag-Lloyd page (linked); feet and inches are converted from them (1 in = 25.4 mm) and rounded to 0.1 inch. Hapag-Lloyd's 40' open top page prints {ot40.printedFtH} beside {n(ot40.H)} mm; {n(ot40.H)} mm is {ftin(ot40.H)}, and this table follows the millimetres.</p>
+
+    <h3>Roof opening of open top containers</h3>
+    <div class="tablebox">
+      <table>
+        <thead><tr><th>Container</th><th class="num">Roof opening length</th><th class="num">Roof opening width</th></tr></thead>
+        <tbody>
+          {sp.opentops.map((c) => <tr><td>{c.name}</td><td class="num">{n(c.roofL)} mm<br><span class="small">{ftin(c.roofL)}</span></td><td class="num">{n(c.roofW)} mm<br><span class="small">{ftin(c.roofW)}</span></td></tr>)}
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Volume and weight</h3>
+    <div class="tablebox">
+      <table>
+        <thead><tr><th>Container</th><th class="num">Capacity</th><th class="num">Tare</th><th class="num">Max payload</th><th class="num">Max gross</th></tr></thead>
+        <tbody>
+          {[...sp.reefers, ...sp.opentops].map((c) => <tr><td>{c.name}</td>
+            <td class="num">{c.cbm} m³<br><span class="small">{n(Number(c.cbm) / 0.3048 ** 3)} ft³</span></td>
+            <td class="num">{n(c.tare)} kg<br><span class="small">{n(lb(c.tare))} lb</span></td>
+            <td class="num">{n(c.payload)} kg<br><span class="small">{n(lb(c.payload))} lb</span></td>
+            <td class="num">{n(c.gross)} kg<br><span class="small">{n(lb(c.gross))} lb</span></td></tr>)}
+        </tbody>
+      </table>
+    </div>
+    <p class="small">Capacity is the figure Hapag-Lloyd prints for each container (cubic feet converted with 1 ft = 0.3048 m). It is larger than length × width × height of the reefer rows above, because the booklet's inside heights for the same series ({n(rf20.booklet.insideH)} and {n(rf40.booklet.insideH)} mm) are above the heights listed on the web pages (see below).</p>
+
+    <h3>What limits a reefer and an open top</h3>
+    <ul class="plain">
+      <li><strong>Reefer load line.</strong> Hapag-Lloyd's <a href={sp.source.booklet.url} rel="noopener">container specification booklet</a> says the maximum stowage height is marked by a red line inside the container, so that air can circulate. For the 20' reefer series with exactly the figures above ({rf20.booklet.series}), the booklet gives an inside height of {n(rf20.booklet.insideH)} mm and a maximum stowage height to the load line of {n(rf20.booklet.loadLineH)} mm — the {n(rf20.H)} mm on the web page. For the 40' high cube reefer series with these figures ({rf40.booklet.series}) it gives an inside height of {n(rf40.booklet.insideH)} mm; it prints no load-line height for that series. Plan reefer cargo to the listed heights, and keep it below the red line of the actual unit.</li>
+      <li><strong>Reefer payload and gross.</strong> Both reefers have a higher max gross than the dry containers above ({n(rf20.gross)} kg and {n(rf40.gross)} kg), but they also weigh more empty: the 20' reefer's tare is {n(rf20.tare)} kg against {n(s20.tare)} kg for the 20' standard.</li>
+      <li><strong>Open top height.</strong> Hapag-Lloyd gives the 40' open top {n(ot40.Hnobows)} mm ({ftin(ot40.Hnobows)}) of inside height with no roof bars, against the {n(ot40.H)} mm in the table.</li>
+      <li><strong>Open top door.</strong> The door height is measured up to the door header; the booklet notes that the header can be swung out on all Hapag-Lloyd open tops, which frees more height at the door.</li>
+    </ul>
+    <p class="small">Source: Hapag-Lloyd container specification pages for the <a href={rf20.url} rel="noopener">20' reefer</a>, <a href={rf40.url} rel="noopener">40' reefer high cube</a>, <a href={sp.opentops[0].url} rel="noopener">20' open top</a> and <a href={ot40.url} rel="noopener">40' open top</a>, and the <a href={sp.source.booklet.url} rel="noopener">Hapag-Lloyd container specification booklet</a> (reefer pages 41 and 43; open top pages 24–31), checked {sp.source.checked}. These containers are reference rows only; the <a href="/container-loading-calculator/">container loading calculator</a> plans dry containers.</p>
   </section>
 
   <section class="prose">

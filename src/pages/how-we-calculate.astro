@@ -1,6 +1,7 @@
 ---
 import Base from '../layouts/Base.astro';
 import data from '../data/containers.json';
+import sp from '../data/special-containers.json';
 import pallets from '../data/pallets.json';
 import trailers from '../data/trailers.json';
 import dw from '../data/dimweight.json';
@@ -43,6 +44,8 @@ import dw from '../data/dimweight.json';
       <thead><tr><th>Figure</th><th>Source</th><th>Checked</th></tr></thead>
       <tbody>
         {data.containers.map((c) => <tr><td>{c.name}: inside size, door, tare, payload, gross</td><td><a href={c.url} rel="noopener">Hapag-Lloyd</a></td><td>{data.source.checked}</td></tr>)}
+        {[...sp.reefers, ...sp.opentops].map((c) => <tr><td>{c.name}: inside size, door{c.roofL ? ', roof opening' : ''}, tare, payload, gross, capacity</td><td><a href={c.url} rel="noopener">Hapag-Lloyd</a></td><td>{sp.source.checked}</td></tr>)}
+        <tr><td>Reefer inside height and load-line (maximum stowage) height; open top door header</td><td><a href={sp.source.booklet.url} rel="noopener">Hapag-Lloyd container specification booklet</a></td><td>{sp.source.checked}</td></tr>
         {pallets.pallets.map((x) => <tr><td>{x.name}: footprint, height, weight, safe working load, stacking limit</td><td><a href={x.url} rel="noopener">{x.publisher}</a></td><td>{pallets.checked}</td></tr>)}
         {trailers.trailers.map((t) => <tr><td>{t.name}: interior length, width, height; interior volume; GVWR</td><td><a href={t.url} rel="noopener">{trailers.source.publisher}</a></td><td>{trailers.source.checked}</td></tr>)}
         {dw.rules.flatMap((r) => r.sections).map((s) => <tr><td>USPS dimensional weight rule ({s.service}): 1,728 in³ threshold, divisor, 0.785 factor, rounding, 70-pound price</td><td><a href={s.url} rel="noopener">USPS {s.ref}</a></td><td>{dw.source.checked}</td></tr>)}
