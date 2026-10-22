@@ -109,6 +109,7 @@ ul.plain,ol.plain{margin:8px 0 0;padding-left:20px;display:flex;flex-direction:c
 .ochip[aria-pressed="true"]{border:2px solid var(--hi);color:var(--ink);padding:5px 3px}
 .ochip[aria-pressed="true"] svg{opacity:1}
 .modeseg button{font-size:15px}
+.stackseg button{height:auto;min-height:44px;padding:6px 8px;font-size:14px;line-height:1.25}
 .steps{display:flex;flex-direction:column;gap:12px}
 .stepcard{border:1px solid var(--line);border-left:8px solid var(--sw,#888);border-radius:8px;padding:12px;display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:10px}
 .stephead{grid-column:span 12;display:flex;align-items:center;justify-content:space-between;gap:8px}

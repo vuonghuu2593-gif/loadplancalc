@@ -2,7 +2,7 @@
 // Units mm / kg; x = length from the back wall, y = across, z = up. Boxes: { k, x, y, z, dx, dy, dz }
 // where k is the box type's position in the input list. Every hand change is checked with the same
 // rules as an automatic plan (inside, no overlap, allowed position, door, full support, non-stackable).
-import { normalize, pack, allowedPerms, summarize, validate } from './packer.js';
+import { normalize, pack, allowedPerms, summarize, validate, centreOn } from './packer.js';
 
 const EPS = 0.01;
 
@@ -46,14 +46,17 @@ function hits(ctx, b, ignore) {
 // '' when the box stands fully on the floor or on stackable boxes, otherwise the reason.
 function support(ctx, b, ignore) {
   if (b.z < EPS) return '';
-  let area = 0;
+  let area = 0; const below = [];
   for (const i of ctx.grid.near(b.x, b.y, b.z - 1, b.dx, b.dy, 1)) {
     if (ignore?.has(i)) continue;
     const o = ctx.boxes[i];
     if (Math.abs(o.z + o.dz - b.z) > EPS) continue;
     const ox = Math.min(b.x + b.dx, o.x + o.dx) - Math.max(b.x, o.x), oy = Math.min(b.y + b.dy, o.y + o.dy) - Math.max(b.y, o.y);
-    if (ox > EPS && oy > EPS) { if (!ctx.items[o.k].stackable) return 'it would stand on a box that must not carry others'; area += ox * oy; }
+    if (ox > EPS && oy > EPS) { if (!ctx.items[o.k].stackable) return 'it would stand on a box that must not carry others'; area += ox * oy; below.push(o); }
   }
+  // same rule as validate(): full support, or (interlocked layers) the chosen share of the base and the centre over a box
+  const ms = ctx.cont.minSupport ?? 1;
+  if (ms < 1) return area < ms * b.dx * b.dy - EPS ? `less than ${Math.round(ms * 100)}% of its base would rest on boxes below` : centreOn(b, below) ? '' : 'its centre would not be over a box below';
   return area < b.dx * b.dy * (1 - 1e-9) - EPS ? 'it would not stand fully on the floor or on boxes below' : '';
 }
 

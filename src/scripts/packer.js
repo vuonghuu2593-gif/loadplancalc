@@ -8,6 +8,8 @@
 // fully on the floor or on boxes below it. Many greedy runs with different scoring rules and seeded
 // random choices are tried; the best run is kept, so the same input always gives the same answer.
 
+import { bestPair, bestLayer } from './interlock.js';
+
 export const ORIENT = {
   // permutation of [l, w, h] -> [dx, dy, dz]
   any: [[0, 1, 2], [1, 0, 2], [0, 2, 1], [2, 0, 1], [1, 2, 0], [2, 1, 0]],
@@ -226,7 +228,8 @@ function search(cont, items, start, rand, opts, budget) {
 // box may use that also pass the door (width across, height up), as [along, across, up] in mm.
 export function normalize(container, rawItems, opts = {}) {
   const cont = { L: +container.L, W: +container.W, H: +container.H, maxWeight: +container.maxWeight || 0,
-    doorW: +container.doorW || 0, doorH: +container.doorH || 0, priority: !!opts.priority };
+    doorW: +container.doorW || 0, doorH: +container.doorH || 0, priority: !!opts.priority,
+    minSupport: supportShare(container.minSupport) };
   const items = rawItems.map((it, i) => ({ ...it, idx: i, l: +it.l, w: +it.w, h: +it.h, weight: +it.weight || 0, qty: Math.floor(+it.qty || 0), stackable: it.stackable !== false }));
   for (const it of items) it.os = it.l > 0 && it.w > 0 && it.h > 0 ? orientations({ ...it, os: null }).filter((o) => (!cont.doorW || o[1] <= cont.doorW) && (!cont.doorH || o[2] <= cont.doorH)) : [];
   return { cont, items };
@@ -303,9 +306,19 @@ function packSteps(cont, items, opts, rand, budget) {
   return { placed, steps: plan };
 }
 
+// Share of a box's base that must rest on boxes below: 1 (full support, the default) or a lower
+// figure the user chose for interlocked layers (0.5 to 1). Below 1 the box's centre must also be over
+// a box below, so a box may bridge a small gap but never tip into it.
+export function supportShare(v) { const n = +v; return Number.isFinite(n) && n > 0 && n < 1 ? Math.max(0.5, n) : 1; }
+export function centreOn(a, below, eps = 0.01) {
+  const cx = a.x + a.dx / 2, cy = a.y + a.dy / 2;
+  return below.some((b) => cx >= b.x - eps && cx <= b.x + b.dx + eps && cy >= b.y - eps && cy <= b.y + b.dy + eps
+    && Math.min(a.x + a.dx, b.x + b.dx) - Math.max(a.x, b.x) > eps && Math.min(a.y + a.dy, b.y + b.dy) - Math.max(a.y, b.y) > eps);
+}
+
 // Independent checker used by tests and by the page before showing a plan.
 export function validate(res, eps = 0.01) {
-  const { placed, items, cont } = res; const errors = [];
+  const { placed, items, cont } = res; const errors = []; const ms = supportShare(cont.minSupport);
   let w = 0;
   for (const p of placed) {
     if (p.x < -eps || p.y < -eps || p.z < -eps || p.x + p.dx > cont.L + eps || p.y + p.dy > cont.W + eps || p.z + p.dz > cont.H + eps) errors.push('outside container');
@@ -337,7 +350,8 @@ export function validate(res, eps = 0.01) {
       const ox = Math.min(a.x + a.dx, b.x + b.dx) - Math.max(a.x, b.x), oy = Math.min(a.y + a.dy, b.y + b.dy) - Math.max(a.y, b.y);
       if (ox > 0 && oy > 0) { area += ox * oy; if (!items[b.k].stackable) errors.push('box on a non-stackable box'); }
     }
-    if (area < a.dx * a.dy - eps) errors.push('box not fully supported');
+    if (area < ms * a.dx * a.dy - eps) errors.push(ms < 1 ? 'box not supported enough' : 'box not fully supported');
+    if (ms < 1 && !centreOn(a, placed.filter((b) => Math.abs(b.z + b.dz - a.z) <= eps))) errors.push('box centre not over a box below');
   }
   // semi-automatic steps: right box type, no more than asked, fixed orientation kept, new sections in front
   if (res.steps) {
@@ -409,4 +423,98 @@ export function palletPack(container, rawItems, opts = {}) {
     if (normal.totals.n < qty) { per = Math.max(per, normal.totals.n); layers = layersOf(normal.placed); } else layers = layersOf(byLayer.slice(0, per));
   }
   return { placed, items: normal.items, cont: normal.cont, steps: null, ...summarize(placed, normal.items), pallet: { perPallet: per, layers, weightLimited: capW < full.totals.n } };
+}
+
+// ---------- Interlocked layers (one box type) ----------
+// The stacking pattern is the user's choice: 'column' = the plans above (every layer the same, the
+// most boxes), 'interlock' = layers that alternate between two patterns so boxes bridge the seams
+// below (see interlock.js). On a pallet the whole load is one stack of layers. In a container the
+// length is cut into sections (walls) of equal length, each built of interlocked layers and loaded one
+// after the other from the back wall; the space left in front of the last full section is filled by
+// the ordinary planner. Returns null when the load is not one stackable box type or no pair of layers
+// ties together.
+export function interlockPack(container, rawItems, opts = {}) {
+  const live = rawItems.filter((it) => +it.l > 0 && +it.w > 0 && +it.h > 0 && Math.floor(+it.qty || 0) > 0);
+  if (rawItems.length !== 1 || live.length !== 1 || (Array.isArray(opts.steps) && opts.steps.length)) return null;
+  const { cont, items } = normalize(container, rawItems, opts);
+  const it = items[0];
+  if (!it.stackable || !it.os.length || !(cont.L > 0 && cont.W > 0 && cont.H > 0)) return null;
+  const min = cont.minSupport;
+  const cap = Math.min(it.qty, it.weight > 0 && cont.maxWeight > 0 ? Math.floor(cont.maxWeight / it.weight + 1e-9) : Infinity);
+  const sections = !!opts.sections;
+  const deadline = Date.now() + (opts.timeMs ?? 1500) * 0.6; // the column plan gets the rest of the time
+  let best = null;
+  for (const dz of [...new Set(it.os.map((o) => o[2]))]) {
+    let nl = Math.floor(cont.H / dz + 1e-9);
+    if (it.maxLayers) nl = Math.min(nl, it.maxLayers);
+    if (nl < 1) continue;
+    const fps = []; for (const o of it.os) if (o[2] === dz && !fps.some((f) => f[0] === o[0] && f[1] === o[1])) fps.push([o[0], o[1]]);
+    const per = (pr) => Math.ceil(nl / 2) * pr.A.length + Math.floor(nl / 2) * pr.B.length;
+    if (!sections) {
+      const pr = nl > 1 ? bestPair(cont.L, cont.W, fps, { min, deadline }) : null;
+      if (!pr) continue;
+      const n = per(pr);
+      if (!best || n > best.n || (n === best.n && pr.tie > best.pr.tie)) best = { n, pr, dz, nl, S: cont.L, k: 1 };
+    } else {
+      const lens = [...new Set(fps.map((f) => f[0]))];
+      const cand = new Set();
+      const maxS = Math.min(cont.L, Math.max(2500, 3 * Math.max(...lens)));
+      for (let i = 0; i * lens[0] <= maxS; i++) for (let j = 0; i * lens[0] + j * (lens[1] || lens[0]) <= maxS; j++) {
+        const S = i * lens[0] + j * (lens[1] || 0); if (S > 0) cand.add(S); if (!lens[1]) break;
+      }
+      // wall lengths that waste the least of the container length first, as many as time allows
+      const order = [...cand].sort((p, q) => (cont.L - Math.floor(cont.L / p + 1e-9) * p) - (cont.L - Math.floor(cont.L / q + 1e-9) * q) || p - q).slice(0, 24);
+      for (const S of order) {
+        if (Date.now() > deadline) break;
+        const pr = nl > 1 ? bestPair(S, cont.W, fps, { min, mirror: 'y', alignX: true, poolSize: 150, deadline }) : null;
+        if (!pr) continue;
+        const k = Math.floor(cont.L / S + 1e-9); const ps = per(pr);
+        // boxes in full sections, plus a simple grid estimate for the space in front of them
+        const R = cont.L - k * S; let rest = 0;
+        for (const f of fps) rest = Math.max(rest, Math.floor(R / f[0]) * Math.floor(cont.W / f[1]) * nl);
+        const n = k * ps + rest;
+        if (!best || n > best.n || (n === best.n && pr.tie > best.pr.tie)) best = { n, pr, dz, nl, S, k };
+      }
+    }
+  }
+  if (!best) return null;
+  const { pr, dz, nl, S, k } = best;
+  const placed = [];
+  for (let s = 0; s < k && placed.length < cap; s++) {
+    for (let i = 0; i < nl && placed.length < cap; i++) {
+      const layer = (i % 2 ? pr.B : pr.A).slice().sort((a, b) => a.x - b.x || a.y - b.y);
+      for (const r of layer) { if (placed.length >= cap) break; placed.push({ k: 0, x: s * S + r.x, y: r.y, z: i * dz, dx: r.dx, dy: r.dy, dz }); }
+    }
+  }
+  const front = sections ? k * S : cont.L;
+  if (sections && placed.length < cap && cont.L - front > 0) {
+    const used = placed.length * it.weight;
+    const rest = pack({ L: cont.L - front, W: cont.W, H: cont.H, maxWeight: cont.maxWeight > 0 ? Math.max(0, cont.maxWeight - used) : 0, doorW: cont.doorW, doorH: cont.doorH },
+      [{ ...rawItems[0], qty: cap - placed.length }], { ...opts, timeMs: (opts.timeMs ?? 1500) / 3 });
+    for (const p of rest.placed) placed.push({ ...p, k: 0, x: p.x + front });
+  }
+  const stack = { pattern: 'interlock', perLayer: [pr.A.length, pr.B.length], tie: pr.tie, layers: nl, dz, minSupport: min, section: sections ? S : null, sections: sections ? k : null, full: best.n };
+  return { placed, items, cont, steps: null, ...summarize(placed, items), stack };
+}
+
+// The plan for the stacking pattern the user chose: opts.stack = 'interlock' or 'column' (default).
+// With 'interlock' the column plan is still worked out, so the page can say how many more boxes a
+// column stack would take (or that the boxes cannot be interlocked).
+export function stackPack(container, rawItems, opts = {}) {
+  if (opts.stack !== 'interlock') return opts.pallet ? palletPack(container, rawItems, opts) : pack(container, rawItems, opts);
+  const half = { ...opts, timeMs: (opts.timeMs ?? 1500) / 2 }; // time shared between the two plans
+  const col = opts.pallet ? palletPack(container, rawItems, half) : pack(container, rawItems, half);
+  const il = interlockPack(container, rawItems, { ...half, sections: !opts.pallet });
+  if (!il || validate(il).length) return { ...col, stack: { pattern: 'column', interlock: 'none', column: col.totals.n } };
+  il.stack.column = col.totals.n;
+  if (opts.pallet) {
+    const full = Math.min(il.stack.full, il.items[0].weight > 0 && il.cont.maxWeight > 0 ? Math.floor(il.cont.maxWeight / il.items[0].weight + 1e-9) : Infinity);
+    const counts = []; let left = full;
+    for (let i = 0; i < il.stack.layers && left > 0; i++) { const c = Math.min(left, il.stack.perLayer[i % 2]); counts.push(c); left -= c; }
+    const [a, b] = il.stack.perLayer, hi = counts.length, top = counts[hi - 1];
+    const body = counts.slice(0, -1).every((c, i) => c === il.stack.perLayer[i % 2]);
+    const kind = a === b ? (body && top === a ? 'even' : body ? 'top' : 'uneven') : body && top === il.stack.perLayer[(hi - 1) % 2] ? 'alt' : 'uneven';
+    il.pallet = { perPallet: full, layers: { mixed: false, dz: il.stack.dz, counts, ti: a, ti2: b, hi, kind, top }, weightLimited: col.pallet ? col.pallet.weightLimited : false, columnPerPallet: col.pallet ? col.pallet.perPallet : null };
+  }
+  return il;
 }

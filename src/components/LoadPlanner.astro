@@ -59,6 +59,20 @@ const presets = mode === 'container' ? (spacePresets || data.containers) : palle
       <label class="check"><input type="checkbox" data-f="fillRest"> Then load whatever is left automatically</label>
     </div>
     <label class="check"><input type="checkbox" data-f="priority"> <span data-prioritytxt>Load in list order (first type has priority)</span></label>
+    <h2>Stacking pattern</h2>
+    <div class="seg stackseg" role="group" aria-label="Stacking pattern">
+      <button type="button" data-stack="interlock" aria-pressed="false">Interlocked (stable)</button>
+      <button type="button" data-stack="column" aria-pressed="false">Column stacks (most boxes)</button>
+    </div>
+    <label data-supportrow>Each box rests on at least
+      <select data-f="support">
+        <option value="1">100% of its base (no gaps bridged)</option>
+        <option value="0.9">90% of its base</option>
+        <option value="0.8">80% of its base</option>
+        <option value="0.7">70% of its base</option>
+      </select>
+    </label>
+    <p class="small" data-stackhelp style="margin:0"></p>
   </form>
 
   <section class="result" aria-live="polite" data-result>
@@ -69,6 +83,7 @@ const presets = mode === 'container' ? (spacePresets || data.containers) : palle
       <div><div class="k">Boxes left over</div><div class="v" data-r="left">–</div></div>
       <div><div class="k">Space left</div><div class="v" data-r="spaceLeft">–</div></div>
       <div><div class="k">{mode === 'container' ? 'Payload left' : 'Weight left'}</div><div class="v" data-r="wtLeft">–</div></div>
+      <div><div class="k">Stacking</div><div class="v" data-r="stack">–</div><div class="small sub" data-r="stackSub"></div></div>
       {mode === 'pallet' && <>
         <div><div class="k">Ti × Hi (per layer × layers)</div><div class="v" data-r="tihi">–</div><div class="small sub" data-r="tihiSub"></div></div>
         <div><div class="k">Pallets for your quantity</div><div class="v" data-r="pallets">–</div><div class="small sub" data-r="palletsSub"></div></div>

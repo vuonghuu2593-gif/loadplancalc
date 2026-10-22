@@ -29,6 +29,7 @@ const schema = { '@context': 'https://schema.org', '@type': 'HowTo', name: `How 
       <a href="#dimensional-weight-calculator">Dimensional weight calculator</a>
       <a href="#orientation">Carton orientation</a>
       <a href="#loading-method">Automatic or step by step</a>
+      <a href="#stacking">Interlocked or column stacks</a>
       <a href="#edit-by-hand">Editing by hand</a>
       <a href="#results">Reading the result</a>
       <a href="#share">Share and print</a>
@@ -86,8 +87,9 @@ const schema = { '@context': 'https://schema.org', '@type': 'HowTo', name: `How 
     <h3>Result</h3>
     <ul class="plain">
       <li><strong>Boxes loaded</strong>, <strong>Volume used</strong> (of the space above the pallet up to the height limit), <strong>Weight loaded</strong>, <strong>Boxes left over</strong>, <strong>Space left</strong> and <strong>Weight left</strong> work as in the container calculator.</li>
-      <li><strong>Ti × Hi (per layer × layers):</strong> with one box type, the boxes in one layer of a full pallet and the number of layers, for example “8 × 6” (48 per pallet). If the weight limit stops the top layer short, it shows as, for example, “16 × 5 + 13”. When the boxes stand in different positions or the layers differ, no single Ti-Hi is shown and the note says why; choose “this side up” under Orientation for even layers. Not shown with more than one box type, in semi-automatic mode or while you edit by hand.</li>
-      <li><strong>Pallets for your quantity:</strong> your quantity divided by the boxes on a full pallet, rounded up, with how many go on the last pallet (for example “2 full of 48 + 1 with 4”).</li>
+      <li><strong>Ti × Hi (per layer × layers):</strong> with one box type, the boxes in one layer of a full pallet and the number of layers, for example “8 × 6” (48 per pallet). Interlocked layers that alternate between two counts show both, for example “8 / 7 × 6” (45 per pallet). If the weight limit stops the top layer short, it shows as, for example, “16 × 5 + 13”. When the boxes stand in different positions or the layers differ, no single Ti-Hi is shown and the note says why; choose “this side up” under Orientation for even layers. Not shown with more than one box type, in semi-automatic mode or while you edit by hand.</li>
+      <li><strong>Pallets for your quantity:</strong> your quantity divided by the boxes on a full pallet, rounded up, with how many go on the last pallet (for example “2 full of 45 + 1 with 10”).</li>
+      <li><strong>Stacking:</strong> interlocked or column stacks (see <a href="#stacking">Interlocked or column stacks</a>).</li>
       <li>With one box type, the plan is built layer by layer from the bottom, so a quantity smaller than a full pallet shows as full layers and a part layer on top. The loading step slider adds the boxes in that order.</li>
       <li><strong>3D view:</strong> the brown slab is the pallet; the outline is the load space (pallet plus overhang, up to the height limit). <strong>Front</strong> looks at the pallet's front edge.</li>
       <li><strong>Notes:</strong> boxes that do not fit on this pallet (they go on the next pallets: see Pallets for your quantity), the max load weight being reached, and the centre of gravity of the load: how far it is off the middle of the pallet along the length and across the width, and how high above the deck.</li>
@@ -175,6 +177,17 @@ const schema = { '@context': 'https://schema.org', '@type': 'HowTo', name: `How 
     <p>Move steps with ↑ ↓, remove them with ✕, add up to 20 with <strong>+ Add step</strong>. <strong>Then load whatever is left automatically</strong> finishes with the boxes no step took; untick it to load only what your steps ask for.</p>
   </section>
 
+  <section class="prose" id="stacking">
+    <h2>Interlocked layers or column stacks</h2>
+    <p>Under <strong>Stacking pattern</strong>, in the container and pallet calculators:</p>
+    <ul class="plain">
+      <li><strong>Interlocked (stable)</strong> — the layers alternate between two patterns, so boxes in one layer bridge the joints of the layer below and tie the load together, as in cross-stacking by hand. On a pallet the whole load is one stack of interlocked layers. In a container the load is built in walls of equal length from the back wall, each wall's layers mirrored across the width, so it can be loaded wall by wall; the space in front of the last full wall is filled automatically. It works for one box type that can carry boxes on top, in fully automatic mode; otherwise the plan uses column stacks and the result says so. It is the default in the container and pallet loading calculators.</li>
+      <li><strong>Each box rests on at least</strong> (interlocked only) — 100%, 90%, 80% or 70% of its base. At 100% every box stands fully on boxes below. Below 100% a box may bridge a small gap, but that share of its base and its centre must rest on boxes below. 80% is filled in at the start; choose 100% for soft or weak cartons. If no interlocked pattern fits at the share you chose, the plan uses column stacks and suggests a lower share.</li>
+      <li><strong>Column stacks (most boxes)</strong> — every layer is the same, so boxes stand in columns: often a few more boxes, but the columns are not tied together and have to be held by wrapping or straps. The pallets-in-a-container and 53 ft trailer pages start with column stacks, because loaded pallets are not cross-stacked.</li>
+    </ul>
+    <p>The <strong>Stacking</strong> figure in the result says which pattern the plan uses, how many boxes each interlocked layer holds, what share of the boxes above the first layer bridge two or more boxes below, and how many more boxes column stacks would load when that is more. The formula lines repeat the layer counts and, in a container, the wall length.</p>
+  </section>
+
   <section class="prose" id="edit-by-hand">
     <h2>Editing the plan by hand</h2>
     <p>Under the 3D view:</p>
@@ -199,7 +212,7 @@ const schema = { '@context': 'https://schema.org', '@type': 'HowTo', name: `How 
     </ol>
     <p><strong>Fill the rest automatically</strong> keeps every box you placed and loads the remaining boxes around them. <strong>Undo</strong> and <strong>Redo</strong> step through your changes. <strong>Back to automatic plan</strong> drops the hand edits.</p>
     <h3>What is checked</h3>
-    <p>Every hand change is checked before it is made, with the same rules as an automatic plan: no overlapping boxes, every box stands fully on the floor or on boxes below, nothing on a box that cannot carry others, only the positions a box may use, and every box passes the door the way it is stowed. A box with others standing on it cannot be turned or moved until they are moved. If a change breaks a rule, the planner tells you why instead of making it.</p>
+    <p>Every hand change is checked before it is made, with the same rules as an automatic plan: no overlapping boxes, every box stands fully on the floor or on boxes below (with interlocked layers chosen: at least the share of its base you set, with its centre over a box), nothing on a box that cannot carry others, only the positions a box may use, and every box passes the door the way it is stowed. A box with others standing on it cannot be turned or moved until they are moved. If a change breaks a rule, the planner tells you why instead of making it.</p>
     <p class="small">Changing the container or the boxes in the form starts again from an automatic plan; a note says that your hand edits were cleared.</p>
   </section>
 
@@ -207,6 +220,7 @@ const schema = { '@context': 'https://schema.org', '@type': 'HowTo', name: `How 
     <h2>Reading the result</h2>
     <ul class="plain">
       <li><strong>Boxes loaded</strong> (for example “900 of 900”), <strong>Volume used</strong>, <strong>Weight loaded</strong> and <strong>Boxes left over</strong> (boxes you entered that are not in the plan).</li>
+      <li><strong>Stacking</strong> — interlocked or column stacks, and how many boxes above the first layer bridge two or more boxes below (see <a href="#stacking">Interlocked or column stacks</a>).</li>
       <li><strong>Space left</strong> is the empty volume still in the container, and <strong>Payload left</strong> how much more weight it may take (“No limit set” when you left the payload empty).</li>
       <li><strong>Room left after this plan</strong>: for each box type, how many more of that type alone would still fit in the space left, keeping the plan exactly as it is, and whether space or payload is what stops it. Use it to see whether a few more cartons can still go in, or how much of another product you could add. It updates a moment after the plan.</li>
       <li><strong>Notes</strong> under the figures: boxes that do not fit, the weight limit being reached, steps that could not load everything they asked for, and the cargo's centre of gravity along the length. Keep heavy cargo low and the load spread evenly.</li>
@@ -238,6 +252,7 @@ const schema = { '@context': 'https://schema.org', '@type': 'HowTo', name: `How 
   <section class="prose" id="whats-new">
     <h2>What's new</h2>
     <ul class="plain">
+      <li><strong>October 22, 2026:</strong> new <a href="#stacking">stacking pattern</a> option in the container and pallet calculators: <strong>Interlocked (stable)</strong> alternates the layers so boxes bridge the joints below and the load holds together (now the default for cartons), or <strong>Column stacks (most boxes)</strong> as before, plus how much of each box's base must rest on boxes below. The result shows the pattern used and how many boxes are tied. Links shared before this change keep column stacks.</li>
       <li><strong>October 22, 2026:</strong> <a href="/shipping-container-dimensions/#reefer-open-top">shipping container dimensions</a> now also lists 20' and 40' high cube reefer and 20' and 40' open top containers (reference only; not added to the planner's list).</li>
       <li><strong>October 22, 2026:</strong> new tool: <a href="/dimensional-weight-calculator/">dimensional weight calculator</a> — box size in inches or cm and weight in lb or kg to dimensional and billable weight under the USPS rule (rectangular or not), or with your carrier's divisor.</li>
       <li><strong>October 22, 2026:</strong> new tool: <a href="/how-many-pallets-fit-in-a-53-foot-trailer/">how many pallets fit in a 53 ft trailer</a> — 48 × 40 in, Euro and EPAL pallets in a 53' dry van (three Hyundai Translead models), one or two high, with a table of counts. The container loading calculator's list now also has these 53' trailers (no door or payload filled in: enter your own).</li>

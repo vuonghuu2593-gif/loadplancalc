@@ -1,6 +1,6 @@
 // Engine tests: hand-checked cases plus random cases checked by the independent validator.
 // Usage: node scripts/test-packer.mjs
-import { pack, validate, palletPack, layersOf } from '../src/scripts/packer.js';
+import { pack, validate, palletPack, layersOf, stackPack } from '../src/scripts/packer.js';
 import { makeCtx, placeProblem, spots, nudge, fillAround, onTop, stackFrom, asResult, roomFor } from '../src/scripts/editor.js';
 let fails = 0;
 const ok = (cond, msg) => { if (!cond) { fails++; console.log('FAIL', msg); } else console.log('ok  ', msg); };
@@ -278,6 +278,86 @@ ok(badF === 0, `25 random "remove some, fill again" plans valid (${badF} bad)`);
     ["Euro pallets one high, 53' Composite", comp, eur, 40], ["Euro pallets one high, 53' Original", orig, eur, 40],
     ["Euro 1200 x 805 one high, 53' Composite", comp, { ...eur, w: 805 }, 39],
   ]) run(nm, C, [it], (r) => ok(r.totals.n === want, `${want} pallets (got ${r.totals.n})`));
+}
+
+// Interlocked layers (stackPack with stack: 'interlock'). Independent count of tied boxes: a box above the
+// first layer that rests on two or more boxes below, each under at least 10% of its base.
+{
+  const tiedShare = (placed) => {
+    let up = 0, tied = 0;
+    for (const a of placed) {
+      if (a.z < 0.01) continue; up++;
+      let m = 0;
+      for (const b of placed) {
+        if (Math.abs(b.z + b.dz - a.z) > 0.01) continue;
+        const ox = Math.min(a.x + a.dx, b.x + b.dx) - Math.max(a.x, b.x), oy = Math.min(a.y + a.dy, b.y + b.dy) - Math.max(a.y, b.y);
+        if (ox > 0 && oy > 0 && ox * oy >= 0.1 * a.dx * a.dy) m++;
+      }
+      if (m >= 2) tied++;
+    }
+    return up ? tied / up : 0;
+  };
+  const runI = (name, C, it, opts, expect) => {
+    const r = stackPack(C, [it], { stack: 'interlock', timeMs: 1200, ...opts });
+    const errs = validate(r);
+    ok(errs.length === 0, `${name}: valid plan (${errs.join(', ') || 'no errors'})`);
+    if (expect) expect(r);
+    return r;
+  };
+  const euro = { L: 1200, W: 800, H: 1500, maxWeight: 1500 };
+  // 400 x 300 carton on a Euro pallet, 6 layers of 250 mm. Full support: one row of three cartons 400 along x 300 across
+  // (1200 x 300) and one row of four 300 along x 400 across (1200 x 400) = 7 per layer in 700 of the 800 mm, mirrored
+  // every other layer, so each 400 mm carton bridges two 300 mm cartons below: 6 x 7 = 42 (column stacks: 4 x 2 = 8 x 6 = 48).
+  const c4 = { l: 400, w: 300, h: 250, weight: 12, qty: 500, rotation: 'upright' };
+  runI('Euro 400x300, 100% support', euro, c4, { pallet: true }, (r) => {
+    ok(r.stack.pattern === 'interlock' && r.totals.n === 42 && r.stack.perLayer.join() === '7,7', `42 = 7 + 7 alternating, 6 layers (got ${r.totals.n}, ${r.stack.perLayer})`);
+    ok(r.stack.column === 48, `column stacks would load 48 (got ${r.stack.column})`);
+    ok(tiedShare(r.placed) === 1, `every carton above the first layer bridges two below (got ${tiedShare(r.placed)})`);
+  });
+  // 80% support: the full 8-carton grid alternates with the 7-carton layer (centred, 50 mm in from each long edge).
+  // Grid on the 7-layer: a 400 mm deep carton has 350 mm on cartons below = 87.5% >= 80%, centre over a carton: 3 x 8 + 3 x 7 = 45.
+  runI('Euro 400x300, 80% support', { ...euro, minSupport: 0.8 }, c4, { pallet: true }, (r) => {
+    ok(r.stack.pattern === 'interlock' && r.totals.n === 45 && r.stack.perLayer.join() === '8,7', `45 = 8 + 7 alternating (got ${r.totals.n}, ${r.stack.perLayer})`);
+    ok(r.pallet.perPallet === 45 && r.pallet.layers.kind === 'alt', `pallet: 45 per pallet, alternating layers (got ${r.pallet.perPallet}, ${r.pallet.layers.kind})`);
+  });
+  // 300 x 200 x 200 on a Euro pallet, 1000 mm: 16 per layer either way (4 x 4 of 300 x 200 = 1200 x 800), 5 layers = 80;
+  // interlocking loses nothing.
+  runI('Euro 300x200, 5 layers', { ...euro, H: 1000 }, { l: 300, w: 200, h: 200, weight: 5, qty: 500, rotation: 'upright' }, { pallet: true },
+    (r) => ok(r.stack.pattern === 'interlock' && r.totals.n === 80 && r.stack.column === 80 && tiedShare(r.placed) > 0.5, `80 interlocked = 80 in columns, ${Math.round(tiedShare(r.placed) * 100)}% tied (got ${r.totals.n})`));
+  // quantity and weight: 30 cartons -> 4 full layers of 7 + 2 on the fifth; 12 kg cartons, 300 kg limit -> 25
+  runI('Euro 400x300, qty 30', euro, { ...c4, qty: 30 }, { pallet: true }, (r) => ok(r.totals.n === 30, `30 placed (got ${r.totals.n})`));
+  runI('Euro 400x300, 300 kg', { ...euro, maxWeight: 300 }, c4, { pallet: true }, (r) => ok(r.totals.n === 25 && r.pallet.perPallet === 25, `25 placed under 300 kg (got ${r.totals.n})`));
+  // 40' HC 12032 x 2352 x 2698, 600 x 400 x 400: walls 1200 mm long, one column of 600-along cartons (2) and three of
+  // 400-along cartons (3 each) = 11 per layer in 2200 mm of width, mirrored across every other layer; 10 walls
+  // (12,000 mm) x 6 layers (2,400 mm) = 660, the same as column stacks.
+  runI("40' HC 600x400x400 in walls", { L: 12032, W: 2352, H: 2698, doorW: 2340, doorH: 2585, maxWeight: 28600 }, { l: 600, w: 400, h: 400, weight: 10, qty: 5000 }, {},
+    (r) => ok(r.totals.n === 660 && r.stack.section === 1200 && r.stack.sections === 10 && r.stack.perLayer.join() === '11,11', `660 in 10 walls of 1200 mm, 11 per layer (got ${r.totals.n}, ${r.stack.section}, ${r.stack.perLayer})`));
+  // mixed box types: no interlocked plan, column stacks with a note
+  { const r = stackPack({ L: 5898, W: 2352, H: 2393 }, [{ l: 600, w: 400, h: 400, qty: 50, weight: 1 }, { l: 500, w: 300, h: 300, qty: 50, weight: 1 }], { stack: 'interlock', timeMs: 600 });
+    ok(!r.stack || r.stack.pattern !== 'interlock', 'two box types: no interlocked plan'); }
+  // the checker refuses boxes that bridge too much: a 400 mm box on one 300 mm box (75%) with an 80% rule; its centre
+  // over a gap; and any bridging at all under the default full-support rule
+  const base = (ms) => ({ items: [{ l: 400, w: 300, h: 100, qty: 9, weight: 1, rotation: 'any', stackable: true }], cont: { L: 1000, W: 1000, H: 1000, minSupport: ms } });
+  const two = [{ k: 0, x: 0, y: 0, z: 0, dx: 300, dy: 400, dz: 100 }, { k: 0, x: 350, y: 0, z: 0, dx: 300, dy: 400, dz: 100 }];
+  ok(validate({ ...base(0.8), placed: [two[0], { k: 0, x: 0, y: 0, z: 100, dx: 400, dy: 300, dz: 100 }] }).includes('box not supported enough'), 'checker: 75% support refused under an 80% rule');
+  ok(validate({ ...base(0.7), placed: [...two, { k: 0, x: 125, y: 0, z: 100, dx: 400, dy: 300, dz: 100 }] }).includes('box centre not over a box below'), 'checker: centre over the 50 mm gap refused (87.5% supported)');
+  ok(validate({ ...base(0.7), placed: [...two, { k: 0, x: 100, y: 0, z: 100, dx: 400, dy: 300, dz: 100 }] }).length === 0, 'checker: 75% support, centre over a box, accepted under a 70% rule');
+  ok(validate({ ...base(1), placed: [...two, { k: 0, x: 100, y: 0, z: 100, dx: 400, dy: 300, dz: 100 }] }).includes('box not fully supported'), 'checker: bridging refused under full support');
+  // random single-type cases, pallets and containers, every support rule: every plan must pass the checker
+  let badI = 0, found = 0;
+  for (let s = 1; s <= 40; s++) {
+    let x = s * 104729; const R = () => ((x = (x * 1103515245 + 12345) % 2147483648) / 2147483648);
+    const pallet = R() < 0.5;
+    const C = pallet ? { L: 800 + R() * 600, W: 600 + R() * 600, H: 600 + R() * 1400, maxWeight: R() < 0.5 ? 300 + R() * 1000 : 0 }
+      : { L: 2000 + R() * 10000, W: 2200 + R() * 300, H: 2200 + R() * 500, maxWeight: R() < 0.5 ? 5000 + R() * 20000 : 0, doorW: 2290, doorH: 2250 };
+    C.minSupport = [1, 0.9, 0.8, 0.7][Math.floor(R() * 4)];
+    const it = { l: 150 + R() * 500, w: 120 + R() * 400, h: 100 + R() * 400, weight: R() * 20, qty: 1 + Math.floor(R() * 2000), rotation: R() < 0.6 ? 'upright' : 'any', stackable: R() > 0.1 };
+    const r = stackPack(C, [it], { stack: 'interlock', pallet, timeMs: 400, tries: 20 });
+    const errs = validate(r);
+    if (r.stack && r.stack.pattern === 'interlock') found++;
+    if (errs.length || r.totals.n > it.qty) { badI++; console.log('interlock fuzz', s, errs); }
+  }
+  ok(badI === 0, `40 random interlock cases valid (${badI} bad, ${found} interlocked)`);
 }
 console.log(fails ? `${fails} failing` : 'all engine tests pass');
 process.exit(fails ? 1 : 0);

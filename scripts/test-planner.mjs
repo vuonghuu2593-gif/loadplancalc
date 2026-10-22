@@ -35,7 +35,17 @@ const url = pg.url();
 const pg2 = await b.newPage({ viewport: { width: 390, height: 844 } });
 await pg2.goto(url); await pg2.waitForTimeout(400); await pg2.waitForFunction(() => document.querySelector('#r-main').textContent.trim() !== '–', null, { timeout: 15000 }); await pg2.waitForTimeout(500);
 ok(await pg2.$eval('#r-main', (e) => e.textContent.trim()) === '660 of 5,000', 'share link reproduces the plan');
+// Interlocked layers (the default for one carton type): 660 in 10 walls of 1200 mm, 11 per layer, the same as column stacks
+const S = (k) => pg.$eval(`[data-r="${k}"]`, (e) => e.textContent.trim());
+ok(await S('stack') === 'Interlocked' && (await S('stackSub')).includes('alternate 11 and 11') && !(await S('stackSub')).includes('would load'), 'interlocked 660: 11 per layer, nothing lost (' + await S('stackSub') + ')');
+ok((await S('steps')).includes('walls 120 cm long (10 full walls'), 'formula line names the 1200 mm walls');
 await pg.selectOption('[data-f="preset"]', '20dv'); await settle();
+const il20 = +(await main()).split(' ')[0].replace(/,/g, '');
+ok(il20 > 0 && il20 <= 275 && (await S('stackSub')).includes(`would load ${275 - il20} more`) && !(await S('warn')).includes('failed its own check'), `20ft interlocked: ${il20}, column stacks would load ${275 - il20} more`);
+await pg.selectOption('[data-f="support"]', '1'); await settle();
+ok(!(await S('warn')).includes('failed its own check') && +(await main()).split(' ')[0].replace(/,/g, '') <= il20, '100% support: plan passes the check, no more than at 80% (' + await main() + ')');
+await pg.click('[data-stack="column"]'); await settle();
+ok(await S('stack') === 'Column stacks' && await pg.isHidden('[data-supportrow]'), 'column stacks chosen, support choice hidden');
 ok(await main() === '275 of 5,000', '20ft standard -> 275 (' + await main() + ')');
 // Orientation chosen by hand: only "height up, length along" -> 20 x 5 x 6 = 600 in 40' HC
 await pg.selectOption('[data-f="preset"]', '40hc'); await settle();
@@ -126,7 +136,15 @@ await pg.screenshot({ path: process.env.SHOT || '/tmp/semi.png', fullPage: true 
   const T = (k) => pg.$eval(`[data-r="${k}"]`, (e) => e.textContent.trim());
   const V = (sel) => pg.inputValue(sel);
   await pg.goto('http://localhost:4401/pallet-loading-calculator/'); await pg.evaluate(() => { localStorage.setItem('lpc-units', 'metric'); history.replaceState(null, '', location.pathname); }); await pg.reload(); await settle();
-  // Euro pallet 1200 x 800 x 144 mm, 1800 mm limit: 8 per layer x 6 layers = 48; 100 cartons -> 3 pallets (2 x 48 + 4)
+  // Default: interlocked layers, 80% support. 6 layers alternate the 4 x 2 grid (8) and a row of three cartons turned
+  // lengthwise beside a row of four (7, 700 of 800 mm, centred): 3 x 8 + 3 x 7 = 45; 100 cartons -> 2 x 45 + 10; 45 x 12 = 540 kg
+  ok(await main() === '45 of 100' && await T('stack') === 'Interlocked' && (await T('stackSub')).includes('Column stacks would load 3 more'), 'pallet default interlocked: 45 of 100, 3 fewer than columns (' + await main() + ' / ' + await T('stackSub') + ')');
+  ok(await T('tihi') === '8 / 7 × 6' && (await T('tihiSub')).includes('45 per pallet'), 'interlocked Ti-Hi 8 / 7 × 6 (' + await T('tihi') + ')');
+  ok(await T('pallets') === '3' && await T('palletsSub') === '2 full of 45 + 1 with 10' && await T('wt') === '540 kg' && !(await T('warn')).includes('failed its own check'), 'pallets for 100: 2 full of 45 + 1 with 10, 540 kg, checked (' + await T('palletsSub') + ')');
+  await pg.selectOption('[data-f="support"]', '1'); await settle();
+  ok(await main() === '42 of 100' && await T('tihi') === '7 × 6', 'full support: 7 per layer (three turned + four), 42 (' + await main() + ', ' + await T('tihi') + ')');
+  await pg.selectOption('[data-f="support"]', '0.8'); await pg.click('[data-stack="column"]'); await settle();
+  // Column stacks: Euro pallet 1200 x 800 x 144 mm, 1800 mm limit: 8 per layer x 6 layers = 48; 100 cartons -> 3 pallets (2 x 48 + 4)
   ok(await main() === '48 of 100', 'pallet defaults: 48 of 100 (' + await main() + ')');
   ok(await T('tihi') === '8 × 6' && (await T('tihiSub')).includes('48 per pallet'), 'Ti-Hi 8 × 6 (' + await T('tihi') + ' / ' + await T('tihiSub') + ')');
   ok(await T('pallets') === '3' && await T('palletsSub') === '2 full of 48 + 1 with 4', 'pallets for 100: 3 = 2 full of 48 + 1 with 4 (' + await T('palletsSub') + ')');

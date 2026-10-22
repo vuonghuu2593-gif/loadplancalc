@@ -6,7 +6,7 @@ import { trailerPresets } from '../data/trailers.js';
 const hc = data.containers.find((c) => c.id === '40hc')!;
 const defaults = {
   cont: { preset: hc.id, L: hc.L, W: hc.W, H: hc.H, doorW: hc.doorW, doorH: hc.doorH, maxWeight: hc.payload },
-  priority: false,
+  priority: false, stack: 'interlock', support: 0.8,
   items: [
     { name: 'Carton A', l: 600, w: 400, h: 400, weight: 12, qty: 400, rotation: 'any', stackable: true },
     { name: 'Carton B', l: 500, w: 300, h: 300, weight: 6, qty: 500, rotation: 'upright', stackable: true },
@@ -27,7 +27,7 @@ const n = (v: number) => v.toLocaleString('en-US');
     <h2>How the calculator works</h2>
     <p>The planner fills the container from the back wall toward the door. At each step it takes the empty space nearest the back and the floor, and fills its corner with the best block of identical cartons — a set of rows, columns and layers in one orientation. What is left of that space is cut into smaller spaces, and the process repeats until nothing more fits or every carton is loaded. This is the “block building” method used in container loading research (Eley, 2002; Fanslau and Bortfeldt, 2010).</p>
     <p>The planner tries many variations — different ways of scoring blocks and cutting the leftover space, plus seeded random choices — and keeps the plan that loads the most cargo volume. The same inputs always give the same plan, so a shared link shows exactly what you saw.</p>
-    <p>Before a plan is shown, an independent check confirms that no two cartons overlap, every carton is inside the container and fits through the door opening in the way it is stowed, “this side up” cartons are not tipped, every carton stands fully on the floor or on cartons below it, nothing is stacked on a carton marked as not stackable, and the payload limit is not exceeded.</p>
+    <p>Before a plan is shown, an independent check confirms that no two cartons overlap, every carton is inside the container and fits through the door opening in the way it is stowed, “this side up” cartons are not tipped, every carton stands fully on the floor or on cartons below it (with interlocked layers: at least the share of its base you chose, with its centre over a carton), nothing is stacked on a carton marked as not stackable, and the payload limit is not exceeded.</p>
     <ul class="plain">
       <li><strong>Any side can face down:</strong> the carton may be stowed in any of its six orientations.</li>
       <li><strong>This side up:</strong> the carton keeps its height vertical; it can only be turned flat (length and width swapped).</li>
@@ -44,6 +44,17 @@ const n = (v: number) => v.toLocaleString('en-US');
       <li><strong>Choose the positions allowed:</strong> tap the drawings to allow or block each of the six positions — for example, allow only “height up” and “length up” for cartons that must not lie on their side. Leave one position ticked to fix it completely.</li>
     </ul>
     <p>The table under the plan shows which positions were used and how many cartons are in each. For the 600 × 400 × 400 mm carton above, fixing it in one position (400 mm up, 600 mm along) gives 20 × 5 × 6 = <strong>600 cartons</strong> in a 40' high cube, while letting the planner mix positions gives 660.</p>
+  </section>
+
+  <section class="prose" id="stacking">
+    <h2>Interlocked layers or column stacks</h2>
+    <p>Cartons stacked straight up in columns fill a container well, but the columns are not tied to each other and can lean apart when the load shifts. Under <strong>Stacking pattern</strong> you choose:</p>
+    <ul class="plain">
+      <li><strong>Interlocked (stable):</strong> for one box type in fully automatic mode, the planner builds the load in walls of equal length from the back wall. Inside each wall the layers alternate between a pattern and its mirror image across the container, so cartons bridge the joints of the layer below. Every wall can be loaded as one unit, back to front; the space in front of the last full wall is filled with the ordinary planner.</li>
+      <li><strong>Each box rests on at least</strong> 100%, 90%, 80% or 70% of its base: below 100% a carton may bridge a small gap, but that share of its base and its centre must rest on cartons below. 80% is filled in as a starting point; choose 100% for soft or weak cartons.</li>
+      <li><strong>Column stacks (most boxes):</strong> the plan described above. With several box types the planner always uses it.</li>
+    </ul>
+    <p>The result shows which pattern was used, how many cartons above the floor layer bridge two or more cartons below, and how many more column stacks would load if interlocking costs space. For the 600 × 400 × 400 mm carton in a 40' high cube it costs nothing: walls 1,200 mm long, each layer one column of two cartons lying 600 mm along the container (400 mm across) beside three columns of three lying 600 mm across (3 × 600 + 400 = 2,200 mm of the {n(hc.W)} mm width), 2 + 9 = 11 cartons, mirrored every other layer; 10 walls (12,000 mm) × 6 layers (2,400 mm) = <strong>660 cartons</strong>, the same as column stacks.</p>
   </section>
 
   <section class="prose">
@@ -68,7 +79,7 @@ const n = (v: number) => v.toLocaleString('en-US');
       <li><strong>Remove</strong> it. Boxes standing on it come out with it, and all of them are listed under “Not loaded”.</li>
     </ul>
     <p>Boxes under “Not loaded” can be placed one at a time: choose a position or leave it automatic, then tap a green spot or use the next free spot (nearest the back wall and the floor). <strong>Fill the rest automatically</strong> keeps every box you placed and loads what is left around them. Undo and Redo step through your changes, and the share link keeps your hand edits.</p>
-    <p>Every change is checked before it is made, with the same rules as an automatic plan: a box cannot overlap another, must stand fully on the floor or on boxes below, cannot go on a box marked as not stackable, must use a position it is allowed, and must pass the door the way it is stowed. A box with others standing on it cannot be moved or turned until they are moved. If a change would break a rule, the planner says why instead of making it. Changing the boxes or the container afterwards starts again from an automatic plan.</p>
+    <p>Every change is checked before it is made, with the same rules as an automatic plan: a box cannot overlap another, must stand fully on the floor or on boxes below (in an interlocked plan: at least the share of its base you chose, with its centre over a box), cannot go on a box marked as not stackable, must use a position it is allowed, and must pass the door the way it is stowed. A box with others standing on it cannot be moved or turned until they are moved. If a change would break a rule, the planner says why instead of making it. Changing the boxes or the container afterwards starts again from an automatic plan.</p>
   </section>
 
   <section class="prose">

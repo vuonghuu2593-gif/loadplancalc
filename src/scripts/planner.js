@@ -59,6 +59,9 @@ export function initPlanner(root) {
   if (state.mode !== 'semi') state.mode = 'auto';
   if (!Array.isArray(state.steps)) state.steps = [];
   if (state.fillRest === undefined) state.fillRest = true;
+  // stacking pattern: links made before this option existed keep column stacks
+  if (state.stack !== 'interlock' && state.stack !== 'column') state.stack = 'column';
+  state.support = [1, 0.9, 0.8, 0.7].includes(+state.support) ? +state.support : 0.8;
   const stepTpl = document.getElementById('step-tpl');
 
   // ---------- form <-> state ----------
@@ -129,6 +132,20 @@ export function initPlanner(root) {
     f('priority').closest('label').hidden = semi && state.fillRest === false;
     $('[data-prioritytxt]').textContent = semi ? 'Boxes loaded automatically go in list order (first type first)' : 'Load in list order (first type has priority)';
     if (semi) paintSteps();
+    paintStack();
+  }
+  // Interlocked layers are planned for one stackable box type in fully automatic mode.
+  const canInterlock = () => state.mode !== 'semi' && state.items.length === 1 && state.items[0].stackable !== false;
+  function paintStack() {
+    root.querySelectorAll('[data-stack]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.stack === state.stack)));
+    f('support').value = String(state.support);
+    const il = state.stack === 'interlock';
+    $('[data-supportrow]').hidden = !il;
+    $('[data-stackhelp]').textContent = !il
+      ? 'Every layer is the same, so boxes stand in columns: the most boxes, but the columns are not tied together and the load has to be held with wrapping or straps.'
+      : canInterlock()
+        ? `Layers alternate between two patterns, so boxes bridge the joints of the layer below and tie the load together. It may fit fewer boxes than column stacks. Below 100%, a box may bridge a small gap, but at least ${fmt(state.support * 100)}% of its base and its centre must rest on boxes below.${mode === 'container' ? ' In a container the load is built in walls of equal length from the back wall, so it can be loaded wall by wall.' : ''}`
+        : 'Interlocked layers are planned for one box type that can carry boxes on top, in fully automatic mode. This load uses column stacks.';
   }
   function stepOrientOptions(it) {
     const u = U[units]; const seen = new Set(); const out = ['<option value="">Automatic (best allowed)</option>'];
@@ -165,6 +182,7 @@ export function initPlanner(root) {
   root.querySelector('form').addEventListener('input', (e) => {
     const t = e.target;
     if (t.dataset.f === 'fillRest') { state.fillRest = t.checked; paintMode(); schedule(); return; }
+    if (t.dataset.f === 'support') { state.support = +t.value; paintStack(); schedule(); return; }
     if (t.dataset.f && t.dataset.f !== 'preset' && t.dataset.f !== 'priority') {
       const k = t.dataset.f;
       if (k === 'maxWeight') state.cont.maxWeight = readWt(t.value) ?? 0;
@@ -222,6 +240,9 @@ export function initPlanner(root) {
     if (state.mode === 'semi' && !state.steps.length) state.steps = state.items.map((_, i) => ({ item: i, qty: null, orient: null, newSection: false }));
     paintMode(); schedule();
   }));
+  root.querySelectorAll('[data-stack]').forEach((b) => b.addEventListener('click', () => {
+    state.stack = b.dataset.stack; paintStack(); schedule();
+  }));
   $('[data-addstep]').addEventListener('click', () => {
     if (state.steps.length >= 20) return;
     state.steps.push({ item: 0, qty: null, orient: null, newSection: false }); paintSteps(); schedule();
@@ -261,29 +282,30 @@ export function initPlanner(root) {
   let reqId = 0, timer = 0, last = null;
   function engineInput() {
     const c = state.cont;
+    const ms = state.stack === 'interlock' ? state.support : 1; // support rule for the plan, its check and hand edits
     if (mode === 'pallet') {
       const oh = c.overhang || 0;
-      return { container: { L: c.L + 2 * oh, W: c.W + 2 * oh, H: Math.max(0, c.H - (c.palletH || 0)), maxWeight: c.maxWeight }, offset: oh };
+      return { container: { L: c.L + 2 * oh, W: c.W + 2 * oh, H: Math.max(0, c.H - (c.palletH || 0)), maxWeight: c.maxWeight, minSupport: ms }, offset: oh };
     }
-    return { container: { L: c.L, W: c.W, H: c.H, maxWeight: c.maxWeight, doorW: c.doorW, doorH: c.doorH }, offset: 0 };
+    return { container: { L: c.L, W: c.W, H: c.H, maxWeight: c.maxWeight, doorW: c.doorW, doorH: c.doorH, minSupport: ms }, offset: 0 };
   }
   const engineItems = () => state.items.map((it) => ({ l: it.l, w: it.w, h: it.h, weight: it.weight, qty: it.qty, rotation: it.rotation, orients: it.rotation === 'custom' ? allowedIdx(it) : undefined, stackable: it.stackable !== false }));
   function schedule() {
     if (ed) { ed = null; edNotice = 'Your hand edits were cleared because the inputs changed.'; clearEditView(); }
-    clearTimeout(timer); root.querySelector('[data-result]').classList.add('busy');
+    clearTimeout(timer); root.querySelector('[data-result]').classList.add('busy'); paintStack();
     timer = setTimeout(run, 250);
     writeHash();
   }
   function run() {
     const { container } = engineInput();
-    const opts = { priority: !!state.priority, timeMs: 1200, pallet: mode === 'pallet' };
+    const opts = { priority: !!state.priority, timeMs: 1200, pallet: mode === 'pallet', stack: state.stack };
     if (state.mode === 'semi') { opts.steps = state.steps.map((st) => ({ item: st.item, qty: st.qty, orient: st.orient, newSection: !!st.newSection })); opts.fillRest = state.fillRest !== false; }
     worker.postMessage({ id: ++reqId, kind: 'pack', container, items: engineItems(), opts });
   }
   const toView = (d) => {
     const list = [];
     for (let i = 0; i < d.buf.length; i += 8) list.push({ k: d.buf[i], x: d.buf[i + 1], y: d.buf[i + 2], z: d.buf[i + 3], dx: d.buf[i + 4], dy: d.buf[i + 5], dz: d.buf[i + 6], s: d.buf[i + 7] });
-    return { cont: d.cont, boxes: list, steps: d.steps, errors: d.errors, pallet: d.pallet || null };
+    return { cont: d.cont, boxes: list, steps: d.steps, errors: d.errors, pallet: d.pallet || null, stack: d.stack || null };
   };
   worker.onmessage = (e) => {
     if (e.data.id !== reqId) return;
@@ -371,6 +393,7 @@ export function initPlanner(root) {
       w.push(`Centre of gravity of the cargo: ${fmt(u.fromMM(cog.x), units === 'metric' ? 0 : 1)} ${u.len} from the back wall (${off >= 0 ? fmt(off, 0) + '% toward the door' : fmt(-off, 0) + '% toward the back'} from the middle). Keep heavy cargo low and the load spread evenly.`);
     }
     R('warn').innerHTML = w.map((x) => `<p class="warn">${x}</p>`).join('');
+    paintStackResult(d, n);
     // table
     const used = (list) => { // "H up · L along: 540, L up · W across: 120"
       const c = new Map();
@@ -392,9 +415,11 @@ export function initPlanner(root) {
     const volU = units === 'metric' ? 'm³' : 'ft³';
     const toVol = (mm3) => (units === 'metric' ? mm3 / 1e9 : mm3 / (304.8 ** 3));
     const c0 = state.cont; const lnF = (mm) => fmt(u.fromMM(mm), units === 'metric' ? 1 : 2);
+    const stk = d.stack && d.stack.pattern === 'interlock' && !d.edited ? d.stack : null;
     R('steps').innerHTML = [
       ...(mode === 'pallet' ? [`Load space = (${lnF(c0.L)} + 2 × ${lnF(c0.overhang || 0)}) × (${lnF(c0.W)} + 2 × ${lnF(c0.overhang || 0)}) ${u.len} footprint, ${lnF(c0.H)} − ${lnF(c0.palletH || 0)} = ${lnF(d.cont.H)} ${u.len} high above the pallet deck`] : []),
       `${mode === 'container' ? 'Container' : 'Load space'} volume = ${fmt(L, 1)} × ${fmt(W, 1)} × ${fmt(H, 1)} ${u.len} = ${fmt(toVol(contVol), 2)} ${volU}`,
+      ...(stk ? [`Interlocked layers: ${fmt(stk.perLayer[0])} and ${fmt(stk.perLayer[1])} boxes alternating, ${fmt(stk.layers)} layers of ${lnF(stk.dz)} ${u.len}${stk.section ? `, in walls ${lnF(stk.section)} ${u.len} long (${fmt(stk.sections)} full wall${stk.sections === 1 ? '' : 's'}, then the space in front filled automatically)` : ''}`] : []),
       `Cargo loaded = ${fmt(n)} boxes = ${fmt(toVol(totals.vol), 2)} ${volU}`,
       `Volume used = ${fmt(toVol(totals.vol), 2)} ÷ ${fmt(toVol(contVol), 2)} = ${contVol > 0 ? fmt(totals.vol / contVol * 100, 1) : 0}%`,
       `Space left = ${fmt(toVol(contVol), 2)} − ${fmt(toVol(totals.vol), 2)} = ${fmt(toVol(Math.max(0, contVol - totals.vol)), 2)} ${volU} (${contVol > 0 ? fmt((contVol - totals.vol) / contVol * 100, 1) : 0}% of the ${mode === 'container' ? 'container' : 'load space'})`,
@@ -411,6 +436,41 @@ export function initPlanner(root) {
   }
 
 
+  // ---------- stacking: interlocked or column, and how well the layers are tied ----------
+  // "Tied" = a box above the first layer that rests on two or more boxes below (each carrying at least
+  // 10% of its base), so it holds those boxes together.
+  function tiedShare(list) {
+    const byTop = new Map();
+    for (const b of list) { const k = Math.round((b.z + b.dz) * 100); if (!byTop.has(k)) byTop.set(k, []); byTop.get(k).push(b); }
+    let up = 0, tied = 0;
+    for (const a of list) {
+      if (a.z < 0.01) continue;
+      up++;
+      const below = byTop.get(Math.round(a.z * 100)) || []; let m = 0;
+      for (const b of below) {
+        const ox = Math.min(a.x + a.dx, b.x + b.dx) - Math.max(a.x, b.x), oy = Math.min(a.y + a.dy, b.y + b.dy) - Math.max(a.y, b.y);
+        if (ox > 0 && oy > 0 && ox * oy >= 0.1 * a.dx * a.dy) m++;
+      }
+      if (m >= 2) tied++;
+    }
+    return up ? tied / up : null;
+  }
+  function paintStackResult(d, n) {
+    const set = (v, sub) => { R('stack').textContent = v; R('stackSub').textContent = sub; };
+    const share = n ? tiedShare(d.boxes) : null;
+    const tiedTxt = share == null ? 'All boxes stand on the floor.' : `${fmt(share * 100, 0)}% of the boxes above the first layer bridge two or more boxes below.`;
+    const st = d.stack;
+    if (d.edited) { set('Edited by hand', tiedTxt); return; }
+    if (st && st.pattern === 'interlock') {
+      const more = st.column > n ? ` Column stacks would load ${fmt(st.column - n)} more.` : '';
+      set('Interlocked', `Layers alternate ${fmt(st.perLayer[0])} and ${fmt(st.perLayer[1])} boxes. ${tiedTxt}${more}`);
+    } else if (st && st.interlock === 'none') {
+      set('Column stacks', `These boxes cannot be interlocked here with ${fmt(state.support * 100)}% support${state.support === 1 ? ' (try 90% or 80%)' : ''}, so they stand in columns. ${tiedTxt}`);
+    } else if (state.stack === 'interlock' && !canInterlock()) {
+      set('Column stacks', `Interlocking is planned for one stackable box type in fully automatic mode. ${tiedTxt}`);
+    } else set('Column stacks', `${tiedTxt} Hold column stacks together with wrapping or straps.`);
+  }
+
   // ---------- pallet mode: Ti-Hi and pallets needed (one box type only) ----------
   // The engine (palletPack) builds a one-type pallet layer by layer and reports the full-pallet count
   // within the weight limit and its layers. Ti-Hi is only shown when every box sits on a clean layer line.
@@ -425,6 +485,7 @@ export function initPlanner(root) {
     if (!per) { set('tihi', '0', 'The box does not fit on this pallet.'); set('pallets', '–', ''); return; }
     const cap = P.weightLimited ? ' (max load weight reached)' : '';
     if (!lay || lay.mixed) set('tihi', '–', `No single Ti-Hi: the boxes stand in different positions (${fmt(per)} per pallet${cap}). Choose “this side up” for even layers.`);
+    else if (lay.kind === 'alt') set('tihi', `${fmt(lay.ti)} / ${fmt(lay.ti2)} × ${fmt(lay.hi)}`, `${fmt(lay.hi)} interlocked layers alternating ${fmt(lay.ti)} and ${fmt(lay.ti2)} boxes = ${fmt(per)} per pallet${cap}`);
     else if (lay.kind === 'even') set('tihi', `${fmt(lay.ti)} × ${fmt(lay.hi)}`, `${fmt(lay.ti)} per layer, ${fmt(lay.hi)} layer${lay.hi === 1 ? '' : 's'} = ${fmt(per)} per pallet${cap}`);
     else if (lay.kind === 'top') set('tihi', `${fmt(lay.ti)} × ${fmt(lay.hi - 1)} + ${fmt(lay.top)}`, `${fmt(lay.hi - 1)} full layer${lay.hi === 2 ? '' : 's'} of ${fmt(lay.ti)} and ${fmt(lay.top)} on top = ${fmt(per)} per pallet${cap}`);
     else set('tihi', '–', `Layers differ (${lay.counts.map((c) => fmt(c)).join(', ')} from the bottom up) = ${fmt(per)} per pallet${cap}.`);

@@ -19,7 +19,7 @@ const euro = pallets.find((p) => p.id === 'epal1')!, chep = pallets.find((p) => 
 const EX_H = 1100, EX_KG = 500;
 const defaults = {
   cont: { preset: dv40.id, L: dv40.L, W: dv40.W, H: dv40.H, doorW: dv40.doorW, doorH: dv40.doorH, maxWeight: dv40.payload },
-  priority: false,
+  priority: false, stack: 'column', support: 0.8,
   items: [{ name: 'Loaded Euro pallet', l: euro.L, w: euro.W, h: EX_H, weight: EX_KG, qty: 50, rotation: 'upright', stackable: false }],
 };
 

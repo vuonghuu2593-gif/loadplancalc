@@ -20,7 +20,7 @@ const euro = pallets.find((p) => p.id === 'epal1')!, chep = pallets.find((p) => 
 const EX_H = 50 * MM_PER_IN, EX_LB = 1500, EX_KG = EX_LB * KG_PER_LB;
 const defaults = {
   cont: { preset: comp.id, L: comp.L, W: comp.W, H: comp.H, doorW: null, doorH: null, maxWeight: 0 },
-  priority: false,
+  priority: false, stack: 'column', support: 0.8,
   items: [{ name: 'Loaded 48 × 40 in pallet', l: chep.L, w: chep.W, h: EX_H, weight: EX_KG, qty: 36, rotation: 'upright', stackable: false }],
 };
 
