@@ -46,6 +46,11 @@ const n = (v: number) => v.toLocaleString('en-US');
     <p>The table under the plan shows which positions were used and how many cartons are in each. For the 600 × 400 × 400 mm carton above, fixing it in one position (400 mm up, 600 mm along) gives 20 × 5 × 6 = <strong>600 cartons</strong> in a 40' high cube, while letting the planner mix positions gives 660.</p>
   </section>
 
+  <section class="prose" id="import">
+    <h2>Import your packing list from Excel</h2>
+    <p>Under the box list, <strong>Import from Excel / CSV</strong> reads an .xlsx or CSV file with one row per carton type, and <strong>Paste from Excel</strong> takes rows copied straight from a spreadsheet. The header row names the columns — Name, Length, Width, Height, Weight, Quantity, and optionally This side up and Stackable — with the unit in brackets, such as Length (cm) or Weight (lb). Start from the <a href="/load-plan-template.xlsx" download>Excel template</a> or the <a href="/load-plan-template.csv" download>CSV template</a>. The file is read in your browser and never uploaded; a note after importing lists what was read and any rows skipped. Details are in the <a href="/how-to-use/#import">user guide</a>.</p>
+  </section>
+
   <section class="prose" id="stacking">
     <h2>Interlocked layers or column stacks</h2>
     <p>Cartons stacked straight up in columns fill a container well, but the columns are not tied to each other and can lean apart when the load shifts. Under <strong>Stacking pattern</strong> you choose:</p>

@@ -1,6 +1,7 @@
 // Page logic for the load planner: form state (stored in mm / kg so unit switches never drift),
 // a Web Worker that runs the packing engine, results, 3D view and share links.
 import { U, round, fmt } from './units.js';
+import { readBoxFile, readDelimited, rowsToItems } from './importer.js';
 import { ORIENT, ORIENT_NAMES, layersOf } from './packer.js';
 import { makeCtx, placeProblem, spots as freeSpots, nudge as nudgeBox, onTop, stackFrom, asResult, orientIndex, validate } from './editor.js';
 
@@ -260,6 +261,40 @@ export function initPlanner(root) {
     state.items.push({ name: `Box ${state.items.length + 1}`, l: prev ? prev.l : 400, w: prev ? prev.w : 300, h: prev ? prev.h : 300, weight: prev ? prev.weight : 5, qty: 50, rotation: 'any', stackable: true });
     paintBoxes(); paintMode(); schedule();
   });
+  // ---------- import a box list (Excel .xlsx, CSV/TSV, or cells pasted from a spreadsheet) ----------
+  const importMsg = $('[data-importmsg]');
+  function applyImport(res, source) {
+    const lines = [];
+    if (!res.items.length) {
+      lines.push(`Nothing was imported from ${esc(source)}: no row had a length, width and height. Check that the first sheet has a header row (Name, Length, Width, Height, Weight, Quantity) or use the template.`);
+    } else {
+      state.items = res.items;
+      state.steps = state.mode === 'semi' ? state.items.map((_, i) => ({ item: i, qty: null, orient: null, newSection: false })) : [];
+      const total = res.items.reduce((t, it) => t + it.qty, 0);
+      lines.push(`Imported ${res.items.length} box type${res.items.length === 1 ? '' : 's'} (${fmt(total)} boxes) from ${esc(source)}: ${res.items.map((it) => `${esc(it.name)} × ${fmt(it.qty)}`).join(', ')}. Check the sizes below.`);
+      paintBoxes(); paintMode(); schedule();
+    }
+    for (const n of res.notes) lines.push(esc(n));
+    if (res.skipped.length) lines.push(`Skipped ${res.skipped.map(esc).join('; ')}.`);
+    importMsg.innerHTML = lines.map((x) => `<p class="warn">${x}</p>`).join('');
+    importMsg.hidden = false;
+  }
+  const fileIn = $('[data-importfile]');
+  $('[data-import]').addEventListener('click', () => fileIn.click());
+  fileIn.addEventListener('change', async () => {
+    const file = fileIn.files && fileIn.files[0]; if (!file) return;
+    try { applyImport(await readBoxFile(file, units), file.name); }
+    catch (err) { importMsg.innerHTML = `<p class="warn">${esc(file.name)} could not be read. ${esc(err && /\.xls|Excel/.test(err.message) ? err.message : 'Save it as an Excel workbook (.xlsx) or CSV and try again.')}</p>`; importMsg.hidden = false; }
+    fileIn.value = '';
+  });
+  const pasteBtn = $('[data-paste]'), pasteBox = $('[data-pastebox]');
+  pasteBtn.addEventListener('click', () => { pasteBox.hidden = !pasteBox.hidden; pasteBtn.setAttribute('aria-expanded', String(!pasteBox.hidden)); if (!pasteBox.hidden) $('[data-pastetext]').focus(); });
+  $('[data-pasteuse]').addEventListener('click', () => {
+    const text = $('[data-pastetext]').value;
+    if (!text.trim()) return;
+    applyImport(rowsToItems(readDelimited(text).rows, units), 'the pasted rows');
+  });
+
   $('[data-boxes]').addEventListener('click', (e) => {
     const chip = e.target.closest('[data-o]');
     if (chip) {

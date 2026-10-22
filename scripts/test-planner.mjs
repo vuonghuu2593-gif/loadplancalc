@@ -371,6 +371,45 @@ await pg.screenshot({ path: process.env.SHOT || '/tmp/semi.png', fullPage: true 
   ok(await V('divisor') === '6000', 'dim: divisor back to 6000 cm³/kg without drift');
   await pg9.close();
 }
+// Box list import (Excel .xlsx, CSV, pasted cells): parser checks in Node, then the buttons in the browser
+{
+  const { readBoxFile, readDelimited, rowsToItems, toNumber } = await import('../src/scripts/importer.js');
+  const asFile = (p) => ({ name: path.basename(p), arrayBuffer: async () => { const x = fs.readFileSync(p); return x.buffer.slice(x.byteOffset, x.byteOffset + x.length); } });
+  const tx = await readBoxFile(asFile('public/load-plan-template.xlsx'), 'imperial');
+  ok(tx.items.length === 2 && tx.items[0].l === 600 && tx.items[0].qty === 400 && tx.items[0].rotation === 'any' && tx.items[1].rotation === 'upright' && tx.items[1].weight === 6, 'import: Excel template → 2 types, 600 mm from 60 (cm), header units win over the form units');
+  const tp = await readBoxFile(asFile('scripts/fixtures/inline-prefixed.xlsx'), 'imperial');
+  ok(tp.items.length === 1 && tp.items[0].name === 'Big & heavy' && tp.items[0].l === 1200 && tp.items[0].qty === 4 && tp.items[0].weight === 0, 'import: .xlsx with inline strings, x: prefixes, a named sheet and a gap row');
+  const tc = await readBoxFile(asFile('public/load-plan-template.csv'), 'metric');
+  ok(JSON.stringify(tc.items) === JSON.stringify(tx.items), 'import: CSV template gives the same box list as the Excel template');
+  // no units in the header, imperial form: 24 x 16 x 12 in, 30 lb -> 609.6 x 406.4 x 304.8 mm, 13.60776 kg; a row without length is skipped
+  const pi = rowsToItems(readDelimited('SKU\tL\tW\tH\tGW\tQty\nA1\t24\t16\t12\t30\t100\nbad\t\t1\t1\t1\t1\n').rows, 'imperial');
+  ok(pi.items.length === 1 && pi.items[0].l === 609.6 && pi.items[0].h === 304.8 && Math.abs(pi.items[0].weight - 30 * 0.45359237) < 1e-6 && pi.skipped.length === 1 && pi.notes.some((n) => n.includes('inches')), 'import: pasted cells, inches and pounds assumed and said so, bad row skipped');
+  const eu = rowsToItems(readDelimited('Item;Length mm;Width mm;Height mm;Weight kg;Pcs;Orientation;Stackable\n"Box; big";600;400;400;12,5;1.200;upright;no\n').rows);
+  ok(eu.items[0].name === 'Box; big' && eu.items[0].weight === 12.5 && eu.items[0].qty === 1200 && eu.items[0].rotation === 'upright' && eu.items[0].stackable === false, 'import: semicolon CSV with decimal commas, quoted name, upright, not stackable');
+  ok([toNumber('1,200'), toNumber('12,5'), toNumber('1.200,5'), toNumber('40cm')].join() === '1200,12.5,1200.5,40', 'import: number formats');
+  let xlsErr = ''; try { await readBoxFile({ name: 'old.xls', arrayBuffer: async () => new Uint8Array([0xd0, 0xcf, 0x11, 0xe0, 0, 0, 0, 0]).buffer }, 'metric'); } catch (e) { xlsErr = e.message; }
+  ok(xlsErr.includes('.xlsx'), 'import: old .xls refused with a "save as .xlsx or CSV" message');
+  const many = rowsToItems([['Name', 'L', 'W', 'H', 'Qty'], ...Array.from({ length: 12 }, (_, i) => ['B' + i, 10, 10, 10, 1])]);
+  ok(many.items.length === 10 && many.notes.some((n) => n.includes('first 10')), 'import: 12 types → first 10, with a note');
+
+  const pgI = await b.newPage({ viewport: { width: 390, height: 844 } }); pgI.on('pageerror', (e) => errs.push(e.message));
+  const settleI = async () => { await pgI.waitForTimeout(350); await pgI.waitForFunction(() => !document.querySelector('[data-result]').classList.contains('busy'), null, { timeout: 15000 }); };
+  await pgI.goto('http://localhost:4401/container-loading-calculator/'); await pgI.evaluate(() => { localStorage.setItem('lpc-units', 'metric'); history.replaceState(null, '', location.pathname); }); await pgI.reload(); await settleI();
+  const csv = path.join(process.env.TMPDIR || '/tmp', 'lpc-import-test.csv');
+  fs.writeFileSync(csv, 'Name,Length (in),Width (in),Height (in),Weight (lb),Quantity,This side up,Stackable\r\nTV,48,8,30,40,20,yes,no\r\nCarton,24,16,12,30,100,no,yes\r\n');
+  await pgI.setInputFiles('[data-importfile]', csv); await settleI();
+  const cards = await pgI.$$eval('.boxcard', (c) => c.map((x) => [x.querySelector('[data-b="name"]').value, x.querySelector('[data-b="l"]').value, x.querySelector('[data-b="qty"]').value, x.querySelector('[data-b="rotation"]').value, x.querySelector('[data-b="stackable"]').checked].join('|')));
+  ok(cards.join(' / ') === 'TV|121.9|20|upright|false / Carton|61|100|any|true', 'import button: CSV in inches → 2 box cards in cm (' + cards.join(' / ') + ')');
+  const msg = await pgI.$eval('[data-importmsg]', (e) => e.textContent);
+  ok(msg.includes('Imported 2 box types (120 boxes)') && (await pgI.$eval('#r-main', (e) => e.textContent.trim())).endsWith('of 120'), 'import button: note and the plan for 120 boxes (' + msg.slice(0, 80) + ')');
+  await pgI.click('[data-paste]');
+  await pgI.fill('[data-pastetext]', 'Name\tLength (cm)\tWidth (cm)\tHeight (cm)\tWeight (kg)\tQuantity\nCarton A\t60\t40\t40\t12\t5000\n');
+  await pgI.click('[data-pasteuse]'); await settleI();
+  ok(await pgI.$eval('#r-main', (e) => e.textContent.trim()) === '660 of 5,000', 'paste: 600 x 400 x 400 mm x 5000 pasted → 660 in the 40\' HC');
+  await pgI.setInputFiles('[data-importfile]', 'public/load-plan-template.xlsx'); await settleI();
+  ok(await pgI.$eval('#r-main', (e) => e.textContent.trim()) === '900 of 900' && (await pgI.$$('.boxcard')).length === 2, 'import button: Excel template → the default 900 of 900');
+  await pgI.close();
+}
 ok(errs.length === 0, 'no JS errors ' + errs.join(' | '));
 await b.close(); srv.close();
 console.log(fails ? fails + ' failing' : 'planner checks pass'); process.exit(fails ? 1 : 0);

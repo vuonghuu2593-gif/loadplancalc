@@ -87,6 +87,7 @@ ul.plain,ol.plain{margin:8px 0 0;padding-left:20px;display:flex;flex-direction:c
 .check input{width:22px;height:22px}
 .iconbtn{height:46px;min-width:46px;border:1px solid var(--field);border-radius:6px;background:var(--surface);color:var(--ink);font:600 15px var(--body);cursor:pointer;padding:0 12px}
 .addrow{display:flex;gap:10px;flex-wrap:wrap}
+.pastebox{display:grid;gap:8px}.pastebox textarea{width:100%;min-height:110px;font:14px/1.4 ui-monospace,Menlo,Consolas,monospace;padding:8px;border:1px solid var(--line, #c9d2dc);border-radius:8px;background:var(--surface);color:var(--ink);box-sizing:border-box;white-space:pre;overflow:auto}.importmsg p{margin:6px 0 0}
 .btn.line{background:var(--surface);color:var(--ink);border:1px solid var(--ink)}
 .view3d{position:relative;width:100%;aspect-ratio:16/10;min-height:260px;background:color-mix(in srgb,var(--band) 92%,#fff);border-radius:10px;overflow:hidden;touch-action:none}
 .view3d canvas{display:block;width:100%;height:100%}

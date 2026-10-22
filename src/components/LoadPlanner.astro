@@ -46,7 +46,18 @@ const presets = mode === 'container' ? (spacePresets || data.containers) : palle
     <div class="boxes" data-boxes></div>
     <div class="addrow">
       <button type="button" class="btn line" data-add>+ Add box type</button>
+      <button type="button" class="btn line" data-import>Import from Excel / CSV</button>
+      <button type="button" class="btn line" data-paste aria-expanded="false">Paste from Excel</button>
+      <input type="file" data-importfile accept=".xlsx,.xlsm,.csv,.tsv,.txt,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv" hidden>
     </div>
+    <div class="pastebox" data-pastebox hidden>
+      <label>Copy the rows in Excel or Google Sheets, header row included, and paste them here
+        <textarea data-pastetext rows="5" spellcheck="false" placeholder="Name	Length (cm)	Width (cm)	Height (cm)	Weight (kg)	Quantity	This side up	Stackable"></textarea>
+      </label>
+      <button type="button" class="btn" data-pasteuse>Use these rows</button>
+    </div>
+    <p class="small" style="margin:0">One row per box type, with columns Name, Length, Width, Height, Weight, Quantity, This side up, Stackable. Template: <a href="/load-plan-template.xlsx" download>Excel</a> · <a href="/load-plan-template.csv" download>CSV</a>. Importing replaces the box list; the file is read in your browser and not uploaded.</p>
+    <div class="importmsg" data-importmsg role="status" hidden></div>
     <h2>Loading method</h2>
     <div class="seg modeseg" role="group" aria-label="Loading method">
       <button type="button" data-mode="auto" aria-pressed="true">Fully automatic</button>

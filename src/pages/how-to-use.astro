@@ -70,6 +70,14 @@ const schema = { '@context': 'https://schema.org', '@type': 'HowTo', name: `How 
       <li><strong>Can carry boxes on top:</strong> untick for fragile cartons or crates; nothing will be stacked on them.</li>
       <li><strong>✕</strong> removes a box type. <strong>+ Add box type</strong> copies the size of the last type to save typing.</li>
     </ul>
+    <h3 id="import">Import a box list from Excel</h3>
+    <p>Instead of typing each box, you can bring in your packing list:</p>
+    <ol class="plain">
+      <li>Download the template (<a href="/load-plan-template.xlsx" download>Excel</a> or <a href="/load-plan-template.csv" download>CSV</a>) under the box list, or use your own sheet. One row per box type, a header row with <strong>Name, Length, Width, Height, Weight, Quantity</strong>, and if you like <strong>This side up</strong> (yes/no) and <strong>Stackable</strong> (yes/no; empty means yes). Common other headings work too, such as SKU, Qty, Pcs, L, W, H or Gross weight.</li>
+      <li>Put the unit in the header in brackets: Length (cm), Length (mm), Length (in), Weight (kg), Weight (lb). A column without a unit is read in the units selected at the top of the form (cm and kg, or in and lb), and the note after importing says so.</li>
+      <li>Tap <strong>Import from Excel / CSV</strong> and choose the file (.xlsx or .csv; the first sheet is read). Or select the rows in Excel or Google Sheets, copy them, tap <strong>Paste from Excel</strong>, paste, and tap <strong>Use these rows</strong>.</li>
+    </ol>
+    <p>The imported rows replace the box list, and the plan updates at once. A note lists what was imported, which units were assumed and which rows were skipped (for example a row without a height). Up to 10 box types and 20,000 boxes per type are read. Old .xls files are not read: save them as .xlsx or CSV first. The file is read in your browser and is not sent to us.</p>
   </section>
 
   <section class="prose" id="pallet-loading-calculator">
@@ -253,6 +261,7 @@ const schema = { '@context': 'https://schema.org', '@type': 'HowTo', name: `How 
   <section class="prose" id="whats-new">
     <h2>What's new</h2>
     <ul class="plain">
+      <li><strong>October 22, 2026:</strong> <a href="#import">import a box list</a> in the container and pallet calculators: <strong>Import from Excel / CSV</strong> reads an .xlsx or CSV file, and <strong>Paste from Excel</strong> takes rows copied from a spreadsheet, so sizes, weights and quantities no longer have to be typed. Templates in Excel and CSV are linked under the box list.</li>
       <li><strong>October 22, 2026:</strong> new reference page: <a href="/53-foot-trailer-dimensions/">53 ft trailer dimensions</a> (inside and outside sizes of 53' dry vans and reefers from the makers, with pallet and carton counts). Nothing changed in the calculators.</li>
       <li><strong>October 22, 2026:</strong> new <a href="#stacking">stacking pattern</a> option in the container and pallet calculators: <strong>Interlocked (stable)</strong> alternates the layers so boxes bridge the joints below and the load holds together (now the default for cartons), or <strong>Column stacks (most boxes)</strong> as before, plus how much of each box's base must rest on boxes below. The result shows the pattern used and how many boxes are tied. Links shared before this change keep column stacks.</li>
       <li><strong>October 22, 2026:</strong> <a href="/shipping-container-dimensions/#reefer-open-top">shipping container dimensions</a> now also lists 20' and 40' high cube reefer and 20' and 40' open top containers (reference only; not added to the planner's list).</li>
