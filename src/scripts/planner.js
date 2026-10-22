@@ -3,6 +3,7 @@
 import { U, round, fmt } from './units.js';
 import { readBoxFile, readDelimited, rowsToItems } from './importer.js';
 import { ORIENT, ORIENT_NAMES, layersOf } from './packer.js';
+import { loadList, loadListCsv } from './loadlist.js';
 import { makeCtx, placeProblem, spots as freeSpots, nudge as nudgeBox, onTop, stackFrom, asResult, orientIndex, validate } from './editor.js';
 
 const COLORS = ['#F08A24', '#3E8ED0', '#4CB782', '#D9534F', '#9B6BD3', '#E5C02E', '#2BB5B8', '#C76B98', '#8C9A3C', '#A0693B'];
@@ -376,7 +377,10 @@ export function initPlanner(root) {
     root.querySelector('[data-result]').classList.remove('busy');
     const u = U[units];
     const ordered = state.items.reduce((s, it) => s + (it.qty || 0), 0);
-    boxes = d.boxes;
+    // loading list: sections from the back wall, layers from the floor; its order is the slider's order
+    const il = d.stack && d.stack.pattern === 'interlock' && d.stack.section && !d.edited ? { S: d.stack.section, k: d.stack.sections } : null;
+    const ll = loadList(d.boxes, state.items, { pallet: mode === 'pallet', wall: il, orientOf });
+    d.boxes = ll.order; boxes = d.boxes; lastList = { ll, d };
     const perItem = state.items.map(() => 0);
     let tv = 0, tw = 0, cxs = 0, cys = 0, czs = 0;
     for (const b of boxes) { perItem[b.k]++; tv += b.dx * b.dy * b.dz; const m = state.items[b.k]?.weight || 0; tw += m; cxs += m * (b.x + b.dx / 2); cys += m * (b.y + b.dy / 2); czs += m * (b.z + b.dz / 2); }
@@ -461,6 +465,7 @@ export function initPlanner(root) {
       d.cont.maxWeight > 0 ? `Weight = ${fmt(wt)} ${u.wt} of ${fmt(u.fromKG(d.cont.maxWeight))} ${u.wt} allowed (${fmt(totals.w / d.cont.maxWeight * 100, 1)}%), ${fmt(u.fromKG(Math.max(0, d.cont.maxWeight - totals.w)))} ${u.wt} left` : `Weight = ${fmt(wt)} ${u.wt} (no limit entered)`,
     ].join('<br>');
     roomFor(d);
+    paintLoadList();
     if (mode === 'pallet') paintPallet(d);
     // 3D
     const { offset } = engineInput();
@@ -470,6 +475,57 @@ export function initPlanner(root) {
     paintEditor();
   }
 
+
+  // ---------- loading list (sections along the length, layers from the floor up; see loadlist.js) ----------
+  let lastList = null, llAll = false;
+  const LL_FEW = 2; // sections shown before "Show all" on long lists
+  const stepName = (s) => (s < 0 || !lastList?.d.steps ? '' : lastList.d.steps[s]?.auto ? 'Automatic part' : `Step ${s + 1}`);
+  function paintLoadList() {
+    if (!lastList) return;
+    const { ll, d } = lastList; const u = U[units];
+    const off = engineInput().offset; const dp = units === 'metric' ? 1 : 2;
+    const ln = (mm) => fmt(u.fromMM(mm), dp);
+    const wt = (kg) => `${fmt(u.fromKG(kg), 0)} ${u.wt}`;
+    const pal = mode === 'pallet';
+    R('llAlong').textContent = `From back ${pal ? 'edge' : 'wall'} (${u.len})`;
+    R('llAcross').textContent = `From right ${pal ? 'edge' : 'wall'} (${u.len})`;
+    const il = d.stack && d.stack.pattern === 'interlock' && d.stack.section && !d.edited;
+    R('llnote').textContent = !ll.n ? 'Nothing is loaded yet.' : pal
+      ? `Load the pallet layer by layer from the deck up. In each layer place the groups in the order listed, each from the back edge and from the right-hand edge as seen from the front (the Front view). Distances in ${u.len} from the pallet edges. The loading step slider shows the same order.`
+      : `Load section by section from the back wall toward the door, each section layer by layer from the floor up, and in each layer the groups in the order listed, starting at the back of the section and at the right-hand wall as seen from the door. ${il ? `The sections are the interlocked walls of ${ln(d.stack.section)} ${u.len}${ll.sections.length > d.stack.sections ? '; the boxes in front of the last wall follow' : ''}.` : 'A section ends where no box crosses the line across the load; where boxes of different lengths overlap, a section is about 120 cm long or more.'} Distances in ${u.len}. The loading step slider shows the same order.`;
+    const many = ll.sections.length > LL_FEW + 1 && ll.sections.reduce((t, s) => t + s.layers.reduce((a, l) => a + l.groups.length, 0), 0) > 30;
+    let html = '';
+    ll.sections.forEach((s, si) => {
+      const hide = many && !llAll && si >= LL_FEW ? ' hidden' : '';
+      const where = pal ? (ll.sections.length > 1 ? `Part ${si + 1}` : 'Pallet') : `Section ${si + 1} · ${ln(s.x0)}–${ln(s.x1)} ${u.len} from the back wall`;
+      const stp = stepName(s.step);
+      html += `<tr class="llsec"${hide}><th colspan="7"><div class="llsecin">${where}${stp ? ` · ${stp}` : ''} · ${fmt(s.n)} ${s.n === 1 ? 'box' : 'boxes'}, ${wt(s.w)}<span class="small"> · loaded so far: ${fmt(s.soFar)} ${s.soFar === 1 ? 'box' : 'boxes'}, ${wt(s.wSoFar)}</span></div></th></tr>`;
+      s.layers.forEach((l, li) => l.groups.forEach((g, gi) => {
+        const lay = gi ? '' : `<td rowspan="${l.groups.length}"><strong>${fmt(li + 1)}</strong> <span class="small">${l.z < 0.5 ? (pal ? 'deck' : 'floor') : `${ln(l.z)} ${u.len} up`}</span></td>`;
+        html += `<tr${hide}>${lay}<td><i class="sw" style="background:${SWATCH[g.k % SWATCH.length]}"></i>${esc(state.items[g.k]?.name)}</td><td style="white-space:nowrap">${g.o >= 0 ? SHORT[g.o] : '?'}</td><td class="num">${fmt(g.n)}</td><td class="num">${ln(g.x0 - off)}–${ln(g.x1 - off)}</td><td class="num">${ln(g.y0 - off)}–${ln(g.y1 - off)}</td><td class="num">${fmt(g.soFar)}</td></tr>`;
+      }));
+    });
+    R('lltable').innerHTML = html || '<tr><td colspan="7">No boxes in the plan.</td></tr>';
+    const more = $('[data-llmore]');
+    more.hidden = !many;
+    more.textContent = llAll ? `Show the first ${LL_FEW} sections only` : `Show all ${fmt(ll.sections.length)} ${pal ? 'parts' : 'sections'}`;
+    more.setAttribute('aria-expanded', String(llAll));
+    $('[data-llcsv]').disabled = !ll.n;
+  }
+  $('[data-llmore]').addEventListener('click', () => { llAll = !llAll; paintLoadList(); });
+  $('[data-llcsv]').addEventListener('click', () => {
+    if (!lastList || !lastList.ll.n) return;
+    const u = U[units];
+    const csv = loadListCsv(lastList.ll, {
+      lenU: u.len, wtU: u.wt, pallet: mode === 'pallet', offset: engineInput().offset, stepName,
+      fmtLen: (mm) => round(u.fromMM(mm), units === 'metric' ? 1 : 2), fmtWt: (kg) => round(u.fromKG(kg), 1),
+      names: state.items.map((it, i) => it.name || `Box ${i + 1}`), pos: (o) => (o >= 0 ? SHORT[o] : '?'),
+    });
+    const url = URL.createObjectURL(new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8' }));
+    const a = document.createElement('a'); a.href = url; a.download = 'loading-list.csv';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+  });
 
   // ---------- stacking: interlocked or column, and how well the layers are tied ----------
   // "Tied" = a box above the first layer that rests on two or more boxes below (each carrying at least

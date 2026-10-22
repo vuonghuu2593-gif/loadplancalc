@@ -410,6 +410,77 @@ await pg.screenshot({ path: process.env.SHOT || '/tmp/semi.png', fullPage: true 
   ok(await pgI.$eval('#r-main', (e) => e.textContent.trim()) === '900 of 900' && (await pgI.$$('.boxcard')).length === 2, 'import button: Excel template → the default 900 of 900');
   await pgI.close();
 }
+// Loading list: sections from the back wall, layers from the floor, running totals, CSV, units
+{
+  const pgL = await b.newPage({ viewport: { width: 390, height: 844 }, locale: 'en-GB', acceptDownloads: true });
+  const settleL = async () => { await pgL.waitForTimeout(350); await pgL.waitForFunction(() => !document.querySelector('[data-result]').classList.contains('busy'), null, { timeout: 15000 }); };
+  const mainL = () => pgL.$eval('#r-main', (e) => +e.textContent.trim().split(' ')[0].replace(/,/g, ''));
+  // per section: header text, box count, layers [sum per layer], last running total
+  const info = () => pgL.$$eval('[data-r="lltable"] tr', (rows) => {
+    const out = []; let s = null;
+    for (const r of rows) {
+      if (r.classList.contains('llsec')) { s = { head: r.textContent, n: 0, layers: [], soFar: 0, groups: 0 }; out.push(s); continue; }
+      const td = [...r.children].map((c) => c.textContent.trim()); const n = +td[td.length - 4].replace(/,/g, '');
+      if (td.length === 7) s.layers.push(0);
+      s.layers[s.layers.length - 1] += n; s.n += n; s.groups++; s.soFar = +td[td.length - 1].replace(/,/g, '');
+    }
+    return out;
+  });
+  const csvNow = async () => {
+    const [dl] = await Promise.all([pgL.waitForEvent('download'), pgL.click('[data-llcsv]')]);
+    const text = fs.readFileSync(await dl.path(), 'utf8').replace(/^\uFEFF/, '');
+    const lines = text.trim().split(/\r?\n/).map((l) => l.split(','));
+    return { name: dl.suggestedFilename(), head: lines[0], rows: lines.slice(1) };
+  };
+  await pgL.goto('http://localhost:4401/container-loading-calculator/'); await pgL.evaluate(() => { localStorage.setItem('lpc-units', 'metric'); history.replaceState(null, '', location.pathname); }); await pgL.reload(); await settleL();
+  let L = await info(); const n0 = await mainL();
+  ok(n0 === 900 && L.reduce((t, s) => t + s.n, 0) === 900 && L[L.length - 1].soFar === 900 && L.every((s, i) => s.soFar === L.slice(0, i + 1).reduce((t, x) => t + x.n, 0)), `default plan: ${L.length} sections, counts sum to 900, running totals add up (${L.map((s) => s.n).join('+')})`);
+  ok(await pgL.$$eval('[data-r="lltable"] tr[hidden]', (x) => x.length) > 0 && await pgL.isVisible('[data-llmore]'), 'long list: later sections collapsed behind "Show all"');
+  const tap = await pgL.$eval('[data-llmore]', (e) => e.getBoundingClientRect().height);
+  ok(tap >= 44, 'Show all button is at least 44 px high (' + tap + ')');
+  await pgL.click('[data-llmore]');
+  ok(await pgL.$$eval('[data-r="lltable"] tr[hidden]', (x) => x.length) === 0, 'Show all opens every section');
+  let csv = await csvNow();
+  const ci = (h) => csv.head.findIndex((x) => x.startsWith(h));
+  ok(csv.name === 'loading-list.csv' && csv.rows.length === L.reduce((t, s) => t + s.groups, 0) && csv.rows.reduce((t, r) => t + +r[ci('Boxes')], 0) === 900 && +csv.rows[csv.rows.length - 1][ci('Boxes loaded so far')] === 900, `CSV: one row per section, layer, type and position (${csv.rows.length} rows), counts sum to 900`);
+  ok(csv.head.some((h) => h.includes('(cm)')) && csv.head.some((h) => h.includes('(kg)')), 'CSV headers name the units (cm, kg)');
+  const head0 = L[1].head;
+  await pgL.click('[data-units="imperial"]'); await settleL();
+  const headI = (await info())[1].head; csv = await csvNow();
+  ok(/ in from the back wall/.test(headI) && headI !== head0 && / lb/.test(headI) && csv.head.some((h) => h.includes('(in)')), 'unit switch: distances in inches (' + headI.slice(0, 60) + ')');
+  await pgL.click('[data-units="metric"]'); await settleL();
+  ok((await info())[1].head === head0, 'back to cm: the same distances as before (' + head0.slice(0, 60) + ')');
+  // 600 x 400 x 400 mm x 5000 in the 40' HC: 660 in 10 interlocked walls of 1200 mm, 6 layers of 11 (hand-checked: 2 x 5 + 1 = 11 per layer, 2700 / 400 = 6 layers, 12032 / 1200 = 10 walls)
+  await pgL.click('.boxcard:nth-child(2) [data-del]'); await pgL.fill('.boxcard [data-b="qty"]', '5000'); await settleL();
+  L = await info();
+  ok(await mainL() === 660 && L.length === 10 && L.every((s) => s.n === 66 && s.layers.length === 6 && s.layers.every((x) => x === 11)), '660: 10 sections of 66, each 6 layers of 11 (' + L.map((s) => s.n + ':' + s.layers.join('/')).slice(0, 2).join(' ') + ' …)');
+  ok(L[0].head.includes('0–120 cm from the back wall') && L[9].head.includes('1,080–1,200 cm') && L[9].soFar === 660, 'walls 0–120 cm … 1,080–1,200 cm, running total 660');
+  csv = await csvNow();
+  ok(csv.rows.reduce((t, r) => t + +r[ci('Boxes')], 0) === 660 && new Set(csv.rows.map((r) => r[0])).size === 10, 'CSV of the 660 plan: 10 sections, counts sum to 660');
+  // the slider order is the list order: after the first section's 66 boxes the slider is at the wall line
+  const firstWall = await pgL.evaluate(() => { const s = document.querySelector('[data-step]'); s.value = '66'; s.dispatchEvent(new Event('input')); return document.querySelector('[data-r="stepTxt"]').textContent; });
+  ok(firstWall.startsWith('66 of 660'), 'loading step slider: ' + firstWall);
+  // column stacks and hand editing keep a complete list
+  await pgL.click('[data-stack="column"]'); await settleL(); L = await info();
+  ok(L.reduce((t, s) => t + s.n, 0) === await mainL(), `column stacks: list sums to the boxes loaded (${L.length} sections)`);
+  await pgL.click('[data-ed="start"]'); await pgL.waitForTimeout(500); L = await info();
+  ok(L.reduce((t, s) => t + s.n, 0) === 660 && L.length === 10, 'hand-edited plan: list of 660 in 10 sections');
+  await pgL.click('[data-ed="exit"]'); await pgL.waitForTimeout(300);
+  // semi-automatic: sections follow the steps
+  await pgL.goto('http://localhost:4401/container-loading-calculator/'); await pgL.evaluate(() => history.replaceState(null, '', location.pathname)); await pgL.reload(); await settleL();
+  await pgL.click('[data-mode="semi"]'); await settleL(); L = await info();
+  ok(L.reduce((t, s) => t + s.n, 0) === 900 && L.some((s) => s.head.includes('Step 1')) && L.some((s) => s.head.includes('Step 2')), 'semi-automatic: list sums to 900 and names the steps');
+  // pallet mode: default interlocked 45 = layers 8, 7, 8, 7, 8, 7
+  await pgL.goto('http://localhost:4401/pallet-loading-calculator/'); await pgL.evaluate(() => history.replaceState(null, '', location.pathname)); await pgL.reload(); await settleL();
+  L = await info();
+  ok(await mainL() === 45 && L.length === 1 && L[0].layers.join() === '8,7,8,7,8,7' && L[0].soFar === 45, 'pallet: one list of 45 in layers ' + (L[0] && L[0].layers.join()));
+  csv = await csvNow();
+  ok(csv.rows.reduce((t, r) => t + +r[ci('Boxes')], 0) === 45 && csv.head.some((h) => h.includes('back edge')), 'pallet CSV: counts sum to 45, distances from the pallet edges');
+  // print: the loading list is printed, its buttons are not
+  await pgL.emulateMedia({ media: 'print' });
+  ok(await pgL.isVisible('.loadlist table') && !(await pgL.isVisible('[data-llcsv]')), 'print: list shown, CSV button hidden');
+  await pgL.close();
+}
 ok(errs.length === 0, 'no JS errors ' + errs.join(' | '));
 await b.close(); srv.close();
 console.log(fails ? fails + ' failing' : 'planner checks pass'); process.exit(fails ? 1 : 0);

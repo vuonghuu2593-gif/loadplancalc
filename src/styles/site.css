@@ -163,3 +163,6 @@ ul.plain,ol.plain{margin:8px 0 0;padding-left:20px;display:flex;flex-direction:c
 .stickybar .sb-go{font-size:13px;flex:none;opacity:.85}
 @media print{.stickybar{display:none!important}}
 body.has-stickybar{padding-bottom:76px}
+.loadlist{margin-top:18px}.llhead{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;justify-content:space-between}.llhead h2{margin:0}.loadlist>.small{margin:6px 0 0}
+.lltable .llsec th{background:color-mix(in srgb,var(--line) 35%,var(--surface));font-weight:700}.lltable .llsec .small{font-weight:500}.lltable i.sw{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:6px}.llmore{margin-top:10px;width:100%}.lltable th,.lltable td{padding:7px 9px;font-size:14px}.lltable td{white-space:nowrap}.lltable .llsec th{white-space:normal}.llsecin{position:sticky;left:9px;max-width:min(560px,calc(100vw - 58px))}
+@media print{.lltable tr[hidden]{display:table-row!important}.llsecin{position:static;max-width:none}.loadlist .tablebox{overflow:visible}.lltable th,.lltable td{padding:4px 6px;font-size:11px}.loadlist{break-before:auto}.lltable tr{break-inside:avoid}}

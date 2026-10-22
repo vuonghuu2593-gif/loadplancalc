@@ -194,6 +194,20 @@ const presets = mode === 'container' ? (spacePresets || data.containers) : palle
       <tbody data-r="steptable"></tbody>
     </table>
   </div>
+  <section class="loadlist" aria-labelledby="ll-title">
+    <div class="llhead">
+      <h2 id="ll-title">Loading list</h2>
+      <button type="button" class="btn line noprint" data-llcsv>Download loading list (CSV)</button>
+    </div>
+    <p class="small" data-r="llnote"></p>
+    <div class="tablebox">
+      <table class="lltable">
+        <thead><tr><th>Layer</th><th>Box type</th><th>Position</th><th class="num">Boxes</th><th class="num" data-r="llAlong">Along</th><th class="num" data-r="llAcross">Across</th><th class="num">Loaded so far</th></tr></thead>
+        <tbody data-r="lltable"></tbody>
+      </table>
+    </div>
+    <button type="button" class="btn line noprint llmore" data-llmore hidden aria-expanded="false">Show all</button>
+  </section>
   <div class="formula" data-r="steps"></div>
 </div>
 
