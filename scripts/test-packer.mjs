@@ -279,6 +279,25 @@ ok(badF === 0, `25 random "remove some, fill again" plans valid (${badF} bad)`);
     ["Euro 1200 x 805 one high, 53' Composite", comp, { ...eur, w: 805 }, 39],
   ]) run(nm, C, [it], (r) => ok(r.totals.n === want, `${want} pallets (got ${r.totals.n})`));
 }
+// Rental box trucks (/box-truck-dimensions/, box-trucks.json): inside sizes as U-Haul and Penske print them, U-Haul's door opening.
+// U-Haul 26' 314 x 97 x 99 in, door 93 x 82 in: 48 x 40 in with the 48 in side across, two side by side (96 <= 97 in),
+// 7 rows of 40 in (280 <= 314; 8 rows = 320) = 14. Euro in 7975.6 x 2463.8 mm: 8 rows of two crosswise (6400 mm) + 1 row of
+// three lengthwise (1200 mm; 3 x 800 = 2400 <= 2463.8) = 19 (9 rows of two = 18). U-Haul 15' 180 x 92 in (96 > 92): one lane
+// 48 in wide with 4 x 40 = 160 in + one lane 40 in wide with 3 x 48 = 144 in (48 + 40 = 88 <= 92) = 7. Penske 12' 144 x 78 in
+// (78 < 80: one lane) 3 x 48 = 144 -> 3. 600 x 400 x 400 mm in the U-Haul 26': 13 x 6 x 6 = 468 (all pass the 2362.2 x 2082.8 door).
+// Max load 12,859 lb with 1,000 lb pallets: 12 (13 x 1,000 lb = 13,000 lb is over).
+{
+  const IN = 25.4, LB = 0.45359237;
+  const u26 = { L: 314 * IN, W: 97 * IN, H: 99 * IN, doorW: 93 * IN, doorH: 82 * IN }, u15 = { L: 180 * IN, W: 92 * IN, H: 86 * IN, doorW: 87 * IN, doorH: 77 * IN };
+  const p12 = { L: 144 * IN, W: 78 * IN, H: 73 * IN };
+  const p48 = { l: 48 * IN, w: 40 * IN, h: 50 * IN, weight: 0, qty: 500, rotation: 'upright', stackable: false };
+  for (const [nm, C, it, want] of [
+    ["48 x 40 in one high, U-Haul 26' truck", u26, p48, 14], ["Euro pallets one high, U-Haul 26' truck", u26, { ...p48, l: 1200, w: 800 }, 19],
+    ["48 x 40 in one high, U-Haul 15' truck (92 in wide)", u15, p48, 7], ["48 x 40 in one high, Penske 12' truck (78 in wide)", p12, p48, 3],
+    ["600 x 400 x 400 mm cartons, U-Haul 26' truck with door", u26, { l: 600, w: 400, h: 400, weight: 0, qty: 5000, rotation: 'any', stackable: true }, 468],
+    ["48 x 40 in at 1,000 lb, U-Haul 26' max load 12,859 lb", { ...u26, maxWeight: 12859 * LB }, { ...p48, weight: 1000 * LB }, 12],
+  ]) run(nm, C, [it], (r) => ok(r.totals.n === want, `${want} (got ${r.totals.n})`));
+}
 
 // Interlocked layers (stackPack with stack: 'interlock'). Independent count of tied boxes: a box above the
 // first layer that rests on two or more boxes below, each under at least 10% of its base.

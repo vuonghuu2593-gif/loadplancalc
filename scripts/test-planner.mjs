@@ -331,6 +331,29 @@ await pg.screenshot({ path: process.env.SHOT || '/tmp/semi.png', fullPage: true 
   ok(await pg8.inputValue('[data-f="L"]') === '1600.2' && await pg8.inputValue('[data-f="W"]') === '256.5' && await pg8.inputValue('[data-f="doorW"]') === '' && await pg8.inputValue('[data-f="maxWeight"]') === '' && await pg8.$eval('#r-main', (e) => e.textContent.trim()) === '900 of 900' && await pg8.$eval('[data-r="wtLeft"]', (e) => e.textContent.trim()) === 'No limit set', 'container calculator: HY-Cube trailer preset, door and payload empty, 900 of 900');
   await pg8.selectOption('[data-f="preset"]', '40hc'); await pg8.waitForTimeout(400);
   ok(await pg8.inputValue('[data-f="doorW"]') === '234' && await pg8.inputValue('[data-f="maxWeight"]') === '28600', 'back to the 40\' HC: door and payload filled again');
+  // rental box trucks (box-trucks.json): U-Haul fills door and max load, Penske only the "up to" load capacity
+  const bw = () => pg8.waitForFunction(() => !document.querySelector('[data-result]').classList.contains('busy'), null, { timeout: 15000 });
+  await pg8.click('[data-units="imperial"]'); await pg8.selectOption('[data-f="preset"]', 'uhaul-26'); await pg8.waitForTimeout(400); await bw();
+  const V8 = (s) => pg8.inputValue(s);
+  ok(await V8('[data-f="L"]') === '314' && await V8('[data-f="W"]') === '97' && await V8('[data-f="H"]') === '99' && await V8('[data-f="doorW"]') === '93' && await V8('[data-f="doorH"]') === '82' && await V8('[data-f="maxWeight"]') === '12859', 'U-Haul 26\' preset: 314 x 97 x 99 in, door 93 x 82 in, max load 12,859 lb');
+  ok((await pg8.$eval('[data-f="srcnote"]', (e) => e.textContent)).includes('U-Haul') && !(await pg8.$eval('[data-r="warn"]', (e) => e.textContent)).includes('failed its own check'), 'U-Haul source note, plan passes the check');
+  // hand: 48 in side across, 2 x 48 = 96 <= 97 in; 7 rows x 40 = 280 <= 314 in -> 14 of 20 pallets one high
+  await pg8.click('.boxcard:nth-child(2) [data-del]');
+  for (const [k, v] of [['l', '48'], ['w', '40'], ['h', '50'], ['weight', '500'], ['qty', '20']]) await pg8.fill(`.boxcard [data-b="${k}"]`, v);
+  await pg8.selectOption('.boxcard [data-b="rotation"]', 'upright'); await pg8.uncheck('.boxcard [data-b="stackable"]'); await pg8.waitForTimeout(400); await bw();
+  ok(await pg8.$eval('#r-main', (e) => e.textContent.trim()) === '14 of 20', 'U-Haul 26\': 14 of 20 pallets of 48 x 40 in (' + await pg8.$eval('#r-main', (e) => e.textContent.trim()) + ')');
+  // weight: 14 x 1,000 lb = 14,000 > 12,859 lb -> 12 (12 x 1,000 = 12,000; 13 would be 13,000)
+  await pg8.fill('.boxcard [data-b="weight"]', '1000'); await pg8.waitForTimeout(400); await bw();
+  ok(await pg8.$eval('#r-main', (e) => e.textContent.trim()) === '12 of 20', 'U-Haul 26\' with 1,000 lb pallets: max load stops at 12 (' + await pg8.$eval('#r-main', (e) => e.textContent.trim()) + ')');
+  await pg8.selectOption('[data-f="preset"]', 'penske-12'); await pg8.waitForTimeout(400); await bw();
+  // hand: 78 in wide < 2 x 40 = 80 -> one lane, 3 x 48 = 144 <= 144 in -> 3 (3 x 1,000 = 3,000 <= 3,100 lb)
+  ok(await V8('[data-f="L"]') === '144' && await V8('[data-f="W"]') === '78' && await V8('[data-f="doorW"]') === '' && await V8('[data-f="maxWeight"]') === '3100' && await pg8.$eval('#r-main', (e) => e.textContent.trim()) === '3 of 20', 'Penske 12\' preset: 144 x 78 in, no door, up to 3,100 lb, 3 pallets (' + await pg8.$eval('#r-main', (e) => e.textContent.trim()) + ')');
+  for (let i = 0; i < 3; i++) { await pg8.click('[data-units="metric"]'); await pg8.click('[data-units="imperial"]'); }
+  await pg8.waitForTimeout(300); await bw();
+  ok(await V8('[data-f="L"]') === '144' && await V8('[data-f="maxWeight"]') === '3100' && await pg8.$eval('#r-main', (e) => e.textContent.trim()) === '3 of 20', 'Penske 12\': no drift after 3 unit round trips');
+  await pg8.click('[data-units="metric"]'); await pg8.waitForTimeout(300);
+  ok(await V8('[data-f="L"]') === '365.8' && await V8('[data-f="W"]') === '198.1', 'Penske 12\' in metric: 144 x 78 in = 365.76 x 198.12 cm, shown 365.8 x 198.1 (' + await V8('[data-f="L"]') + ')');
+  await pg8.evaluate(() => localStorage.removeItem('lpc-units'));
   await pg8.close();
 }
 // CBM calculator: defaults (hand: 0.6·0.4·0.4·400 + 0.5·0.3·0.3·500 = 38.4 + 22.5 = 60.9 m³ = 2,150.66 ft³),

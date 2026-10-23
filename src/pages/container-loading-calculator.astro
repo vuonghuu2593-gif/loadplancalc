@@ -3,6 +3,7 @@ import ToolPage from '../layouts/ToolPage.astro';
 import LoadPlanner from '../components/LoadPlanner.astro';
 import data from '../data/containers.json';
 import { trailerPresets } from '../data/trailers.js';
+import { truckPresets } from '../data/box-trucks.js';
 const hc = data.containers.find((c) => c.id === '40hc')!;
 const defaults = {
   cont: { preset: hc.id, L: hc.L, W: hc.W, H: hc.H, doorW: hc.doorW, doorH: hc.doorH, maxWeight: hc.payload },
@@ -21,7 +22,7 @@ const n = (v: number) => v.toLocaleString('en-US');
   name="Container loading calculator"
   lede={`Enter your carton sizes, weights and quantities to see how many fit in a 20', 40', 40' high cube or 45' container, with a 3D plan you can step through. For example, 600 × 400 × 400 mm cartons: <strong>660 fit in a 40' high cube</strong> (inside ${n(hc.L)} × ${n(hc.W)} × ${n(hc.H)} mm) — 30 rows along the length, each row 22 cartons: three columns of six lying 600 mm across plus one column of four standing 600 mm tall.`}
 >
-  <LoadPlanner mode="container" defaults={defaults} spacePresets={[...data.containers, ...trailerPresets]} presetLabel="Container or trailer" />
+  <LoadPlanner mode="container" defaults={defaults} spacePresets={[...data.containers, ...trailerPresets, ...truckPresets]} presetLabel="Container or trailer" />
 
   <section class="prose">
     <h2>How the calculator works</h2>
@@ -106,6 +107,7 @@ const n = (v: number) => v.toLocaleString('en-US');
     </div>
     <p class="small">Source: Hapag-Lloyd container specification pages (linked), checked {data.source.checked}. More detail on <a href="/shipping-container-dimensions/">shipping container dimensions</a>; pallet footprints and heights on <a href="/pallet-sizes/">standard pallet sizes</a>. To plan the cartons on each pallet first, use the <a href="/pallet-loading-calculator/">pallet loading calculator</a>; for whole pallets, see <a href="/how-many-pallets-fit-in-a-container/">how many pallets fit in a container</a>. For the total volume of your cartons in cubic metres or cubic feet, use the <a href="/cbm-calculator/">CBM calculator</a>.</p>
     <p>The list also has three 53' dry vans with the interior sizes Hyundai Translead publishes ({trailerPresets.map((t) => t.name.replace("53' dry van, Hyundai Translead ", '')).join(', ')}). Their pages give no door opening or payload, so those fields stay empty (no door check, no weight limit) until you enter your own. Pallet counts for these trailers are on <a href="/how-many-pallets-fit-in-a-53-foot-trailer/">how many pallets fit in a 53 ft trailer</a>, and the inside sizes of other 53' vans and reefers on <a href="/53-foot-trailer-dimensions/">53 ft trailer dimensions</a>.</p>
+    <p>At the end of the list are eight rental box trucks: U-Haul's 10', 15', 20' and 26' and Penske's 12', 16', 22' and 26' trucks, with the inside size and max load (payload) each fleet prints. U-Haul also prints the rear door opening, so its trucks fill in the door width and height and every box is checked against them; Penske prints none, so those fields stay empty. Penske gives its sizes as “up to” figures and both fleets call their measurements approximate: measure your truck if the plan is tight. All sizes, and how many pallets and cartons fit in each, are on <a href="/box-truck-dimensions/">box truck dimensions</a>.</p>
   </section>
 
   <section class="prose">
@@ -127,6 +129,7 @@ const n = (v: number) => v.toLocaleString('en-US');
       <a href="/how-many-pallets-fit-in-a-container/">Pallets in a container</a>
       <a href="/how-many-pallets-fit-in-a-53-foot-trailer/">Pallets in a 53 ft trailer</a>
       <a href="/53-foot-trailer-dimensions/">53 ft trailer dimensions</a>
+      <a href="/box-truck-dimensions/">Box truck dimensions</a>
       <a href="/cbm-calculator/">CBM calculator</a>
       <a href="/dimensional-weight-calculator/">Dimensional weight calculator</a>
       <a href="/pallet-sizes/">Standard pallet sizes</a>
