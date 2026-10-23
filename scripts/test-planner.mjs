@@ -753,5 +753,37 @@ ok(errs.length === 0, 'no JS errors ' + errs.join(' | '));
   ok(e4.length === 0, 'stacking limits: no JS errors ' + e4.join(' | '));
   await pl.close();
 }
+// Cartons on pallets first (2026-10-23). Hand-checked: 40 cm cubes, 10 kg, this side up, x100 on a Euro pallet
+// (1200 x 800, 144 mm, 25 kg) up to 1,800 mm: 3 x 2 = 6 per layer, (1800 - 144) / 400 = 4 layers -> 24 per pallet;
+// 100 = 4 full + 1 of 4; full 144 + 1,600 = 1,744 mm and 24 x 10 + 25 = 265 kg; last 544 mm, 65 kg.
+{
+  const pz = await b.newPage({ viewport: { width: 390, height: 844 }, locale: 'en-GB' }); const e5 = []; pz.on('pageerror', (e) => e5.push(e.message));
+  const T = (sel) => pz.$eval(sel, (e) => e.textContent.trim());
+  const settleZ = async () => { await pz.waitForTimeout(350); await pz.waitForFunction(() => !document.querySelector('[data-result]').classList.contains('busy'), null, { timeout: 20000 }); };
+  await pz.goto('http://localhost:4401/container-loading-calculator/'); await settleZ();
+  await pz.click('.boxcard:nth-child(2) [data-del]');
+  for (const [k, v] of [['l', '40'], ['w', '40'], ['h', '40'], ['weight', '10'], ['qty', '100']]) await pz.fill(`.boxcard [data-b="${k}"]`, v);
+  await pz.selectOption('.boxcard [data-b="rotation"]', 'upright'); await settleZ();
+  ok(await T('[data-pzsum]') === 'Off: the cartons are loaded loose', 'pallets first: off by default');
+  await pz.click('[data-pzgo]');
+  await pz.waitForFunction(() => !document.querySelector('[data-pzon]').hidden, null, { timeout: 30000 }); await settleZ();
+  const rows = await pz.$$eval('[data-pztable] tr', (r) => r.map((x) => [...x.children].map((c) => c.textContent.trim())));
+  ok(rows.length === 1 && rows[0][1] === '24' && rows[0][2] === '4 + 1' && rows[0][3] === '174.4 / 54.4' && rows[0][4] === '265 / 65', 'Euro pallet: 24 per pallet, 4 + 1, 174.4 / 54.4 cm, 265 / 65 kg (' + rows[0].join(' | ') + ')');
+  const cards = await pz.$$eval('.boxcard', (l) => l.map((c) => ['qty', 'l', 'w', 'h', 'weight'].map((k) => c.querySelector(`[data-b="${k}"]`).value).join(',')));
+  ok(cards.join(' ; ') === '4,120,80,174.4,265 ; 1,120,80,54.4,65', 'box list holds the loaded pallets (' + cards.join(' ; ') + ')');
+  ok(await T('#r-main') === '5 of 5' && (await T('[data-pztxt]')).startsWith('Your 100 cartons are on 5 pallets') && await T('[data-pzsum]') === 'On: 5 pallets', 'the plan loads 5 of 5 pallets');
+  const link = pz.url();
+  const pz2 = await b.newPage({ viewport: { width: 390, height: 844 } }); pz2.on('pageerror', (e) => e5.push(e.message));
+  await pz2.goto(link); await pz2.waitForTimeout(500); await pz2.waitForFunction(() => document.querySelector('#r-main').textContent.trim() !== '–', null, { timeout: 20000 }); await pz2.waitForTimeout(400);
+  ok(await pz2.$eval('#r-main', (e) => e.textContent.trim()) === '5 of 5' && await pz2.isVisible('[data-pzon]'), 'share link keeps the pallets and the note');
+  await pz2.click('[data-pzoff]'); await pz2.waitForTimeout(1500);
+  ok(await pz2.$eval('#r-main', (e) => e.textContent.trim()) === '100 of 100' && await pz2.$$eval('.boxcard', (l) => l.length) === 1 && await pz2.inputValue('.boxcard [data-b="qty"]') === '100', 'Back to the cartons: 100 of 100, one carton type');
+  await pz2.close();
+  await pz.click('[data-units="imperial"]'); await settleZ();
+  ok((await pz.$$eval('[data-pztable] tr td', (l) => l.map((x) => x.textContent.trim()))).includes('68.66 / 21.42'), 'pallet heights in inches (1,744 mm = 68.66 in)');
+  await pz.click('[data-units="metric"]'); await settleZ();
+  ok(e5.length === 0, 'pallets first: no JS errors ' + e5.join(' | '));
+  await pz.close();
+}
 await b.close(); srv.close();
 console.log(fails ? fails + ' failing' : 'planner checks pass'); process.exit(fails ? 1 : 0);

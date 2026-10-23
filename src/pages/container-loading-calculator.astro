@@ -4,6 +4,7 @@ import LoadPlanner from '../components/LoadPlanner.astro';
 import data from '../data/containers.json';
 import { trailerPresets } from '../data/trailers.js';
 import { truckPresets } from '../data/box-trucks.js';
+import { palletPresets } from '../data/pallets.js';
 const hc = data.containers.find((c) => c.id === '40hc')!;
 const defaults = {
   cont: { preset: hc.id, L: hc.L, W: hc.W, H: hc.H, doorW: hc.doorW, doorH: hc.doorH, maxWeight: hc.payload },
@@ -22,7 +23,7 @@ const n = (v: number) => v.toLocaleString('en-US');
   name="Container loading calculator"
   lede={`Enter your carton sizes, weights and quantities to see how many fit in a 20', 40', 40' high cube or 45' container, with a 3D plan you can step through. For example, 600 × 400 × 400 mm cartons: <strong>660 fit in a 40' high cube</strong> (inside ${n(hc.L)} × ${n(hc.W)} × ${n(hc.H)} mm) — 30 rows along the length, each row 22 cartons: three columns of six lying 600 mm across plus one column of four standing 600 mm tall.`}
 >
-  <LoadPlanner mode="container" defaults={defaults} spacePresets={[...data.containers, ...trailerPresets, ...truckPresets]} presetLabel="Container or trailer" />
+  <LoadPlanner mode="container" defaults={defaults} spacePresets={[...data.containers, ...trailerPresets, ...truckPresets]} presetLabel="Container or trailer" palletize={palletPresets} />
 
   <section class="prose">
     <h2>How the calculator works</h2>

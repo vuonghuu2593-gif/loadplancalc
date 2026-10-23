@@ -107,6 +107,7 @@ export function initPlanner(root) {
     $('[data-moresum]').textContent = `${state.mode === 'semi' ? `Semi-automatic (${state.steps.length} step${state.steps.length === 1 ? '' : 's'})` : 'Fully automatic'} · ${il ? 'interlocked' : 'column stacks'}${il && state.support < 1 ? ` (${fmt(state.support * 100)}%)` : ''}${state.priority ? ' · list order' : ''}`;
   }
   function paintBoxes() {
+    paintPzOn();
     const host = $('[data-boxes]'); host.innerHTML = '';
     state.items.forEach((it, i) => {
       const node = tpl.content.firstElementChild.cloneNode(true);
@@ -258,7 +259,7 @@ export function initPlanner(root) {
   });
   root.querySelectorAll('[data-units]').forEach((b) => b.addEventListener('click', () => {
     units = b.dataset.units; try { localStorage.setItem('lpc-units', units); } catch { /* ignore */ }
-    paintUnits(); paintContainer(); paintBoxes(); paintMode(); render(ed ? edView() : plans[shown] || last); paintFit();
+    paintUnits(); paintContainer(); paintBoxes(); paintMode(); paintPz(); render(ed ? edView() : plans[shown] || last); paintFit();
   }));
   root.querySelectorAll('[data-mode]').forEach((b) => b.addEventListener('click', () => {
     state.mode = b.dataset.mode;
@@ -292,7 +293,7 @@ export function initPlanner(root) {
     if (!res.items.length) {
       lines.push(`Nothing was imported from ${esc(source)}: no row had a length, width and height. Check that the first sheet has a header row (Name, Length, Width, Height, Weight, Quantity) or use the template.`);
     } else {
-      state.items = res.items;
+      state.items = res.items; state.cartons = null; state.pzOn = null;
       state.steps = state.mode === 'semi' ? state.items.map((_, i) => ({ item: i, qty: null, orient: null, newSection: false })) : [];
       const total = res.items.reduce((t, it) => t + it.qty, 0);
       lines.push(`Imported ${res.items.length} box type${res.items.length === 1 ? '' : 's'} (${fmt(total)} boxes) from ${esc(source)}: ${res.items.map((it) => `${esc(it.name)} × ${fmt(it.qty)}`).join(', ')}. Check the sizes below.`);
@@ -1030,6 +1031,107 @@ export function initPlanner(root) {
     catch { R('shareMsg').textContent = 'Copy the address bar to share this plan.'; }
   });
   $('[data-print]').addEventListener('click', () => window.print());
+
+  // ---------- cartons on pallets first (container mode): each box type is built into pallets in the worker
+  // (pallet planner, same stacking pattern and limits), then the loaded pallets become the box list ----------
+  const pzPresets = JSON.parse(root.dataset.pzpresets || '[]');
+  const pzBox = $('[data-pz]');
+  let pzWorker = null, pzId = 0;
+  if (pzBox) {
+    const ex = pzPresets[0];
+    if (!state.pzs || typeof state.pzs !== 'object') state.pzs = { preset: ex.id, L: ex.L, W: ex.W, palletH: ex.H, H: 1800, palletWt: ex.weightKg, maxWeight: ex.maxWeight, stack2: false };
+  }
+  const P = (n) => root.querySelector(`[data-pzf="${n}"]`);
+  function paintPz() {
+    if (!pzBox) return;
+    const z = state.pzs, u = U[units], p = pzPresets.find((x) => x.id === z.preset);
+    P('preset').value = p ? p.id : 'custom';
+    for (const k of ['L', 'W', 'palletH', 'H']) P(k).value = showLen(z[k]);
+    P('palletWt').value = z.palletWt == null ? '' : showWt(z.palletWt);
+    P('maxWeight').value = z.maxWeight ? showWt(z.maxWeight) : '';
+    P('stack2').checked = !!z.stack2;
+    $('[data-pznote]').innerHTML = (p ? `Pallet size, height and safe working load from <a href="${p.url}" rel="noopener" target="_blank">${esc(p.source)}</a>${p.weightKg ? `; the pallet weight is ${esc(p.source)}'s approximate figure` : `; ${esc(p.source)} prints no pallet weight there, so enter your own`}. ` : 'Enter your pallet size, height, own weight and max load. ')
+      + `The max height is your own limit (racking, door, customer or warehouse rule); ${fmt(u.fromMM(1800), units === 'metric' ? 0 : 1)} ${u.len} is only an example.`
+      + (z.stack2 ? ` Two high, each loaded pallet may carry one more on top${p && p.stackNote ? `; ${esc(p.source)}: “${esc(p.stackNote)}”` : ''}. Check your cartons can take it.` : '');
+    $('[data-pzsum]').textContent = state.pzOn ? `On: ${fmt(state.pzOn.pallets)} pallets` : 'Off: the cartons are loaded loose';
+  }
+  function paintPzOn() {
+    const on = $('[data-pzon]'); if (!on) return;
+    const z = state.pzOn; on.hidden = !z || !Array.isArray(state.cartons);
+    if (on.hidden) return;
+    const u = U[units]; const dp = units === 'metric' ? 1 : 2;
+    $('[data-pzhh]').textContent = `Loaded height (${u.len})`; $('[data-pzwh]').textContent = `Gross weight (${u.wt})`;
+    $('[data-pztxt]').innerHTML = `Your ${fmt(z.cartons)} cartons are on <strong>${fmt(z.pallets)} pallets</strong> (${esc(z.palletName)}, at most ${fmt(u.fromMM(z.H), dp)} ${u.len} high including the pallet${z.stack2 ? ', two high allowed' : ''}). The box list below now holds the loaded pallets, and the plan loads them.${z.loose ? ` ${esc(z.loose)} could not go on this pallet and stay${z.looseN === 1 ? 's' : ''} loose.` : ''}${z.merged ? ' The last part pallets are counted as full pallets to keep within 10 box types.' : ''}`;
+    $('[data-pztable]').innerHTML = z.rows.map((r) => `<tr><td>${esc(r.name)}${r.tihi ? ` <span class="small">(${esc(r.tihi)})</span>` : ''}</td><td class="num">${r.per ? fmt(r.per) : '–'}</td><td class="num">${r.per ? r.desc : 'loose'}</td><td class="num">${r.per ? r.h.map((h) => fmt(u.fromMM(h), dp)).join(' / ') : '–'}</td><td class="num">${r.per ? r.w.map((w) => fmt(u.fromKG(w), 0)).join(' / ') : '–'}</td></tr>`).join('');
+  }
+  if (pzBox) {
+    pzBox.addEventListener('input', (e) => {
+      const t = e.target; const k = t.dataset.pzf; if (!k) return; const z = state.pzs;
+      if (k === 'stack2') z.stack2 = t.checked;
+      else if (k === 'palletWt') z.palletWt = t.value.trim() === '' ? null : readWt(t.value);
+      else if (k === 'maxWeight') z.maxWeight = t.value.trim() === '' ? 0 : readWt(t.value) ?? 0;
+      else if (k !== 'preset') { const v = readLen(t.value); if (v !== null) z[k] = v; if (['L', 'W', 'palletH'].includes(k)) { z.preset = 'custom'; P('preset').value = 'custom'; } }
+      if (k === 'stack2') paintPz(); else $('[data-pzsum]').textContent = state.pzOn ? `On: ${fmt(state.pzOn.pallets)} pallets` : 'Off: the cartons are loaded loose';
+      writeHash();
+    });
+    pzBox.addEventListener('change', (e) => {
+      if (e.target.dataset.pzf !== 'preset') return;
+      const p = pzPresets.find((x) => x.id === e.target.value);
+      if (p) Object.assign(state.pzs, { preset: p.id, L: p.L, W: p.W, palletH: p.H, palletWt: p.weightKg, maxWeight: p.maxWeight }); else state.pzs.preset = 'custom';
+      paintPz(); writeHash();
+    });
+    $('[data-pzgo]').addEventListener('click', () => {
+      const z = state.pzs; const cartons = Array.isArray(state.cartons) ? state.cartons : state.items;
+      if (!(z.L > 0 && z.W > 0 && z.H > (z.palletH || 0))) { $('[data-pzmsg]').textContent = 'Enter the pallet size and a max height above the pallet height.'; return; }
+      $('[data-pzmsg]').textContent = 'Building the pallets…'; $('[data-pzgo]').disabled = true;
+      if (!pzWorker) {
+        pzWorker = new Worker(new URL('./pack-worker.js', import.meta.url), { type: 'module' });
+        pzWorker.onmessage = (ev) => { if (ev.data.id === pzId) pzDone(ev.data.out); };
+      }
+      const ms = state.stack === 'interlock' ? state.support : 1;
+      const items = cartons.map((it) => ({ l: it.l, w: it.w, h: it.h, weight: it.weight, qty: it.qty, rotation: it.rotation, orients: it.rotation === 'custom' ? allowedIdx(it) : undefined, stackable: it.stackable !== false, maxOnTop: it.maxOnTop ?? null, maxLoad: it.maxLoad ?? null }));
+      pzWorker.postMessage({ id: ++pzId, kind: 'palletize', container: { L: z.L, W: z.W, H: z.H - (z.palletH || 0), maxWeight: z.maxWeight || 0, minSupport: ms }, items, opts: { stack: state.stack, timeMs: 300 } });
+      pzBox.dataset.cartons = JSON.stringify(cartons);
+    });
+    function pzDone(out) {
+      $('[data-pzgo]').disabled = false;
+      const z = state.pzs; const cartons = JSON.parse(pzBox.dataset.cartons || '[]');
+      const pw = +z.palletWt || 0, ph = z.palletH || 0;
+      const p = pzPresets.find((x) => x.id === z.preset);
+      const pallet = (name, n, b) => ({ name: name.slice(0, 40), l: z.L, w: z.W, h: ph + b.h, weight: b.w + pw, qty: n, rotation: 'upright', stackable: !!z.stack2, maxOnTop: z.stack2 ? 1 : null, maxLoad: null });
+      let items = [], rows = [], loose = [], looseN = 0, pallets = 0, merged = false;
+      cartons.forEach((c, k) => {
+        const r = out[k]; const nm = c.name || `Box ${k + 1}`;
+        if (!r || !r.per) { if ((c.qty || 0) > 0) { items.push({ ...c }); loose.push(`“${nm}”`); looseN += c.qty; } rows.push({ name: nm, per: 0 }); return; }
+        if (r.single) { items.push(pallet(`${nm} · 1 pallet of ${r.single.n}`, 1, r.single)); pallets += 1; rows.push({ name: nm, per: r.per, tihi: r.tihi, desc: '1', h: [ph + r.single.h], w: [r.single.w + pw] }); return; }
+        items.push({ ...pallet(`${nm} · ${r.per} per pallet`, r.full, r.f), _k: k });
+        pallets += r.full;
+        if (r.last) { items.push({ ...pallet(`${nm} · last pallet, ${r.last.n}`, 1, r.last), _last: true }); pallets += 1; }
+        rows.push({ name: nm, per: r.per, tihi: r.tihi, desc: r.last ? `${fmt(r.full)} + 1` : fmt(r.full), h: r.last ? [ph + r.f.h, ph + r.last.h] : [ph + r.f.h], w: r.last ? [r.f.w + pw, r.last.w + pw] : [r.f.w + pw] });
+      });
+      if (items.length > 10) { // keep within 10 box types: part pallets counted as full ones (safe: as tall and heavy)
+        merged = true;
+        items = items.filter((it) => !it._last);
+        cartons.forEach((c, k) => { const r = out[k]; if (r && r.per && r.last) { const f = items.find((it) => it._k === k); if (f) f.qty += 1; } });
+        items = items.slice(0, 10);
+      }
+      items.forEach((it) => { delete it._k; delete it._last; });
+      if (!items.length) { $('[data-pzmsg]').textContent = 'No box type fits on this pallet within the height and load limits.'; return; }
+      state.cartons = cartons; state.items = items;
+      state.pzOn = { pallets, cartons: cartons.reduce((t, c) => t + (c.qty || 0), 0), palletName: p ? p.name : 'custom pallet', H: z.H, stack2: !!z.stack2, rows, loose: loose.join(', '), looseN, merged };
+      state.steps = state.mode === 'semi' ? state.items.map((_, i) => ({ item: i, qty: null, orient: null, newSection: false })) : [];
+      $('[data-pzmsg]').textContent = '';
+      paintBoxes(); paintMode(); paintPz(); schedule();
+      $('[data-pzon]').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+    $('[data-pzoff]').addEventListener('click', () => {
+      if (!Array.isArray(state.cartons)) return;
+      state.items = state.cartons; state.cartons = null; state.pzOn = null;
+      state.steps = state.mode === 'semi' ? state.items.map((_, i) => ({ item: i, qty: null, orient: null, newSection: false })) : [];
+      paintBoxes(); paintMode(); paintPz(); schedule();
+    });
+    paintPz();
+  }
 
   // ---------- saved plans: kept in this browser (localStorage), every planner page lists them all ----------
   const SAVE_KEY = 'lpc-plans', SAVE_MAX = 50;

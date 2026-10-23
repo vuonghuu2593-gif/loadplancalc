@@ -7,11 +7,11 @@
 // e.g. 53' trailers from trailers.json ({ id, name, L, W, H, doorW, doorH, payload, url, source, note }).
 // spaceLabel / presetLabel rename the form heading and the preset list ("Trailer", "Trailer model").
 import data from '../data/containers.json';
-interface Props { mode?: 'container' | 'pallet'; defaults: Record<string, unknown>; palletPresets?: unknown[]; boxPresets?: unknown[]; spacePresets?: unknown[]; spaceLabel?: string; presetLabel?: string }
-const { mode = 'container', defaults, palletPresets = [], boxPresets = [], spacePresets, spaceLabel, presetLabel } = Astro.props;
+interface Props { mode?: 'container' | 'pallet'; defaults: Record<string, unknown>; palletPresets?: unknown[]; boxPresets?: unknown[]; spacePresets?: unknown[]; spaceLabel?: string; presetLabel?: string; palletize?: unknown[] }
+const { mode = 'container', defaults, palletPresets = [], boxPresets = [], spacePresets, spaceLabel, presetLabel, palletize = [] } = Astro.props;
 const presets = mode === 'container' ? (spacePresets || data.containers) : palletPresets;
 ---
-<div class="planner" data-mode={mode} data-defaults={JSON.stringify(defaults)} data-presets={JSON.stringify(presets)} data-boxpresets={JSON.stringify(boxPresets)}>
+<div class="planner" data-mode={mode} data-defaults={JSON.stringify(defaults)} data-presets={JSON.stringify(presets)} data-boxpresets={JSON.stringify(boxPresets)} data-pzpresets={JSON.stringify(palletize)}>
   <form class="panel noprint" autocomplete="off" onsubmit="return false">
     <div class="viewbar">
       <h2 style="flex:1 1 auto">{spaceLabel || (mode === 'container' ? 'Container' : 'Pallet')}</h2>
@@ -57,6 +57,11 @@ const presets = mode === 'container' ? (spacePresets || data.containers) : palle
     </>}
     <p class="small" data-f="srcnote" style="margin:0"></p>
     <h2>Boxes</h2>
+    {palletize.length > 0 && <div class="pzon" data-pzon hidden>
+      <p data-pztxt></p>
+      <div class="tablebox"><table><thead><tr><th>Box type</th><th class="num">Per pallet</th><th class="num">Pallets</th><th class="num" data-pzhh>Loaded height</th><th class="num" data-pzwh>Gross weight</th></tr></thead><tbody data-pztable></tbody></table></div>
+      <button type="button" class="btn line" data-pzoff>Back to the cartons</button>
+    </div>}
     <div class="boxes" data-boxes></div>
     <div class="addrow">
       <button type="button" class="btn line" data-add>+ Add box type</button>
@@ -72,6 +77,30 @@ const presets = mode === 'container' ? (spacePresets || data.containers) : palle
     </div>
     <p class="small" style="margin:0">Columns: Name, Length, Width, Height, Weight, Quantity, This side up, Stackable, and optionally Max boxes on top and Max weight on top (template: <a href="/load-plan-template.xlsx" download>Excel</a> · <a href="/load-plan-template.csv" download>CSV</a>). Importing replaces the box list; the file stays in your browser.</p>
     <div class="importmsg" data-importmsg role="status" hidden></div>
+    {palletize.length > 0 && <details class="more pz" data-pz>
+      <summary><span class="sumk">Put the cartons on pallets first</span><span class="sumv" data-pzsum>Off: the cartons are loaded loose</span></summary>
+      <div class="morebody">
+        <p class="small" style="margin:0">Builds pallets from the box list above (one box type per pallet, with the stacking pattern and stacking limits you chose), then loads the loaded pallets into the container. The box list becomes a list of pallets; “Back to the cartons” brings your cartons back.</p>
+        <label>Pallet<select data-pzf="preset">
+          {palletize.map((p: any) => <option value={p.id}>{p.name}</option>)}
+          <option value="custom">Custom size</option>
+        </select></label>
+        <div class="row3">
+          <label><span>Pallet length <span class="small" data-ul></span></span><input data-pzf="L" inputmode="decimal"></label>
+          <label><span>Pallet width <span class="small" data-ul></span></span><input data-pzf="W" inputmode="decimal"></label>
+          <label><span>Pallet height <span class="small" data-ul></span></span><input data-pzf="palletH" inputmode="decimal"></label>
+        </div>
+        <div class="row3">
+          <label><span>Max height incl. pallet <span class="small" data-ul></span></span><input data-pzf="H" inputmode="decimal"></label>
+          <label><span>Pallet weight <span class="small" data-uw></span></span><input data-pzf="palletWt" inputmode="decimal" placeholder="0"></label>
+          <label><span>Max load per pallet <span class="small" data-uw></span></span><input data-pzf="maxWeight" inputmode="decimal" placeholder="No limit"></label>
+        </div>
+        <label class="check"><input type="checkbox" data-pzf="stack2"> Loaded pallets may stand on each other (two high)</label>
+        <p class="small" data-pznote style="margin:0"></p>
+        <button type="button" class="btn" data-pzgo>Put on pallets and load the pallets</button>
+        <p class="small" data-pzmsg role="status" style="margin:0"></p>
+      </div>
+    </details>}
     <details class="more" data-more>
       <summary><span class="sumk">More options</span><span class="sumv" data-moresum></span></summary>
       <div class="morebody">
