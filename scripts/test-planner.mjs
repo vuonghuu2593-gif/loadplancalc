@@ -141,6 +141,37 @@ await pg.screenshot({ path: process.env.SHOT || '/tmp/semi.png', fullPage: true 
   ok(await main() === '45 of 100' && await T('stack') === 'Interlocked' && (await T('stackSub')).includes('Column stacks would load 3 more'), 'pallet default interlocked: 45 of 100, 3 fewer than columns (' + await main() + ' / ' + await T('stackSub') + ')');
   ok(await T('tihi') === '8 / 7 × 6' && (await T('tihiSub')).includes('45 per pallet'), 'interlocked Ti-Hi 8 / 7 × 6 (' + await T('tihi') + ')');
   ok(await T('pallets') === '3' && await T('palletsSub') === '2 full of 45 + 1 with 10' && await T('wt') === '540 kg' && !(await T('warn')).includes('failed its own check'), 'pallets for 100: 2 full of 45 + 1 with 10, 540 kg, checked (' + await T('palletsSub') + ')');
+  // Gross weight incl. pallet = goods + the pallet's own weight (EPAL: approx. 25 kg): 45 x 12 = 540 kg + 25 = 565 kg
+  ok(await V('[data-f="palletWt"]') === '25' && await T('gross') === '565 kg' && await T('grossSub') === '540 kg boxes + 25 kg pallet', 'gross incl. pallet: 540 + 25 = 565 kg (' + await T('gross') + ' / ' + await T('grossSub') + ')');
+  ok((await T('steps')).includes('Gross weight incl. pallet = 540 kg boxes + 25 kg pallet = 565 kg') && await T('wt') === '540 kg', 'formula line for the gross weight; Weight loaded stays 540 kg');
+  ok((await T('llnote')).includes('With the pallet (25 kg), the loaded pallet weighs 565 kg'), 'loading list note gives the gross weight');
+  // 565 kg / 0.45359237 = 1,245.6 lb; 540 kg = 1,190.5 lb; 25 kg = 55.12 lb
+  await pg.click('[data-units="imperial"]'); await settle();
+  ok(await V('[data-f="palletWt"]') === '55.12' && await T('gross') === '1,246 lb' && await T('grossSub') === '1,190.5 lb boxes + 55.1 lb pallet', 'imperial: pallet 55.12 lb, gross 1,246 lb (' + await T('gross') + ' / ' + await T('grossSub') + ')');
+  for (let i = 0; i < 3; i++) { await pg.click('[data-units="metric"]'); await pg.click('[data-units="imperial"]'); }
+  // 50 lb typed in pounds = 22.6796 kg; gross 1,190.5 + 50 = 1,240.5 lb -> shown 1,240 lb (1,240.496); in kg 540 + 22.68 = 562.68 -> 563 kg
+  await pg.fill('[data-f="palletWt"]', '50'); await settle();
+  ok(await T('gross') === '1,240 lb' && await main() === '45 of 100' && await pg.$eval('[data-f="preset"]', (e) => e.value) === 'epal1', 'pallet weight 50 lb: gross 1,240 lb, count and preset unchanged (' + await T('gross') + ')');
+  await pg.click('[data-units="metric"]'); await settle();
+  ok(await V('[data-f="palletWt"]') === '22.68' && await T('gross') === '563 kg', '50 lb shows 22.68 kg, gross 563 kg (' + await V('[data-f="palletWt"]') + ' / ' + await T('gross') + ')');
+  await pg.click('[data-units="imperial"]'); await settle();
+  ok(await V('[data-f="palletWt"]') === '50', 'back to lb: 50 lb, no drift (' + await V('[data-f="palletWt"]') + ')');
+  await pg.click('[data-units="metric"]'); await settle();
+  await pg.fill('[data-f="palletWt"]', ''); await settle();
+  ok(await T('gross') === '540 kg' && (await T('grossSub')).includes('no pallet weight entered'), 'empty pallet weight counts 0: gross 540 kg (' + await T('grossSub') + ')');
+  await pg.fill('[data-f="palletWt"]', '30'); await settle(); await pg.waitForTimeout(300);
+  ok(await T('gross') === '570 kg' && await main() === '45 of 100', 'pallet weight 30 kg: gross 570 kg');
+  {
+    const pw = await b.newPage({ viewport: { width: 390, height: 844 }, locale: 'en-GB' }); pw.on('pageerror', (e) => errs.push(e.message));
+    await pw.goto(pg.url()); await pw.waitForTimeout(400); await pw.waitForFunction(() => document.querySelector('#r-main').textContent.trim() !== '–', null, { timeout: 15000 }); await pw.waitForTimeout(500);
+    ok(await pw.inputValue('[data-f="palletWt"]') === '30' && await pw.$eval('[data-r="gross"]', (e) => e.textContent.trim()) === '570 kg', 'share link keeps the pallet weight: 30 kg, gross 570 kg');
+    // a link made before the field existed: no palletWt -> the preset's published weight (25 kg)
+    const old = await pw.evaluate(() => { const s = JSON.parse(decodeURIComponent(escape(atob(location.hash.match(/#p=([A-Za-z0-9+/]+)/)[1])))); delete s.cont.palletWt; return location.pathname + '#p=' + btoa(unescape(encodeURIComponent(JSON.stringify(s)))).replace(/=+$/, ''); });
+    await pw.goto('about:blank'); await pw.goto('http://localhost:4401' + old); await pw.waitForTimeout(400); await pw.waitForFunction(() => document.querySelector('#r-main').textContent.trim() !== '–', null, { timeout: 15000 }); await pw.waitForTimeout(500);
+    ok(await pw.inputValue('[data-f="palletWt"]') === '25' && await pw.$eval('[data-r="gross"]', (e) => e.textContent.trim()) === '565 kg' && await pw.$eval('#r-main', (e) => e.textContent.trim()) === '45 of 100', 'old link without a pallet weight: Euro preset 25 kg, gross 565 kg, 45 of 100');
+    await pw.close();
+  }
+  await pg.fill('[data-f="palletWt"]', '25'); await settle();
   await pg.selectOption('[data-f="support"]', '1'); await settle();
   ok(await main() === '42 of 100' && await T('tihi') === '7 × 6', 'full support: 7 per layer (three turned + four), 42 (' + await main() + ', ' + await T('tihi') + ')');
   await pg.selectOption('[data-f="support"]', '0.8'); await pg.click('[data-stack="column"]'); await settle();
@@ -173,10 +204,15 @@ await pg.screenshot({ path: process.env.SHOT || '/tmp/semi.png', fullPage: true 
   for (const [k, v] of [['l', '12'], ['w', '10'], ['h', '8'], ['weight', '30'], ['qty', '200']]) await pg.fill(`.boxcard [data-b="${k}"]`, v);
   await settle();
   ok(await V('[data-f="L"]') === '48' && await V('[data-f="W"]') === '40' && await V('[data-f="maxWeight"]') === '2800', 'CHEP preset: 48 × 40 in, 2,800 lb');
+  ok(await V('[data-f="palletWt"]') === '' && (await T('grossSub')).includes('no pallet weight entered'), 'CHEP preset: no published pallet weight, field empty, gross = boxes only');
   ok(await main() === '93 of 200', '48 × 40 in, 12 × 10 × 8 in at 30 lb: 93 of 200 (' + await main() + ')');
   ok(await T('tihi') === '16 × 5 + 13' && (await T('tihiSub')).includes('max load weight reached'), 'Ti-Hi 16 × 5 + 13, weight limited (' + await T('tihi') + ')');
   ok(await T('pallets') === '3' && await T('palletsSub') === '2 full of 93 + 1 with 14', 'pallets for 200: 2 full of 93 + 1 with 14 (' + await T('palletsSub') + ')');
   ok((await T('warn')).includes('Weight limit reached') && !(await T('warn')).includes('failed its own check'), 'weight-limit note, plan passes the check');
+  // own pallet weight on a pallet without a published one: 93 x 30 lb = 2,790 lb + 70 lb = 2,860 lb
+  ok(await T('gross') === '2,790 lb', 'CHEP, no pallet weight: gross = 93 x 30 = 2,790 lb (' + await T('gross') + ')');
+  await pg.fill('[data-f="palletWt"]', '70'); await settle();
+  ok(await T('gross') === '2,860 lb' && await T('grossSub') === '2,790 lb boxes + 70 lb pallet' && await main() === '93 of 200', 'own pallet weight 70 lb: 2,790 + 70 = 2,860 lb, still 93');
   await pg.click('[data-units="metric"]'); await settle();
   ok(await V('[data-f="L"]') === '121.9' && await V('.boxcard [data-b="l"]') === '30.5' && await main() === '93 of 200', 'metric: 121.9 cm, carton 30.5 cm (shown to 1 decimal), still 93');
   await pg.click('[data-units="imperial"]'); await settle();

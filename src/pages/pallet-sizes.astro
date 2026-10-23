@@ -44,13 +44,20 @@ const dv40 = cont.containers.find((c) => c.id === '40dv')!;
 const hc40 = cont.containers.find((c) => c.id === '40hc')!;
 const stackMm = us.emptyStack! * us.H;
 const htMin = Math.min(...tr.trailers.map((t) => t.Hin));
+// Pallet weight: the maker's empty weight, and a worked gross weight (goods + pallet) for the planner's default load
+const wtd = (kg: number) => n(kg, kg % 1 ? 1 : 0);
+const exN = 45, exKg = 12; // the pallet loading calculator's default: 45 cartons of 12 kg, interlocked on a Euro pallet
+const exGoods = exN * exKg, exGross = exGoods + euro.weightKg!;
+const exStack = (k: number) => exGoods + k * exGross; // load on the bottom pallet: its goods + k whole loaded pallets above
+const epalW = data.pallets.filter((x) => x.weightKg);
+const wMin = Math.min(...epalW.map((x) => x.weightKg!)), wMax = Math.max(...epalW.map((x) => x.weightKg!));
 const url = new URL('/pallet-sizes/', 'https://loadplancalc.com').href;
 const schema = { '@context': 'https://schema.org', '@type': 'Article', headline: 'Standard pallet sizes', dateModified: data.checked, mainEntityOfPage: url };
 ---
-<Base title="Standard Pallet Sizes and Pallet Height: Euro and 48 × 40" description="Pallet sizes and pallet height in mm and inches: Euro pallet 1200 × 800, EPAL 2, 3, 6, 7 and 48 × 40 in, with weight, safe working load and max loaded height in containers and 53' trailers." schema={schema}>
+<Base title="Standard Pallet Sizes, Height and Weight: Euro and 48 × 40" description="Pallet sizes, height and weight in mm, inches, kg and lb: Euro pallet 1200 × 800, EPAL 2, 3, 6, 7 and 48 × 40 in, with safe working load, gross weight and max loaded height in containers and trailers." schema={schema}>
   <section class="prose">
     <h1>Standard pallet sizes</h1>
-    <p class="lede">The EPAL Euro pallet is {n(euro.L)} × {n(euro.W)} mm and {euro.H} mm high ({n(inch(euro.L), 1)} × {n(inch(euro.W), 1)} × {n(inch(euro.H), 1)} in), weighs about {euro.weightKg} kg and has a safe working load of {n(euro.swlKg)} kg, according to EPAL. The North American 48 × 40 in pallet measures {n(us.L)} × {n(us.W)} × {us.H} mm in CHEP's specification for its block pallet. Below are the sizes, heights and load ratings of six common pallets, each from the organisation that sets or makes it. Empty, they are {hMin}–{hMax} mm ({n(inch(hMin), 1)}–{n(inch(hMax), 1)} in) high; how high a loaded pallet may be is set by the racking, the vehicle and the customer, not by a standard (see <a href="#height">pallet height</a>).</p>
+    <p class="lede">The EPAL Euro pallet is {n(euro.L)} × {n(euro.W)} mm and {euro.H} mm high ({n(inch(euro.L), 1)} × {n(inch(euro.W), 1)} × {n(inch(euro.H), 1)} in), weighs about {euro.weightKg} kg and has a safe working load of {n(euro.swlKg)} kg, according to EPAL. The North American 48 × 40 in pallet measures {n(us.L)} × {n(us.W)} × {us.H} mm in CHEP's specification for its block pallet. Below are the sizes, heights, weights and load ratings of six common pallets, each from the organisation that sets or makes it. Empty, they are {hMin}–{hMax} mm ({n(inch(hMin), 1)}–{n(inch(hMax), 1)} in) high; how high a loaded pallet may be is set by the racking, the vehicle and the customer, not by a standard (see <a href="#height">pallet height</a>). Empty, the EPAL pallets weigh about {wtd(wMin)}–{wtd(wMax)} kg ({n(lb(wMin), 1)}–{n(lb(wMax), 1)} lb); a loaded pallet weighs its goods plus that (see <a href="#weight">pallet weight</a>).</p>
   </section>
 
   <section class="prose">
@@ -132,6 +139,29 @@ const schema = { '@context': 'https://schema.org', '@type': 'Article', headline:
     <p>With a {euro.H} mm Euro pallet, the goods on it may be up to {n(dv40.doorH)} − {euro.H} = {n(dv40.doorH - euro.H)} mm high one high in a 40' Standard ({n(hc40.doorH)} − {euro.H} = {n(hc40.doorH - euro.H)} mm in a 40' High Cube), before forklift clearance. Two high in a 40' Standard, each loaded pallet may be at most {n(Math.floor(dv40.H / 2))} mm, so {n(Math.floor(dv40.H / 2) - euro.H)} mm of goods on each pallet. To fill a pallet up to the height you choose, use the <a href="/pallet-loading-calculator/">pallet loading calculator</a> (its <strong>Max height incl. pallet</strong> input); to check how many loaded pallets of that height fit, use <a href="/how-many-pallets-fit-in-a-container/">how many pallets fit in a container</a> or <a href="/how-many-pallets-fit-in-a-53-foot-trailer/">in a 53 ft trailer</a>, which check the door height for every pallet when the door is filled in.</p>
   </section>
 
+  <section class="prose" id="weight">
+    <h2>Pallet weight</h2>
+    <h3>How much does an empty pallet weigh?</h3>
+    <div class="tablebox">
+      <table>
+        <thead><tr><th>Pallet</th><th>As the maker prints it</th><th class="num">kg</th><th class="num">lb</th></tr></thead>
+        <tbody>{data.pallets.map((x) => <tr>
+          <td><a href={x.url} rel="noopener">{x.name}</a></td>
+          <td>{x.weightKg ? `Weight: approx. ${wtd(x.weightKg)} kg` : `Not published on ${x.publisher}'s product page`}</td>
+          <td class="num">{x.weightKg ? `about ${wtd(x.weightKg)}` : '–'}</td>
+          <td class="num">{x.weightKg ? `about ${n(lb(x.weightKg), 1)}` : '–'}</td>
+        </tr>)}</tbody>
+      </table>
+    </div>
+    <p class="small">EPAL gives every weight as approximate (“approx.”), so a single pallet can weigh a little more or less; weigh one if you need the exact figure. Pounds are converted at 1 lb = 0.45359237 kg. CHEP's page for its 48 × 40 in block pallet gives sizes, load and stacking ratings but no weight of the empty pallet, so none is shown: ask CHEP or your pallet supplier, or weigh one.</p>
+
+    <h3>Gross weight of a loaded pallet</h3>
+    <p>The gross weight of a loaded pallet is the weight of the goods plus the weight of the pallet itself. It is the figure a scale, a forklift, a container's payload or a carrier's weight limit sees. The safe working load is a different figure: what the pallet may carry, so compare it with the goods alone ({n(euro.swlKg)} kg for the Euro pallet, {n(us.swlLb!)} lb for CHEP's 48 × 40 in).</p>
+    <p><strong>Example.</strong> 45 cartons of {exKg} kg on a Euro pallet (the default plan of the <a href="/pallet-loading-calculator/">pallet loading calculator</a>): goods {exN} × {exKg} = {n(exGoods)} kg, within the {n(euro.swlKg)} kg safe working load. With the pallet's own weight of about {euro.weightKg} kg, the loaded pallet weighs {n(exGoods)} + {euro.weightKg} = <strong>{n(exGross)} kg</strong> ({n(lb(exGross), 1)} lb). The calculator shows this as <strong>Gross weight incl. pallet</strong> and fills in the pallet weight from the preset; for a pallet with no published weight, enter your own.</p>
+    <p><strong>Stacking laden pallets.</strong> When loaded pallets stand on each other, every loaded pallet above presses on the bottom pallet with its full gross weight, pallet included. Two high in the example, the bottom Euro pallet carries its own {n(exGoods)} kg of goods plus one loaded pallet: {n(exGoods)} + {n(exGross)} = {n(exStack(1))} kg; three high, {n(exGoods)} + 2 × {n(exGross)} = {n(exStack(2))} kg. EPAL's limit for the bottommost Euro pallet on a solid, even surface is {euro.stackNote.match(/[\d.,]+ kg/)![0]}; CHEP says its 48 × 40 in pallets may be “{us.stackNote.replace(/^B/, 'b')}”. Whether the cartons below can bear the weight is a separate question for the packaging. The limits for every pallet are under <a href="#stacking">stacking limits</a>.</p>
+    <p>To plan loaded pallets into a container, enter this gross weight per pallet in <a href="/how-many-pallets-fit-in-a-container/">how many pallets fit in a container</a>, where the container's max payload stops the plan; <a href="/how-many-pallets-fit-in-a-53-foot-trailer/">how many pallets fit in a 53 ft trailer</a> takes the same gross weight per pallet and checks it against the payload your carrier gives you.</p>
+  </section>
+
   <section class="prose">
     <h2>Other pallet sizes</h2>
     <p>Other sizes are in use: ISO 6780 sets pallet dimensions for intercontinental handling, and pallet pools and industries have their own sizes. ISO sells the standard's text and we could not check it, so those sizes are not listed here; use the figures printed on the pallet or given by its supplier.</p>
@@ -139,7 +169,7 @@ const schema = { '@context': 'https://schema.org', '@type': 'Article', headline:
 
   <section class="prose">
     <h2>Planning a pallet load</h2>
-    <p>To see how many cartons fit on one of these pallets, with the Ti-Hi (cartons per layer × layers) and a 3D plan, use the <a href="/pallet-loading-calculator/">pallet loading calculator</a>: its presets use the sizes, heights and safe working loads on this page.</p>
+    <p>To see how many cartons fit on one of these pallets, with the Ti-Hi (cartons per layer × layers) and a 3D plan, use the <a href="/pallet-loading-calculator/">pallet loading calculator</a>: its presets use the sizes, heights, weights and safe working loads on this page, and it shows the gross weight of the loaded pallet.</p>
     <p>To see how many of these pallets fit in a 20', 40' or high cube container, one or two high, use <a href="/how-many-pallets-fit-in-a-container/">how many pallets fit in a container</a>: pick the pallet, enter the loaded height and gross weight, and the 3D plan shows how many fit and whether the payload limit is reached. It also has a table of counts for every pallet on this page in each container. For mixed cargo, enter each pallet as a box in the <a href="/container-loading-calculator/">container loading calculator</a>. For trucks, <a href="/how-many-pallets-fit-in-a-53-foot-trailer/">how many pallets fit in a 53 ft trailer</a> does the same with the inside sizes a trailer maker publishes for its 53' dry vans.</p>
     <p class="small">Sources: EPAL product pages for the <a href={euro.url} rel="noopener">Euro pallet</a>, <a href={p.epal2.url} rel="noopener">EPAL 2</a>, <a href={p.epal3.url} rel="noopener">EPAL 3</a>, <a href={p.epal6.url} rel="noopener">EPAL 6</a> and <a href={p.epal7.url} rel="noopener">EPAL 7</a>; <a href={us.url} rel="noopener">CHEP Pooled Wood Block Pallet North America (48 × 40 inches)</a>. Checked {data.checked}. Container door and inside heights: Hapag-Lloyd (<a href={dv40.url} rel="noopener">40' Standard</a> and the other container pages linked in the table); trailer inside and door heights: Hyundai Translead, Utility Trailer and Stoughton Trailers spec pages (linked in the table).</p>
   </section>

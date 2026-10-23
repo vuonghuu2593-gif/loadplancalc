@@ -14,3 +14,6 @@ page;main keyword;status
 /pallet-sizes/;standard pallet height;live
 /pallet-sizes/;pallet height;live
 /pallet-sizes/;max pallet height;live
+/pallet-sizes/;pallet weight;live
+/pallet-sizes/;how much does a pallet weigh;live
+/pallet-sizes/;euro pallet weight;live

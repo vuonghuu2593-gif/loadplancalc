@@ -64,6 +64,9 @@ export function initPlanner(root) {
   // stacking pattern: links made before this option existed keep column stacks
   if (state.stack !== 'interlock' && state.stack !== 'column') state.stack = 'column';
   state.support = [1, 0.9, 0.8, 0.7].includes(+state.support) ? +state.support : 0.8;
+  // pallet's own weight (kg, null = not entered = 0): links made before this field existed take the preset's published weight
+  if (mode === 'pallet' && state.cont.palletWt === undefined) state.cont.palletWt = presets.find((x) => x.id === state.cont.preset)?.weightKg ?? null;
+  if (mode === 'pallet' && state.cont.palletWt != null && !(Number.isFinite(+state.cont.palletWt) && +state.cont.palletWt >= 0)) state.cont.palletWt = null;
   const stepTpl = document.getElementById('step-tpl');
 
   // ---------- form <-> state ----------
@@ -83,11 +86,13 @@ export function initPlanner(root) {
     f('preset').value = c.preset || 'custom';
     for (const k of lenFields) f(k).value = showLen(c[k]);
     f('maxWeight').value = c.maxWeight ? showWt(c.maxWeight) : '';
+    if (mode === 'pallet') f('palletWt').value = c.palletWt == null ? '' : showWt(c.palletWt);
     f('priority').checked = !!state.priority;
     const p = presets.find((x) => x.id === c.preset);
     if (mode === 'pallet') {
       const u = U[units];
-      f('srcnote').innerHTML = p && p.url ? `Pallet length, width and height from <a href="${p.url}" rel="noopener" target="_blank">${esc(p.source)}</a>, and its safe working load (${fmt(u.fromKG(p.maxWeight), 0)} ${u.wt}) as the starting max load weight. The max height is your own limit (racking, trailer, customer or warehouse rule); the ${fmt(u.fromMM(1800), units === 'metric' ? 0 : 1)} ${u.len} filled in is only an example.` : 'Enter your pallet size and height, how far the load may overhang each side, the max height of the loaded pallet and the max load weight.';
+      const pw = !p ? '' : p.weightKg ? ` The pallet weight filled in is ${esc(p.source)}'s approximate figure (about ${fmt(u.fromKG(p.weightKg), 1)} ${u.wt}); it is added to the boxes for the gross weight.` : ` ${esc(p.source)} does not publish this pallet's own weight on that page: enter it as the pallet weight to see the gross weight.`;
+      f('srcnote').innerHTML = p && p.url ? `Pallet length, width and height from <a href="${p.url}" rel="noopener" target="_blank">${esc(p.source)}</a>, and its safe working load (${fmt(u.fromKG(p.maxWeight), 0)} ${u.wt}) as the starting max load weight. The max height is your own limit (racking, trailer, customer or warehouse rule); the ${fmt(u.fromMM(1800), units === 'metric' ? 0 : 1)} ${u.len} filled in is only an example.${pw}` : 'Enter your pallet size, height and own weight (leave it empty to count 0), how far the load may overhang each side, the max height of the loaded pallet and the max load weight.';
     } else f('srcnote').innerHTML = p && p.url ? `Preset figures from <a href="${p.url}" rel="noopener" target="_blank">${esc(p.source || 'Hapag-Lloyd')}</a>. ${p.note ? esc(p.note) : 'Containers vary by maker and series; check the CSC plate or your booking for the exact unit.'}` : 'Enter the inside dimensions of your container or trailer.';
   }
   function paintBoxes() {
@@ -188,6 +193,7 @@ export function initPlanner(root) {
     if (t.dataset.f && t.dataset.f !== 'preset' && t.dataset.f !== 'priority') {
       const k = t.dataset.f;
       if (k === 'maxWeight') state.cont.maxWeight = readWt(t.value) ?? 0;
+      else if (k === 'palletWt') { state.cont.palletWt = t.value.trim() === '' ? null : readWt(t.value); if (ed) writeEditHash(); else writeHash(); render(ed ? edView() : last); return; } // the pallet's weight changes no box: keep the plan and any hand edits
       else { const v = readLen(t.value); if (v !== null) state.cont[k] = v; }
       const presetKeys = mode === 'container' ? ['L', 'W', 'H', 'doorW', 'doorH', 'maxWeight'] : ['L', 'W', 'palletH'];
       if (presetKeys.includes(k) && state.cont.preset !== 'custom') { state.cont.preset = 'custom'; f('preset').value = 'custom'; paintContainer(); }
@@ -228,7 +234,7 @@ export function initPlanner(root) {
       const p = presets.find((x) => x.id === t.value);
       if (p) {
         if (mode === 'container') Object.assign(state.cont, { preset: p.id, L: p.L, W: p.W, H: p.H, doorW: p.doorW, doorH: p.doorH, maxWeight: p.payload });
-        else Object.assign(state.cont, { preset: p.id, L: p.L, W: p.W, palletH: p.H, maxWeight: p.maxWeight });
+        else Object.assign(state.cont, { preset: p.id, L: p.L, W: p.W, palletH: p.H, maxWeight: p.maxWeight, palletWt: p.weightKg ?? null });
       } else state.cont.preset = 'custom';
       paintContainer(); schedule();
     } else if (t.dataset.f === 'priority') { state.priority = t.checked; schedule(); }
@@ -396,6 +402,11 @@ export function initPlanner(root) {
     const volLeft = Math.max(0, contVol - totals.vol);
     const vU = units === 'metric' ? 'm³' : 'ft³', toV = (mm3) => (units === 'metric' ? mm3 / 1e9 : mm3 / (304.8 ** 3));
     R('spaceLeft').textContent = `${fmt(toV(volLeft), 2)} ${vU}`;
+    const palKg = mode === 'pallet' ? +state.cont.palletWt || 0 : 0;
+    if (mode === 'pallet') {
+      R('gross').textContent = `${fmt(u.fromKG(totals.w + palKg), 0)} ${u.wt}`;
+      R('grossSub').textContent = state.cont.palletWt == null ? 'Boxes only: no pallet weight entered (counted as 0)' : `${fmt(u.fromKG(totals.w), 1)} ${u.wt} boxes + ${fmt(u.fromKG(palKg), 1)} ${u.wt} pallet`;
+    }
     R('wtLeft').textContent = d.cont.maxWeight > 0 ? `${fmt(u.fromKG(Math.max(0, d.cont.maxWeight - totals.w)), 0)} ${u.wt}` : 'No limit set';
     // warnings
     const w = [];
@@ -463,6 +474,7 @@ export function initPlanner(root) {
       `Volume used = ${fmt(toVol(totals.vol), 2)} ÷ ${fmt(toVol(contVol), 2)} = ${contVol > 0 ? fmt(totals.vol / contVol * 100, 1) : 0}%`,
       `Space left = ${fmt(toVol(contVol), 2)} − ${fmt(toVol(totals.vol), 2)} = ${fmt(toVol(Math.max(0, contVol - totals.vol)), 2)} ${volU} (${contVol > 0 ? fmt((contVol - totals.vol) / contVol * 100, 1) : 0}% of the ${mode === 'container' ? 'container' : 'load space'})`,
       d.cont.maxWeight > 0 ? `Weight = ${fmt(wt)} ${u.wt} of ${fmt(u.fromKG(d.cont.maxWeight))} ${u.wt} allowed (${fmt(totals.w / d.cont.maxWeight * 100, 1)}%), ${fmt(u.fromKG(Math.max(0, d.cont.maxWeight - totals.w)))} ${u.wt} left` : `Weight = ${fmt(wt)} ${u.wt} (no limit entered)`,
+      ...(mode === 'pallet' ? [`Gross weight incl. pallet = ${fmt(wt, 1)} ${u.wt} boxes + ${fmt(u.fromKG(palKg), 1)} ${u.wt} pallet = ${fmt(u.fromKG(totals.w + palKg), 1)} ${u.wt}${state.cont.palletWt == null ? ' (no pallet weight entered)' : ''}`] : []),
     ].join('<br>');
     roomFor(d);
     paintLoadList();
@@ -491,7 +503,7 @@ export function initPlanner(root) {
     R('llAcross').textContent = `From right ${pal ? 'edge' : 'wall'} (${u.len})`;
     const il = d.stack && d.stack.pattern === 'interlock' && d.stack.section && !d.edited;
     R('llnote').textContent = !ll.n ? 'Nothing is loaded yet.' : pal
-      ? `Load the pallet layer by layer from the deck up. In each layer place the groups in the order listed, each from the back edge and from the right-hand edge as seen from the front (the Front view). Distances in ${u.len} from the pallet edges. The loading step slider shows the same order.`
+      ? `Load the pallet layer by layer from the deck up. In each layer place the groups in the order listed, each from the back edge and from the right-hand edge as seen from the front (the Front view). Distances in ${u.len} from the pallet edges. The loading step slider shows the same order.${state.cont.palletWt != null ? ` With the pallet (${fmt(u.fromKG(+state.cont.palletWt || 0), 1)} ${u.wt}), the loaded pallet weighs ${wt(d.boxes.reduce((t, b) => t + (state.items[b.k]?.weight || 0), 0) + (+state.cont.palletWt || 0))}.` : ''}`
       : `Load section by section from the back wall toward the door, each section layer by layer from the floor up, and in each layer the groups in the order listed, starting at the back of the section and at the right-hand wall as seen from the door. ${il ? `The sections are the interlocked walls of ${ln(d.stack.section)} ${u.len}${ll.sections.length > d.stack.sections ? '; the boxes in front of the last wall follow' : ''}.` : 'A section ends where no box crosses the line across the load; where boxes of different lengths overlap, a section is about 120 cm long or more.'} Distances in ${u.len}. The loading step slider shows the same order.`;
     const many = ll.sections.length > LL_FEW + 1 && ll.sections.reduce((t, s) => t + s.layers.reduce((a, l) => a + l.groups.length, 0), 0) > 30;
     let html = '';

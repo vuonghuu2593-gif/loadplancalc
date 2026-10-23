@@ -31,16 +31,20 @@ const presets = mode === 'container' ? (spacePresets || data.containers) : palle
       <label><span>{mode === 'container' ? 'Inside width' : 'Pallet width'} <span class="small" data-ul></span></span><input data-f="W" inputmode="decimal"></label>
       <label><span>{mode === 'container' ? 'Inside height' : 'Max height incl. pallet'} <span class="small" data-ul></span></span><input data-f="H" inputmode="decimal"></label>
     </div>
-    <div class="row3">
-      <label><span>{mode === 'container' ? 'Max payload' : 'Max load weight'} <span class="small" data-uw></span></span><input data-f="maxWeight" inputmode="decimal"></label>
-      {mode === 'container' ? <>
-        <label><span>Door width <span class="small" data-ul></span></span><input data-f="doorW" inputmode="decimal"></label>
-        <label><span>Door height <span class="small" data-ul></span></span><input data-f="doorH" inputmode="decimal"></label>
-      </> : <>
-        <label><span>Overhang per side <span class="small" data-ul></span></span><input data-f="overhang" inputmode="decimal"></label>
+    {mode === 'container' ? <div class="row3">
+      <label><span>Max payload <span class="small" data-uw></span></span><input data-f="maxWeight" inputmode="decimal"></label>
+      <label><span>Door width <span class="small" data-ul></span></span><input data-f="doorW" inputmode="decimal"></label>
+      <label><span>Door height <span class="small" data-ul></span></span><input data-f="doorH" inputmode="decimal"></label>
+    </div> : <>
+      <div class="row2">
         <label><span>Pallet height <span class="small" data-ul></span></span><input data-f="palletH" inputmode="decimal"></label>
-      </>}
-    </div>
+        <label><span>Pallet weight <span class="small" data-uw></span></span><input data-f="palletWt" inputmode="decimal" placeholder="0"></label>
+      </div>
+      <div class="row2">
+        <label><span>Max load weight <span class="small" data-uw></span></span><input data-f="maxWeight" inputmode="decimal"></label>
+        <label><span>Overhang per side <span class="small" data-ul></span></span><input data-f="overhang" inputmode="decimal"></label>
+      </div>
+    </>}
     <p class="small" data-f="srcnote" style="margin:0"></p>
     <h2>Boxes</h2>
     <div class="boxes" data-boxes></div>
@@ -97,6 +101,7 @@ const presets = mode === 'container' ? (spacePresets || data.containers) : palle
       <div><div class="k">Stacking</div><div class="v" data-r="stack">–</div><div class="small sub" data-r="stackSub"></div></div>
       {mode === 'pallet' && <>
         <div><div class="k">Ti × Hi (per layer × layers)</div><div class="v" data-r="tihi">–</div><div class="small sub" data-r="tihiSub"></div></div>
+        <div><div class="k">Gross weight incl. pallet</div><div class="v" data-r="gross">–</div><div class="small sub" data-r="grossSub"></div></div>
         <div><div class="k">Pallets for your quantity</div><div class="v" data-r="pallets">–</div><div class="small sub" data-r="palletsSub"></div></div>
       </>}
     </div>
