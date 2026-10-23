@@ -624,7 +624,7 @@ export function initPlanner(root) {
     const { offset } = engineInput();
     step.max = String(boxes.length); step.value = String(boxes.length); stepText();
     const v = await ensureView();
-    v.setPlan({ cont: d.cont, boxes, colors: SWATCH, offset, keepCamera: !!d.edited || !!d.keep, pallet: mode === 'pallet' ? { L: state.cont.L, W: state.cont.W, H: state.cont.palletH || 0 } : null });
+    v.setPlan({ cont: d.cont, boxes, colors: SWATCH, offset, vehicle: mode === 'container' && nounOf(state.cont.preset) === 'truck' ? 'truck' : 'tractor', keepCamera: !!d.edited || !!d.keep, pallet: mode === 'pallet' ? { L: state.cont.L, W: state.cont.W, H: state.cont.palletH || 0 } : null });
     paintEditor();
     drawnPlan = d; if (picsOn) paintPics();
     R('ordTh').textContent = d.part ? 'Still to load' : 'Ordered';

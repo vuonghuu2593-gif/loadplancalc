@@ -89,7 +89,7 @@ export function createView(host) {
     controls.target.copy(c); controls.update(); draw();
   }
 
-  function setPlan({ cont, boxes, colors, keepCamera, pallet = null, offset = 0 }) {
+  function setPlan({ cont, boxes, colors, keepCamera, pallet = null, offset = 0, vehicle = 'tractor' }) {
     const same = keepCamera && size.L === cont.L && size.W === cont.W && size.H === cont.H;
     scene.remove(group); group.traverse((o) => { o.geometry?.dispose(); o.material?.dispose?.(); });
     group = new THREE.Group(); scene.add(group); meshes = []; order = []; stepBox = null;
@@ -111,9 +111,9 @@ export function createView(host) {
       const frame = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.PlaneGeometry(cont.W, cont.H)), new THREE.LineBasicMaterial({ color: 0xf08a24 }));
       frame.rotation.y = Math.PI / 2; frame.position.copy(door.position); group.add(frame);
       group.add(label('DOOR', cont.L + 40, cont.H + Math.max(250, cont.H * 0.12), cont.W / 2, cont.W));
-      drawVehicle(cont);
+      drawVehicle(cont, vehicle);
     }
-    pad = pallet ? { x0: 0, y0: 0 } : { x0: tractorLen(cont) , y0: chassisH(cont) };
+    pad = pallet ? { x0: 0, y0: 0 } : { x0: frontOf(cont, vehicle), y0: chassisH(cont) };
     // boxes: one instanced mesh per box type, a small gap so neighbours stay visible
     const geo = new THREE.BoxGeometry(1, 1, 1);
     const byK = new Map();
@@ -132,34 +132,109 @@ export function createView(host) {
     if (same) draw(); else aim(view);
   }
 
-  // A simple tractor unit in front of the back wall and a chassis under the load space, so the closed end and the
-  // door end read at a glance. Purely a drawing: sizes scale with the load space and are not to any vehicle's spec.
-  const chassisH = (c) => Math.min(1400, Math.max(600, c.H * 0.5));
-  const tractorLen = (c) => Math.min(3400, Math.max(1600, c.W * 1.25)) + 250;
-  function drawVehicle(c) {
-    const ground = -chassisH(c), wr = Math.min(520, -ground * 0.42), dark = new THREE.MeshLambertMaterial({ color: 0x20262e });
-    const add = (geo, mat, x, y, z, ry = 0, rz = 0) => { const o = new THREE.Mesh(geo, mat); o.position.set(x, y, z); o.rotation.y = ry; o.rotation.z = rz; group.add(o); return o; };
-    // chassis beams under the load space
-    for (const z of [c.W * 0.3, c.W * 0.7]) add(new THREE.BoxGeometry(c.L, 120, 140), dark, c.L / 2, -80, z);
-    // trailer wheels near the door end, tractor wheels under the cab
-    const wheel = new THREE.CylinderGeometry(wr, wr, Math.min(320, c.W * 0.14), 20);
-    const tireMat = new THREE.MeshLambertMaterial({ color: 0x111418 });
-    const wheelAt = (x) => { for (const z of [c.W * 0.12, c.W * 0.88]) add(wheel, tireMat, x, ground + wr, z, 0, 0).rotation.x = Math.PI / 2; };
-    wheelAt(c.L - wr * 1.6); if (c.L > 4000) wheelAt(c.L - wr * 3.9);
-    const tl = tractorLen(c) - 250, cabH = Math.min(3200, Math.max(1800, c.H * 1.15)), cabW = c.W * 0.96;
-    const x0 = -250 - tl; // tractor from x0 to -250 (a gap before the back wall)
-    const body = new THREE.MeshLambertMaterial({ color: 0x8796a6 }); // neutral grey: never one of the box colours
-    // frame and fifth-wheel area, then the cab at the far end
-    add(new THREE.BoxGeometry(tl, 160, cabW * 0.7), dark, x0 + tl / 2, ground + wr * 1.15, c.W / 2);
-    const cabL = tl * 0.62;
-    add(new THREE.BoxGeometry(cabL, cabH, cabW), body, x0 + cabL / 2, ground + wr * 1.3 + cabH / 2, c.W / 2);
-    // windscreen on the outer face (facing away from the load), so the cab clearly points forward
-    const glass = new THREE.MeshLambertMaterial({ color: 0x1b2b40 });
-    add(new THREE.BoxGeometry(20, cabH * 0.35, cabW * 0.82), glass, x0 - 8, ground + wr * 1.3 + cabH * 0.68, c.W / 2);
-    wheelAt(x0 + cabL * 0.45); wheelAt(x0 + tl - wr * 1.4);
-    // ground line
-    const gl = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.PlaneGeometry(c.L + tl + 900, c.W + 600)), new THREE.LineBasicMaterial({ color: 0x4d5f73 }));
-    gl.rotation.x = -Math.PI / 2; gl.position.set((x0 + c.L) / 2, ground, c.W / 2); group.add(gl);
+  // The vehicle under and in front of the load space, so the closed end and the door end read at a glance:
+  // a conventional tractor unit (hood, sloped windscreen, roof fairing, fifth wheel, steer axle and a tandem of
+  // dual wheels) with a chassis, landing gear and rear axles under a container or trailer, or, for a box truck,
+  // a cab fixed in front of the body. Purely a drawing: proportions follow a typical truck, scaled to the load
+  // space, and are not to any vehicle's specification. x runs from the back wall toward the door, so the
+  // vehicle's front points to -x.
+  const scaleOf = (c) => Math.min(1.05, Math.max(0.72, c.W / 2400));
+  const chassisH = (c) => Math.round(Math.min(1400, Math.max(900, c.H * 0.5)));
+  const frontOf = (c, kind) => (kind === 'truck' ? 3650 : 4500) * scaleOf(c); // bumper's distance in front of the back wall
+  const M = (color, extra = {}) => new THREE.MeshLambertMaterial({ color, ...extra });
+  function drawVehicle(c, kind) {
+    const S = scaleOf(c), g = -chassisH(c), cz = c.W / 2;
+    const paint = M(0xe9edf1), trim = M(0x3a434d), dark = M(0x1f252c), chrome = M(0xc3ccd5), glass = M(0x22384f), tire = M(0x111418), rim = M(0x9aa4ae), lamp = M(0xfff4c9, { emissive: 0x6b6040 }), red = M(0xc0392b, { emissive: 0x301010 });
+    const put = (geo, mat, x, y, z, rx = 0, ry = 0, rz = 0) => { const o = new THREE.Mesh(geo, mat); o.position.set(x, y, z); o.rotation.set(rx, ry, rz); group.add(o); return o; };
+    const box = (mat, x0, x1, y0, y1, z0, z1) => put(new THREE.BoxGeometry(x1 - x0, y1 - y0, z1 - z0), mat, (x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2);
+    // a side profile (points as [u forward-to-back, v up], in mm of a full-size truck) extruded across the width
+    const prism = (pts, xf, width, mat, bevel = 40, zc = cz) => {
+      const sh = new THREE.Shape(pts.map(([u, v]) => new THREE.Vector2(xf + u * S, g + v * S)));
+      const geo = new THREE.ExtrudeGeometry(sh, { depth: width, bevelEnabled: bevel > 0, bevelThickness: bevel * S, bevelSize: bevel * S, bevelSegments: 2, curveSegments: 6 });
+      return put(geo, mat, 0, 0, zc - width / 2);
+    };
+    const R = 520 * S, TW = 280 * S; // tyre radius and width
+    const wheel = (x, z, dual) => {
+      for (const side of [-1, 1]) {
+        const zs = side < 0 ? z.lo : z.hi;
+        const offs = dual ? [0, side * (TW + 30 * S)] : [0];
+        for (const o of offs) {
+          const zz = zs + o;
+          put(new THREE.CylinderGeometry(R, R, TW, 28), tire, x, g + R, zz, Math.PI / 2);
+          put(new THREE.CylinderGeometry(R * 0.36, R * 0.36, TW + 12, 18), rim, x, g + R, zz + side * 6, Math.PI / 2);
+        }
+        put(new THREE.CylinderGeometry(R * 0.12, R * 0.12, TW + 40, 10), chrome, x, g + R, zs + side * 30, Math.PI / 2);
+      }
+    };
+    const track = (half) => ({ lo: cz - half, hi: cz + half });
+    const cabW = Math.min(2450 * S, c.W * 1.02);
+
+    // ---- under the load space: the container chassis / trailer frame, rear axles, bumper, lights, landing gear
+    for (const z of [cz - c.W * 0.22, cz + c.W * 0.22]) box(dark, 0, c.L, -260 * S, -20, z - 70 * S, z + 70 * S);
+    box(trim, 0, c.L, -60 * S, 0, 0, c.W); // side rails along the floor edge
+    const rearAxles = kind === 'truck' ? [c.L - Math.min(c.L * 0.28, 1700 * S)] : c.L > 9000 ? [c.L - 1500 * S - R, c.L - 1500 * S - R * 3.4] : [c.L - 1200 * S - R];
+    for (const x of rearAxles) wheel(x, track(c.W / 2 - TW * 1.3), true);
+    for (const x of rearAxles) for (const zs of [-1, 1]) box(dark, x - R * 1.15, x + R * 1.15, g + R * 2 + 40 * S, g + R * 2 + 70 * S, cz + zs * (c.W / 2 - TW * 1.3) - TW * 1.4, cz + zs * (c.W / 2 - TW * 1.3) + TW * 1.4); // mudguard tops
+    box(dark, c.L - 120 * S, c.L - 20 * S, g + 450 * S, g + 580 * S, c.W * 0.06, c.W * 0.94); // rear under-ride bar
+    for (const z of [c.W * 0.04, c.W * 0.96]) box(red, c.L + 1, c.L + 30, -260 * S, -120 * S, z - 90 * S, z + 90 * S); // tail lights
+    if (kind !== 'truck' && c.L > 4000) for (const z of [cz - c.W * 0.3, cz + c.W * 0.3]) { // landing gear, behind the tractor
+      const x = 3100 * S;
+      box(rim, x - 60 * S, x + 60 * S, g + 60 * S, -260 * S, z - 60 * S, z + 60 * S);
+      box(dark, x - 180 * S, x + 180 * S, g, g + 60 * S, z - 140 * S, z + 140 * S);
+    }
+
+    // ---- the cab (shared by the tractor and the box truck)
+    const xf = -frontOf(c, kind); // front bumper
+    // hood and grille
+    prism([[150, 820], [150, 1660], [320, 1790], [1560, 1880], [1560, 820]], xf, 1250 * S, paint);
+    box(chrome, xf + 105 * S, xf + 160 * S, g + 900 * S, g + 1620 * S, cz - 470 * S, cz + 470 * S);
+    for (let k = 0; k < 6; k++) box(dark, xf + 95 * S, xf + 110 * S, g + (960 + k * 110) * S, g + (1000 + k * 110) * S, cz - 430 * S, cz + 430 * S);
+    for (const zs of [-1, 1]) box(lamp, xf + 110 * S, xf + 200 * S, g + 1150 * S, g + 1330 * S, cz + zs * 560 * S - 120 * S, cz + zs * 560 * S + 120 * S);
+    // bumper
+    box(chrome, xf, xf + 220 * S, g + 520 * S, g + 820 * S, cz - cabW / 2, cz + cabW / 2);
+    // cab body: back wall, roof, sloped windscreen
+    const cabBack = kind === 'truck' ? 3300 : 3350;
+    prism([[1520, 950], [1520, 1880], [1960, 2960], [2120, 3060], [cabBack, 3060], [cabBack, 950]], xf, cabW - 80 * S, paint);
+    // windscreen: a thin pane along the slope, just outside the body
+    {
+      const a = [1520, 1960], b2 = [1945, 2905], len = Math.hypot(b2[0] - a[0], b2[1] - a[1]);
+      const ang = Math.atan2(b2[1] - a[1], b2[0] - a[0]);
+      const pane = put(new THREE.BoxGeometry(len * S * 0.94, 24, cabW - 300 * S), glass, xf + ((a[0] + b2[0]) / 2 - 40 * Math.sin(ang) - 20) * S, g + ((a[1] + b2[1]) / 2 + 40 * Math.cos(ang)) * S, cz);
+      pane.rotation.z = ang;
+    }
+    // side windows and doors
+    for (const zs of [-1, 1]) {
+      const zFace = cz + zs * ((cabW - 80 * S) / 2 + 40 * S + 6);
+      const win = prism([[1760, 2060], [2080, 2830], [2900, 2830], [2900, 2060]], xf, 14, glass, 0, zFace);
+      win.position.z = zFace - 7;
+      box(trim, xf + 1700 * S, xf + 2960 * S, g + 1000 * S, g + 1012 * S, zFace - 8, zFace + 8); // door bottom line
+      box(trim, xf + 2960 * S, xf + 2972 * S, g + 1000 * S, g + 2830 * S, zFace - 8, zFace + 8); // door rear line
+      // mirror on an arm
+      box(dark, xf + 1700 * S, xf + 1760 * S, g + 2350 * S, g + 2380 * S, zFace, zFace + zs * 260 * S);
+      box(dark, xf + 1660 * S, xf + 1760 * S, g + 2100 * S, g + 2600 * S, zFace + zs * 230 * S, zFace + zs * 300 * S);
+      // step and fuel tank below the door
+      put(new THREE.CylinderGeometry(300 * S, 300 * S, 1100 * S, 20), chrome, xf + 2300 * S, g + 700 * S, cz + zs * (cabW / 2 - 300 * S), 0, 0, Math.PI / 2);
+      // front fender over the steer wheel
+      put(new THREE.CylinderGeometry(R + 90 * S, R + 90 * S, 380 * S, 24, 1, true, Math.PI / 2, Math.PI), M(0xe9edf1, { side: THREE.DoubleSide }), xf + 1050 * S, g + R, cz + zs * (cabW / 2 - 190 * S), Math.PI / 2);
+    }
+    wheel(xf + 1050 * S, track(cabW / 2 - 190 * S), false);
+    if (kind === 'truck') {
+      box(dark, xf + 200 * S, -10, g + 720 * S, g + 960 * S, cz - 450 * S, cz + 450 * S); // frame up to the body
+    } else {
+      // roof fairing up toward the trailer's front wall, exhaust stacks, frame, fifth wheel and the drive tandem
+      prism([[2150, 3060], [cabBack - 100, Math.min(3950, (chassisH(c) + c.H - 120) / S)], [cabBack, Math.min(3950, (chassisH(c) + c.H - 120) / S)], [cabBack, 3060]], xf, cabW - 260 * S, paint);
+      for (const zs of [-1, 1]) put(new THREE.CylinderGeometry(70 * S, 70 * S, 3000 * S, 12), chrome, xf + (cabBack + 120) * S, g + 2500 * S, cz + zs * (cabW / 2 - 120 * S));
+      const xr = xf + 6900 * S; // end of the tractor frame, under the trailer
+      for (const zs of [-1, 1]) box(dark, xf + 200 * S, xr, g + 780 * S, g + 1060 * S, cz + zs * 430 * S - 60 * S, cz + zs * 430 * S + 60 * S);
+      const x5 = xf + 5650 * S; // fifth wheel
+      put(new THREE.CylinderGeometry(560 * S, 560 * S, 90 * S, 24), dark, x5, -20 - 45 * S, cz);
+      for (const x of [xf + 5000 * S, xf + 6350 * S]) wheel(x, track(cabW / 2 - TW * 1.2), true);
+      for (const zs of [-1, 1]) box(dark, xr - 40 * S, xr, g + 150 * S, g + 800 * S, cz + zs * (cabW / 2 - TW * 1.2) - TW * 1.1, cz + zs * (cabW / 2 - TW * 1.2) + TW * 1.1); // mud flaps
+    }
+    // ground outline
+    const len = c.L - xf + 600;
+    const gl = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.PlaneGeometry(len, c.W + 1400 * S)), new THREE.LineBasicMaterial({ color: 0x4d5f73 }));
+    gl.rotation.x = -Math.PI / 2; gl.position.set(xf - 300 + len / 2, g, cz); group.add(gl);
   }
   // a text label that always faces the camera
   function label(text, x, y, z, width) {
