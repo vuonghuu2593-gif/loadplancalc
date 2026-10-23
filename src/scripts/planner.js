@@ -1103,7 +1103,33 @@ export function initPlanner(root) {
     try { await navigator.clipboard.writeText(location.href); R('shareMsg').textContent = 'Link copied.'; }
     catch { R('shareMsg').textContent = 'Copy the address bar to share this plan.'; }
   });
-  $('[data-print]').addEventListener('click', () => window.print());
+  // ---------- printed plans carry a QR code of the plan's link (qrcode-generator, MIT), loaded when idle ----------
+  let qrLib = null;
+  const loadQr = () => (qrLib ? Promise.resolve(qrLib) : import('qrcode-generator').then((m) => { qrLib = m.default || m; return qrLib; }));
+  try { (window.requestIdleCallback || ((f) => setTimeout(f, 1500)))(() => { loadQr().catch(() => {}); }); } catch { /* ignore */ }
+  function paintQr() {
+    const box = $('[data-qr]'); if (!box) return;
+    const url = location.href;
+    if (!qrLib) { box.hidden = true; return; }
+    try {
+      const qr = qrLib(0, 'L'); qr.addData(url, 'Byte'); qr.make();
+      const n = qr.getModuleCount(); let d = '';
+      for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) if (qr.isDark(r, c)) d += `M${c + 4} ${r + 4}h1v1h-1z`;
+      $('[data-qrsvg]').innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${n + 8} ${n + 8}" shape-rendering="crispEdges" role="img" aria-label="QR code of the link to this plan"><rect width="100%" height="100%" fill="#fff"/><path d="${d}" fill="#000"/></svg>`;
+      // about 0.5 mm per module on paper, so a phone camera can read it; very long links stop at version 40
+      $('[data-qrsvg]').style.setProperty('--qrw', `${Math.max(30, Math.min(95, (n + 8) * 0.5))}mm`);
+      box.dataset.url = url; box.hidden = false;
+      $('[data-qrtxt]').textContent = 'Scan to open this plan on a phone: turn it in 3D and step through the loading box by box.';
+    } catch { // too long for a QR code (very large hand-edited plans)
+      $('[data-qrsvg]').innerHTML = ''; box.hidden = false; box.dataset.url = '';
+      $('[data-qrtxt]').textContent = 'This plan’s link is too long for a QR code; use Copy link to share it.';
+    }
+  }
+  window.addEventListener('beforeprint', paintQr);
+  $('[data-print]').addEventListener('click', async () => {
+    try { if (ed) await currentHash(); else writeHash(); await loadQr(); } catch { /* print anyway */ }
+    paintQr(); window.print();
+  });
 
   // ---------- cartons on pallets first (container mode): each box type is built into pallets in the worker
   // (pallet planner, same stacking pattern and limits), then the loaded pallets become the box list ----------

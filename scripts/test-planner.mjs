@@ -836,5 +836,19 @@ ok(errs.length === 0, 'no JS errors ' + errs.join(' | '));
   ok(e7.length === 0, 'mixed sizes: no JS errors ' + e7.join(' | '));
   await pm.close();
 }
+// QR code on printed plans (2026-10-23): made from the plan's link when printing
+{
+  const pq = await b.newPage({ viewport: { width: 390, height: 844 }, locale: 'en-GB' }); const e8 = []; pq.on('pageerror', (e) => e8.push(e.message));
+  await pq.goto('http://localhost:4401/container-loading-calculator/'); await pq.waitForTimeout(2500);
+  await pq.fill('.boxcard [data-b="qty"]', '300'); await pq.waitForTimeout(2500);
+  ok(await pq.$eval('[data-qr]', (e) => e.hidden) && !(await pq.isVisible('[data-qr]')), 'QR hidden on screen');
+  await pq.evaluate(() => window.dispatchEvent(new Event('beforeprint'))); await pq.waitForTimeout(300);
+  const q = await pq.evaluate(() => ({ url: document.querySelector('[data-qr]').dataset.url, href: location.href, svg: !!document.querySelector('[data-qrsvg] svg path'), w: getComputedStyle(document.querySelector('[data-qrsvg]')).getPropertyValue('--qrw') }));
+  ok(q.svg && q.url === q.href && q.href.includes('#p='), 'printing: QR code of this plan’s link (' + q.href.length + ' characters, ' + q.w + ' wide)');
+  await pq.emulateMedia({ media: 'print' });
+  ok(await pq.isVisible('[data-qr] svg'), 'QR shown in print');
+  ok(e8.length === 0, 'QR: no JS errors ' + e8.join(' | '));
+  await pq.close();
+}
 await b.close(); srv.close();
 console.log(fails ? fails + ' failing' : 'planner checks pass'); process.exit(fails ? 1 : 0);

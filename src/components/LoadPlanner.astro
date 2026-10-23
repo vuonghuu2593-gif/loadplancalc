@@ -243,6 +243,10 @@ const presets = mode === 'container' ? (spacePresets || data.containers) : palle
       <button type="button" class="btn ghost" data-print>Print plan</button>
       <span class="small" data-r="shareMsg" style="color:var(--band-muted)"></span>
     </div>
+    <div class="qrbox printonly" data-qr hidden>
+      <div class="qrsvg" data-qrsvg></div>
+      <p data-qrtxt>Scan to open this plan on a phone: turn it in 3D and step through the loading box by box.</p>
+    </div>
     <details class="more saved noprint" data-saved>
       <summary><span class="sumk">Saved plans</span><span class="sumv" data-savedsum></span></summary>
       <div class="morebody">

@@ -224,3 +224,7 @@ body.has-full .stickybar{display:none!important}
 .planner[data-mode="container"] .boxmore .lim,.boxmore .stopf{grid-column:span 4}
 .boxmore>summary{min-height:44px}.boxmore .sumk{font-size:15px}
 @media (max-width:560px){.boxmore .lim span,.boxmore .stopf span{font-size:13px}}
+
+/* QR code on printed plans */
+.qrbox{display:none}
+@media print{.qrbox:not([hidden]){display:flex;gap:14px;align-items:center;break-inside:avoid}.qrbox .qrsvg svg{width:var(--qrw,34mm);height:var(--qrw,34mm);display:block}.qrbox p{font-size:11px;color:#000;max-width:9cm}}
