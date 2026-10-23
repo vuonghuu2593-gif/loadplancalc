@@ -371,11 +371,25 @@ export function initPlanner(root) {
     return view;
   }
   const step = $('[data-step]');
-  step.addEventListener('input', () => { view && view.setStep(+step.value); stepText(); });
+  // the step being looked at: show boxes up to it and outline the last one (only while stepping, not at the full plan)
+  const showStep = () => {
+    const v = +step.value;
+    if (view) { view.setStep(v); view.setStepBox(v > 0 && v < boxes.length ? boxes[v - 1] : null); }
+    stepText();
+  };
+  step.addEventListener('input', showStep);
+  root.querySelectorAll('[data-stepbtn]').forEach((b) => b.addEventListener('click', () => {
+    const v = Math.max(0, Math.min(boxes.length, +step.value + +b.dataset.stepbtn));
+    if (v === +step.value) return;
+    step.value = String(v); showStep();
+  }));
   const stepText = () => {
     const v = +step.value; const b = boxes[v - 1];
     const stTxt = !ed && b && b.s >= 0 && last && last.steps ? (last.steps[b.s].auto ? ' · automatic part' : ` · step ${b.s + 1}`) : '';
-    R('stepTxt').textContent = `${fmt(v)} of ${fmt(boxes.length)} boxes${stTxt}`;
+    const it = b ? state.items[b.k] : null; const o = it ? orientOf(it, b) : -1;
+    const what = b && it && v < boxes.length ? ` · last: ${it.name || 'box'}${o >= 0 ? ` (${SHORT[o]})` : ''}` : '';
+    R('stepTxt').textContent = `${fmt(v)} of ${fmt(boxes.length)} boxes${stTxt}${what}`;
+    root.querySelectorAll('[data-stepbtn]').forEach((x) => { x.disabled = +x.dataset.stepbtn < 0 ? v <= 0 : v >= boxes.length; });
   };
 
   async function render(d) {

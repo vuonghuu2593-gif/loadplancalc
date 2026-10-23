@@ -519,6 +519,18 @@ await pg.screenshot({ path: process.env.SHOT || '/tmp/semi.png', fullPage: true 
   // the slider order is the list order: after the first section's 66 boxes the slider is at the wall line
   const firstWall = await pgL.evaluate(() => { const s = document.querySelector('[data-step]'); s.value = '66'; s.dispatchEvent(new Event('input')); return document.querySelector('[data-r="stepTxt"]').textContent; });
   ok(firstWall.startsWith('66 of 660'), 'loading step slider: ' + firstWall);
+  // ‹ › buttons move the slider one box at a time and name the last box; disabled at the ends
+  const stepNow = () => pgL.evaluate(() => ({ v: +document.querySelector('[data-step]').value, t: document.querySelector('[data-r="stepTxt"]').textContent, prev: document.querySelector('[data-stepbtn="-1"]').disabled, next: document.querySelector('[data-stepbtn="1"]').disabled }));
+  await pgL.click('[data-stepbtn="1"]'); let st = await stepNow();
+  ok(st.v === 67 && st.t.startsWith('67 of 660') && /last: /.test(st.t), '› moves to 67 and names the last box (' + st.t + ')');
+  await pgL.click('[data-stepbtn="-1"]'); await pgL.click('[data-stepbtn="-1"]'); st = await stepNow();
+  ok(st.v === 65 && st.t.startsWith('65 of 660'), '‹ ‹ moves back to 65');
+  await pgL.evaluate(() => { const s = document.querySelector('[data-step]'); s.value = '0'; s.dispatchEvent(new Event('input')); }); st = await stepNow();
+  ok(st.v === 0 && st.prev && !st.next, '‹ disabled at step 0');
+  await pgL.evaluate(() => { const s = document.querySelector('[data-step]'); s.value = s.max; s.dispatchEvent(new Event('input')); }); st = await stepNow();
+  ok(st.v === 660 && st.next && !st.prev, '› disabled at the last box');
+  await pgL.click('[data-stepbtn="1"]', { force: true }).catch(() => {}); st = await stepNow();
+  ok(st.v === 660, 'no step past the last box');
   // column stacks and hand editing keep a complete list
   await pgL.click('[data-stack="column"]'); await settleL(); L = await info();
   ok(L.reduce((t, s) => t + s.n, 0) === await mainL(), `column stacks: list sums to the boxes loaded (${L.length} sections)`);

@@ -114,7 +114,14 @@ const presets = mode === 'container' ? (spacePresets || data.containers) : palle
         <button type="button" data-view-btn="side" aria-pressed="false">Side</button>
         <button type="button" data-view-btn="door" aria-pressed="false">{mode === 'container' ? 'Door' : 'Front'}</button>
       </div>
-      <label class="step">Loading step: <span data-r="stepTxt"></span><input type="range" min="0" value="0" data-step></label>
+      <div class="step">
+        <span>Loading step: <span data-r="stepTxt"></span></span>
+        <div class="stepctl">
+          <button type="button" class="edbtn" data-stepbtn="-1" aria-label="Previous box">‹</button>
+          <input type="range" min="0" value="0" data-step aria-label="Loading step">
+          <button type="button" class="edbtn" data-stepbtn="1" aria-label="Next box">›</button>
+        </div>
+      </div>
     </div>
     <div class="editor noprint" data-editor>
       <div class="edoff" data-ed-off>

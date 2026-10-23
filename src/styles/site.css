@@ -97,6 +97,7 @@ ul.plain,ol.plain{margin:8px 0 0;padding-left:20px;display:flex;flex-direction:c
 .viewbar .seg button{font-size:14px}
 .step{display:flex;flex-direction:column;gap:4px;flex:1 1 220px;font-size:14px;font-weight:600}
 .step input{height:32px;padding:0}
+.stepctl{display:flex;align-items:center;gap:8px}.stepctl input{flex:1 1 auto;min-width:0}.stepctl .edbtn{font-size:22px;line-height:1;padding:0 14px}.stepctl .edbtn:disabled{opacity:.4;cursor:default}
 .legend{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:14px}
 .legend i{display:inline-block;width:14px;height:14px;border-radius:3px;margin-right:6px;vertical-align:-2px}
 .warn{background:var(--note);border:1px solid var(--note-line);border-radius:8px;padding:10px 12px;font-size:15px;color:var(--ink)}

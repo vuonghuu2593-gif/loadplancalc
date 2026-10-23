@@ -15,6 +15,9 @@ export function createView(host) {
   const sun = new THREE.DirectionalLight(0xffffff, 1.6); sun.position.set(-0.6, 1, 0.8); scene.add(sun);
   let group = new THREE.Group(); scene.add(group);
   let meshes = [], order = [], size = { L: 1, W: 1, H: 1 }, view = '3d';
+  // extra space the drawing takes beyond the load space (the tractor in front of the back wall, the chassis below)
+  let pad = { x0: 0, y0: 0 };
+  let stepBox = null; // the last box shown by the loading step, outlined
   // hand editing: a highlighted box, green free spots, and taps reported to the page
   const extra = new THREE.Group(); scene.add(extra);
   let ghostMesh = null, ghostList = [], selObj = null, pickCb = null;
@@ -71,8 +74,11 @@ export function createView(host) {
 
   function aim(name) {
     view = name;
-    const { L, W, H } = size;
-    const c = new THREE.Vector3(L / 2, H / 2, W / 2);
+    const { W } = size;
+    // the tractor and chassis only matter in the 3D and side views; top and door views keep the load space framed
+    const withVeh = name === '3d' || name === 'side';
+    const L = size.L + (withVeh ? pad.x0 : 0), H = size.H + (withVeh ? pad.y0 : 0);
+    const c = new THREE.Vector3(size.L - L / 2, size.H - H / 2, W / 2);
     const dir = { '3d': [0.55, 0.62, 0.95], top: [0, 1, 0.0001], side: [0, 0.08, 1], door: [1, 0.12, 0] }[name];
     const v = new THREE.Vector3(...dir).normalize();
     // fit what this view shows (its two visible extents) in both fields of view
@@ -86,7 +92,7 @@ export function createView(host) {
   function setPlan({ cont, boxes, colors, keepCamera, pallet = null, offset = 0 }) {
     const same = keepCamera && size.L === cont.L && size.W === cont.W && size.H === cont.H;
     scene.remove(group); group.traverse((o) => { o.geometry?.dispose(); o.material?.dispose?.(); });
-    group = new THREE.Group(); scene.add(group); meshes = []; order = [];
+    group = new THREE.Group(); scene.add(group); meshes = []; order = []; stepBox = null;
     size = { L: cont.L, W: cont.W, H: cont.H };
     // container outline and floor
     const edges = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(cont.L, cont.H, cont.W)), new THREE.LineBasicMaterial({ color: 0xb7c4cd }));
@@ -102,7 +108,12 @@ export function createView(host) {
       floor.rotation.x = -Math.PI / 2; floor.position.set(cont.L / 2, -1, cont.W / 2); group.add(floor);
       const door = new THREE.Mesh(new THREE.PlaneGeometry(cont.W, cont.H), new THREE.MeshBasicMaterial({ color: 0xf08a24, transparent: true, opacity: 0.12, side: THREE.DoubleSide }));
       door.rotation.y = Math.PI / 2; door.position.set(cont.L, cont.H / 2, cont.W / 2); group.add(door);
+      const frame = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.PlaneGeometry(cont.W, cont.H)), new THREE.LineBasicMaterial({ color: 0xf08a24 }));
+      frame.rotation.y = Math.PI / 2; frame.position.copy(door.position); group.add(frame);
+      group.add(label('DOOR', cont.L + 40, cont.H + Math.max(250, cont.H * 0.12), cont.W / 2, cont.W));
+      drawVehicle(cont);
     }
+    pad = pallet ? { x0: 0, y0: 0 } : { x0: tractorLen(cont) , y0: chassisH(cont) };
     // boxes: one instanced mesh per box type, a small gap so neighbours stay visible
     const geo = new THREE.BoxGeometry(1, 1, 1);
     const byK = new Map();
@@ -121,6 +132,43 @@ export function createView(host) {
     if (same) draw(); else aim(view);
   }
 
+  // A simple tractor unit in front of the back wall and a chassis under the load space, so the closed end and the
+  // door end read at a glance. Purely a drawing: sizes scale with the load space and are not to any vehicle's spec.
+  const chassisH = (c) => Math.min(1400, Math.max(600, c.H * 0.5));
+  const tractorLen = (c) => Math.min(3400, Math.max(1600, c.W * 1.25)) + 250;
+  function drawVehicle(c) {
+    const ground = -chassisH(c), wr = Math.min(520, -ground * 0.42), dark = new THREE.MeshLambertMaterial({ color: 0x20262e });
+    const add = (geo, mat, x, y, z, ry = 0, rz = 0) => { const o = new THREE.Mesh(geo, mat); o.position.set(x, y, z); o.rotation.y = ry; o.rotation.z = rz; group.add(o); return o; };
+    // chassis beams under the load space
+    for (const z of [c.W * 0.3, c.W * 0.7]) add(new THREE.BoxGeometry(c.L, 120, 140), dark, c.L / 2, -80, z);
+    // trailer wheels near the door end, tractor wheels under the cab
+    const wheel = new THREE.CylinderGeometry(wr, wr, Math.min(320, c.W * 0.14), 20);
+    const tireMat = new THREE.MeshLambertMaterial({ color: 0x111418 });
+    const wheelAt = (x) => { for (const z of [c.W * 0.12, c.W * 0.88]) add(wheel, tireMat, x, ground + wr, z, 0, 0).rotation.x = Math.PI / 2; };
+    wheelAt(c.L - wr * 1.6); if (c.L > 4000) wheelAt(c.L - wr * 3.9);
+    const tl = tractorLen(c) - 250, cabH = Math.min(3200, Math.max(1800, c.H * 1.15)), cabW = c.W * 0.96;
+    const x0 = -250 - tl; // tractor from x0 to -250 (a gap before the back wall)
+    const body = new THREE.MeshLambertMaterial({ color: 0x8796a6 }); // neutral grey: never one of the box colours
+    // frame and fifth-wheel area, then the cab at the far end
+    add(new THREE.BoxGeometry(tl, 160, cabW * 0.7), dark, x0 + tl / 2, ground + wr * 1.15, c.W / 2);
+    const cabL = tl * 0.62;
+    add(new THREE.BoxGeometry(cabL, cabH, cabW), body, x0 + cabL / 2, ground + wr * 1.3 + cabH / 2, c.W / 2);
+    // windscreen on the outer face (facing away from the load), so the cab clearly points forward
+    const glass = new THREE.MeshLambertMaterial({ color: 0x1b2b40 });
+    add(new THREE.BoxGeometry(20, cabH * 0.35, cabW * 0.82), glass, x0 - 8, ground + wr * 1.3 + cabH * 0.68, c.W / 2);
+    wheelAt(x0 + cabL * 0.45); wheelAt(x0 + tl - wr * 1.4);
+    // ground line
+    const gl = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.PlaneGeometry(c.L + tl + 900, c.W + 600)), new THREE.LineBasicMaterial({ color: 0x4d5f73 }));
+    gl.rotation.x = -Math.PI / 2; gl.position.set((x0 + c.L) / 2, ground, c.W / 2); group.add(gl);
+  }
+  // a text label that always faces the camera
+  function label(text, x, y, z, width) {
+    const cv = document.createElement('canvas'); cv.width = 256; cv.height = 64;
+    const g = cv.getContext('2d'); g.fillStyle = '#f08a24'; g.font = 'bold 44px system-ui, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(text, 128, 34);
+    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(cv), depthTest: false, transparent: true }));
+    const w = Math.max(1400, width * 1.1); sp.scale.set(w, w / 4, 1); sp.position.set(x, y, z); return sp;
+  }
+
   // show only the first n boxes in loading order
   function setStep(n) {
     for (const { mesh, idxs } of meshes) {
@@ -130,9 +178,18 @@ export function createView(host) {
     }
     draw();
   }
+  // outline one box (the last one the loading step shows), or none
+  function setStepBox(b) {
+    if (stepBox) { group.remove(stepBox); stepBox.geometry.dispose(); stepBox.material.dispose(); stepBox = null; }
+    if (b) {
+      stepBox = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(b.dx + 10, b.dz + 10, b.dy + 10)), new THREE.LineBasicMaterial({ color: 0xffffff }));
+      stepBox.position.set(b.x + b.dx / 2, b.z + b.dz / 2, b.y + b.dy / 2); group.add(stepBox);
+    }
+    draw();
+  }
 
   return {
-    setPlan, setStep, aim, draw, snapshot: () => renderer.domElement.toDataURL('image/png'),
+    setPlan, setStep, setStepBox, aim, draw, snapshot: () => renderer.domElement.toDataURL('image/png'),
     onPick: (fn) => { pickCb = fn; },
     setSelected: (b) => { selObj = b; paintExtra(); },
     setSpots: (list) => { ghostList = list || []; paintExtra(); },
