@@ -188,8 +188,35 @@ export function createView(host) {
     draw();
   }
 
+  // Pictures for the loading list: for each entry { n, x0, x1 } the plan with its first n boxes, seen from the
+  // door side in the 3D view, with the section x0..x1 framed in orange (no frame when x0 is null). Drawn at a
+  // fixed size on the same canvas, then the view is put back exactly as it was. Returns JPEG data URLs.
+  function shots(list, w = 640, h = 400) {
+    const keep = { pos: camera.position.clone(), tgt: controls.target.clone(), view, pr: renderer.getPixelRatio(), counts: meshes.map((m) => m.mesh.count), sb: stepBox ? stepBox.visible : null, ex: extra.visible };
+    renderer.setPixelRatio(1); renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix();
+    aim('3d'); extra.visible = false; if (stepBox) stepBox.visible = false;
+    const frame = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(1, 1, 1)), new THREE.LineBasicMaterial({ color: 0xf08a24 }));
+    group.add(frame);
+    const out = list.map(({ n, x0, x1 }) => {
+      for (const { mesh, idxs } of meshes) { let c = 0; for (const bi of idxs) if (bi < n) c++; mesh.count = c; }
+      frame.visible = x0 != null;
+      if (frame.visible) { frame.scale.set(Math.max(1, x1 - x0), size.H + 20, size.W + 20); frame.position.set((x0 + x1) / 2, size.H / 2, size.W / 2); }
+      renderer.render(scene, camera);
+      return renderer.domElement.toDataURL('image/jpeg', 0.82);
+    });
+    group.remove(frame); frame.geometry.dispose(); frame.material.dispose();
+    meshes.forEach((m, i) => { m.mesh.count = keep.counts[i]; });
+    if (stepBox && keep.sb != null) stepBox.visible = keep.sb;
+    extra.visible = keep.ex;
+    renderer.setPixelRatio(keep.pr);
+    const cw = host.clientWidth || w, ch = host.clientHeight || h;
+    renderer.setSize(cw, ch, false); camera.aspect = cw / ch; camera.updateProjectionMatrix();
+    view = keep.view; camera.position.copy(keep.pos); controls.target.copy(keep.tgt); controls.update(); draw();
+    return out;
+  }
+
   return {
-    setPlan, setStep, setStepBox, aim, draw, snapshot: () => renderer.domElement.toDataURL('image/png'),
+    setPlan, setStep, setStepBox, aim, draw, shots, snapshot: () => renderer.domElement.toDataURL('image/png'),
     onPick: (fn) => { pickCb = fn; },
     setSelected: (b) => { selObj = b; paintExtra(); },
     setSpots: (list) => { ghostList = list || []; paintExtra(); },

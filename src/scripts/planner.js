@@ -626,6 +626,7 @@ export function initPlanner(root) {
     const v = await ensureView();
     v.setPlan({ cont: d.cont, boxes, colors: SWATCH, offset, keepCamera: !!d.edited || !!d.keep, pallet: mode === 'pallet' ? { L: state.cont.L, W: state.cont.W, H: state.cont.palletH || 0 } : null });
     paintEditor();
+    drawnPlan = d; if (picsOn) paintPics();
     R('ordTh').textContent = d.part ? 'Still to load' : 'Ordered';
     $('[data-editor]').hidden = !!d.part; // hand editing works on the first unit
     paintMulti();
@@ -650,15 +651,19 @@ export function initPlanner(root) {
       ? `Load the pallet layer by layer from the deck up. In each layer place the groups in the order listed, each from the back edge and from the right-hand edge as seen from the front (the Front view). Distances in ${u.len} from the pallet edges. The loading step slider shows the same order.${state.cont.palletWt != null ? ` With the pallet (${fmt(u.fromKG(+state.cont.palletWt || 0), 1)} ${u.wt}), the loaded pallet weighs ${wt(d.boxes.reduce((t, b) => t + (state.items[b.k]?.weight || 0), 0) + (+state.cont.palletWt || 0))}.` : ''}`
       : `Load section by section from the back wall toward the door, each section layer by layer from the floor up, and in each layer the groups in the order listed, starting at the back of the section and at the right-hand wall as seen from the door. ${il ? `The sections are the interlocked walls of ${ln(d.stack.section)} ${u.len}${ll.sections.length > d.stack.sections ? '; the boxes in front of the last wall follow' : ''}.` : 'A section ends where no box crosses the line across the load; where boxes of different lengths overlap, a section is about 120 cm long or more.'} Distances in ${u.len}. The loading step slider shows the same order.`;
     const many = ll.sections.length > LL_FEW + 1 && ll.sections.reduce((t, s) => t + s.layers.reduce((a, l) => a + l.groups.length, 0), 0) > 30;
-    let html = '';
+    let html = ''; picList = [];
+    const pics = picsOn || picsPrint;
+    const picRow = (hide, alt, n, x0, x1) => { picList.push({ n, x0, x1 }); return `<tr class="llpic"${hide}><td colspan="7"><div class="llsecin"><img data-pic="${picList.length - 1}" alt="${esc(alt)}" width="640" height="400"></div></td></tr>`; };
     ll.sections.forEach((s, si) => {
       const hide = many && !llAll && si >= LL_FEW ? ' hidden' : '';
       const where = pal ? (ll.sections.length > 1 ? `Part ${si + 1}` : 'Pallet') : `Section ${si + 1} · ${ln(s.x0)}–${ln(s.x1)} ${u.len} from the back wall`;
       const stp = stepName(s.step);
       html += `<tr class="llsec"${hide}><th colspan="7"><div class="llsecin">${where}${stp ? ` · ${stp}` : ''} · ${fmt(s.n)} ${s.n === 1 ? 'box' : 'boxes'}, ${wt(s.w)}<span class="small"> · loaded so far: ${fmt(s.soFar)} ${s.soFar === 1 ? 'box' : 'boxes'}, ${wt(s.wSoFar)}</span></div></th></tr>`;
+      if (pics && !pal) html += picRow(hide, `${where}: the load when this section is done, seen from the door side, the section framed in orange`, s.soFar, s.x0, s.x1);
       s.layers.forEach((l, li) => l.groups.forEach((g, gi) => {
         const lay = gi ? '' : `<td rowspan="${l.groups.length}"><strong>${fmt(li + 1)}</strong> <span class="small">${l.z < 0.5 ? (pal ? 'deck' : 'floor') : `${ln(l.z)} ${u.len} up`}</span></td>`;
         html += `<tr${hide}>${lay}<td><i class="sw" style="background:${SWATCH[g.k % SWATCH.length]}"></i>${esc(state.items[g.k]?.name)}</td><td style="white-space:nowrap">${g.o >= 0 ? SHORT[g.o] : '?'}</td><td class="num">${fmt(g.n)}</td><td class="num">${ln(g.x0 - off)}–${ln(g.x1 - off)}</td><td class="num">${ln(g.y0 - off)}–${ln(g.y1 - off)}</td><td class="num">${fmt(g.soFar)}</td></tr>`;
+        if (pics && pal && gi === l.groups.length - 1) html += picRow(hide, `Layer ${li + 1}: the pallet when this layer is done`, g.soFar, null, null);
       }));
     });
     R('lltable').innerHTML = html || '<tr><td colspan="7">No boxes in the plan.</td></tr>';
@@ -667,7 +672,25 @@ export function initPlanner(root) {
     more.textContent = llAll ? `Show the first ${LL_FEW} sections only` : `Show all ${fmt(ll.sections.length)} ${pal ? 'parts' : 'sections'}`;
     more.setAttribute('aria-expanded', String(llAll));
     $('[data-llcsv]').disabled = !ll.n;
+    const pb = $('[data-llpics]'); pb.setAttribute('aria-pressed', String(picsOn)); pb.textContent = picsOn ? 'Hide pictures' : 'Show pictures';
+    if (pics) paintPics();
   }
+  // ---------- pictures for the loading list (one per container section, or per pallet layer) ----------
+  let picsOn = false, picsPrint = false, picList = [], picCache = { key: null, urls: [] }, drawnPlan = null;
+  try { picsOn = localStorage.getItem('lpc-llpics') === '1'; } catch { /* storage blocked */ }
+  function paintPics() {
+    if (!view || !picList.length || !lastList || drawnPlan !== lastList.d) return; // only once the 3D view holds this plan
+    const key = JSON.stringify(picList) + '|' + lastList.d.boxes.length + '|' + (lastList.d.part || 0) + '|' + (lastList.d.edited ? JSON.stringify(lastList.d.boxes.map((b) => [b.x, b.y, b.z])) : '');
+    if (picCache.key !== key) picCache = { key, urls: view.shots(picList) };
+    root.querySelectorAll('[data-pic]').forEach((img) => { img.src = picCache.urls[+img.dataset.pic] || ''; });
+  }
+  $('[data-llpics]').addEventListener('click', () => {
+    picsOn = !picsOn; try { localStorage.setItem('lpc-llpics', picsOn ? '1' : '0'); } catch { /* ignore */ }
+    paintLoadList();
+  });
+  // printed plans always carry the pictures
+  window.addEventListener('beforeprint', () => { if (!picsOn && lastList) { picsPrint = true; paintLoadList(); } });
+  window.addEventListener('afterprint', () => { if (picsPrint) { picsPrint = false; paintLoadList(); } });
   $('[data-llmore]').addEventListener('click', () => { llAll = !llAll; paintLoadList(); });
   $('[data-llcsv]').addEventListener('click', () => {
     if (!lastList || !lastList.ll.n) return;
@@ -998,6 +1021,60 @@ export function initPlanner(root) {
     catch { R('shareMsg').textContent = 'Copy the address bar to share this plan.'; }
   });
   $('[data-print]').addEventListener('click', () => window.print());
+
+  // ---------- saved plans: kept in this browser (localStorage), every planner page lists them all ----------
+  const SAVE_KEY = 'lpc-plans', SAVE_MAX = 50;
+  const readSaved = () => { try { const v = JSON.parse(localStorage.getItem(SAVE_KEY) || '[]'); return Array.isArray(v) ? v.filter((x) => x && typeof x.hash === 'string' && typeof x.page === 'string') : []; } catch { return null; } };
+  const writeSaved = (list) => { try { localStorage.setItem(SAVE_KEY, JSON.stringify(list.slice(0, SAVE_MAX))); return true; } catch { return false; } };
+  const pageName = () => (document.querySelector('h1')?.textContent || 'Load planner').trim();
+  const defaultName = () => {
+    const n = plans[0] ? plans[0].boxes.length : 0;
+    const where = mode === 'pallet' ? presets.find((x) => x.id === state.cont.preset)?.name || 'Pallet' : unitName() === 'this size' ? 'Custom size' : unitName();
+    return `${where} · ${fmt(n)} boxes · ${new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}`;
+  };
+  const savedMsg = (t) => { $('[data-savedmsg]').textContent = t; };
+  function paintSaved() {
+    const list = readSaved();
+    $('[data-savename]').placeholder = defaultName();
+    if (list === null) { $('[data-savedsum]').textContent = 'not available'; $('[data-savebtn]').disabled = true; savedMsg('This browser does not allow saving here (private window or blocked site data). Use Copy link instead.'); $('[data-savedlist]').innerHTML = ''; return; }
+    $('[data-savedsum]').textContent = list.length ? `${list.length} on this device` : 'none yet';
+    $('[data-savedlist]').innerHTML = list.map((x) => {
+      const here = x.page === location.pathname;
+      const when = (() => { try { return new Date(x.at).toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }); } catch { return ''; } })();
+      return `<li><div class="sv"><strong>${esc(x.name)}</strong><span class="small">${esc(x.summary || '')}${here ? '' : ` · ${esc(x.pageName || x.page)}`} · ${esc(when)}</span></div><div class="svbtns"><button type="button" class="btn line" data-open="${esc(x.id)}">Open</button><button type="button" class="iconbtn" data-delsaved="${esc(x.id)}" aria-label="Delete ${esc(x.name)}">✕</button></div></li>`;
+    }).join('');
+  }
+  async function currentHash() {
+    if (ed) { clearTimeout(hashTimer); try { const e = await packEdits(ed.boxes); history.replaceState(null, '', '#p=' + btoa(unescape(encodeURIComponent(JSON.stringify(state)))).replace(/=+$/, '') + '&e=' + e); } catch { /* ignore */ } }
+    else writeHash();
+    return location.hash;
+  }
+  $('[data-savebtn]').addEventListener('click', async () => {
+    const list = readSaved(); if (list === null) { paintSaved(); return; }
+    const name = ($('[data-savename]').value.trim() || defaultName()).slice(0, 60);
+    const total = qtyOf().reduce((a, b) => a + b, 0), n = plans[0] ? plans[0].boxes.length : 0;
+    const entry = { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), name, page: location.pathname, pageName: pageName(), hash: await currentHash(), at: new Date().toISOString(),
+      summary: `${fmt(n)} of ${fmt(total)} boxes${plans.length > 1 ? ` in the first of ${plans.length}` : ''}${ed ? ', hand-edited' : ''}` };
+    const same = list.findIndex((x) => x.name === name && x.page === entry.page);
+    if (same >= 0) list.splice(same, 1);
+    list.unshift(entry);
+    if (!writeSaved(list)) { savedMsg('Could not save: the browser storage is full or blocked. Use Copy link instead.'); return; }
+    if (list.length > SAVE_MAX) savedMsg(`Saved “${name}”. Only the ${SAVE_MAX} newest plans are kept.`);
+    else savedMsg(same >= 0 ? `Updated “${name}”.` : `Saved “${name}”.`);
+    $('[data-savename]').value = ''; paintSaved();
+  });
+  $('[data-savedlist]').addEventListener('click', (e) => {
+    const list = readSaved() || [];
+    const o = e.target.closest('[data-open]'), d = e.target.closest('[data-delsaved]');
+    if (d) { const i = list.findIndex((x) => x.id === d.dataset.delsaved); if (i >= 0) { const [x] = list.splice(i, 1); writeSaved(list); savedMsg(`Deleted “${x.name}”.`); paintSaved(); } return; }
+    if (!o) return;
+    const x = list.find((y) => y.id === o.dataset.open); if (!x) return;
+    if (x.page === location.pathname) { history.replaceState(null, '', x.hash); location.reload(); }
+    else location.href = x.page + x.hash;
+  });
+  $('[data-saved]').addEventListener('toggle', () => { if ($('[data-saved]').open) paintSaved(); });
+  window.addEventListener('storage', (e) => { if (e.key === SAVE_KEY) paintSaved(); });
+  paintSaved();
 
   paintUnits(); paintContainer(); paintBoxes(); paintMode(); paintEditor(); run(); readEditHash();
   // a shared link with settings other than the page's defaults opens "More options", so they can be seen

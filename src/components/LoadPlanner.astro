@@ -214,6 +214,18 @@ const presets = mode === 'container' ? (spacePresets || data.containers) : palle
       <button type="button" class="btn ghost" data-print>Print plan</button>
       <span class="small" data-r="shareMsg" style="color:var(--band-muted)"></span>
     </div>
+    <details class="more saved noprint" data-saved>
+      <summary><span class="sumk">Saved plans</span><span class="sumv" data-savedsum></span></summary>
+      <div class="morebody">
+        <div class="saverow">
+          <label>Name for this plan<input data-savename maxlength="60" autocomplete="off"></label>
+          <button type="button" class="btn" data-savebtn>Save this plan</button>
+        </div>
+        <p class="small" data-savedmsg role="status"></p>
+        <ul class="savedlist" data-savedlist></ul>
+        <p class="small">Plans are kept in this browser on this device only (up to 50), with every input, the loading method and steps and any hand edits; nothing is sent to us. Clearing the browser's site data removes them. To keep a plan elsewhere or send it, use Copy link.</p>
+      </div>
+    </details>
   </section>
 
   {mode === 'container' && <section class="fitcmp" aria-labelledby="fit-title" data-fit>
@@ -249,7 +261,10 @@ const presets = mode === 'container' ? (spacePresets || data.containers) : palle
   <section class="loadlist" aria-labelledby="ll-title">
     <div class="llhead">
       <h2 id="ll-title">Loading list</h2>
-      <button type="button" class="btn line noprint" data-llcsv>Download loading list (CSV)</button>
+      <div class="llbtns noprint">
+        <button type="button" class="btn line" data-llpics aria-pressed="false">Show pictures</button>
+        <button type="button" class="btn line" data-llcsv>Download loading list (CSV)</button>
+      </div>
     </div>
     <p class="small" data-r="llnote"></p>
     <div class="tablebox">

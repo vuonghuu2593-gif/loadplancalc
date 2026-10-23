@@ -665,5 +665,51 @@ ok(errs.length === 0, 'no JS errors ' + errs.join(' | '));
   ok(e2.length === 0, 'phone layout: no JS errors ' + e2.join(' | '));
   await pf.close();
 }
+// Loading list pictures and saved plans (2026-10-23)
+{
+  const pp = await newPage0({ viewport: { width: 390, height: 844 }, locale: 'en-GB' }); const e3 = []; pp.on('pageerror', (e) => e3.push(e.message));
+  const T = (sel) => pp.$eval(sel, (e) => e.textContent.trim());
+  const settleP = async () => { await pp.waitForTimeout(350); await pp.waitForFunction(() => !document.querySelector('[data-result]').classList.contains('busy'), null, { timeout: 15000 }); };
+  await pp.goto('http://localhost:4401/container-loading-calculator/'); await settleP(); await pp.waitForTimeout(500);
+  const secs = await pp.$$eval('.lltable tr.llsec', (r) => r.length);
+  ok(await pp.$$eval('[data-pic]', (l) => l.length) === 0, 'pictures off by default');
+  await pp.click('[data-llpics]'); await pp.waitForTimeout(500);
+  let pics = await pp.$$eval('[data-pic]', (l) => l.map((i) => ({ ok: i.src.startsWith('data:image/jpeg'), hid: i.closest('tr').hidden, sec: i.closest('tr').previousElementSibling.hidden })));
+  ok(pics.length === secs && secs > 1 && pics.every((x) => x.ok && x.hid === x.sec), `one picture per section (${pics.length} of ${secs}), hidden with its section`);
+  ok(await pp.$eval('[data-step]', (e) => e.value) === '900' && (await T('[data-r="stepTxt"]')).startsWith('900 of 900'), 'pictures leave the loading step as it was');
+  const distinct = await pp.$$eval('[data-pic]', (l) => new Set(l.map((i) => i.src)).size);
+  ok(distinct === pics.length, 'each section picture is different');
+  await pp.click('[data-llpics]'); await pp.waitForTimeout(200);
+  ok(await pp.$$eval('[data-pic]', (l) => l.length) === 0 && await T('[data-llpics]') === 'Show pictures', 'Hide pictures removes them');
+  await pp.evaluate(() => window.dispatchEvent(new Event('beforeprint'))); await pp.waitForTimeout(300);
+  ok(await pp.$$eval('[data-pic]', (l) => l.filter((i) => i.src.startsWith('data:image/jpeg')).length) === secs, 'printing adds the pictures');
+  await pp.evaluate(() => window.dispatchEvent(new Event('afterprint'))); await pp.waitForTimeout(200);
+  ok(await pp.$$eval('[data-pic]', (l) => l.length) === 0, 'after printing they are hidden again');
+  // saved plans: save the default, change the quantity, save under a name, open the first again
+  await pp.evaluate(() => { document.querySelector('[data-saved]').open = true; });
+  ok(await T('[data-savedsum]') === 'none yet', 'saved plans: none yet');
+  await pp.click('[data-savebtn]'); await pp.waitForTimeout(200);
+  ok((await T('[data-savedmsg]')).startsWith("Saved “40' High Cube · 900 boxes ·"), 'saved with the default name (' + await T('[data-savedmsg]') + ')');
+  await pp.fill('.boxcard [data-b="qty"]', '200'); await settleP();
+  await pp.fill('[data-savename]', 'Order A'); await pp.click('[data-savebtn]'); await pp.waitForTimeout(200);
+  ok(await T('[data-savedsum]') === '2 on this device' && (await T('.savedlist li:first-child')).includes('700 of 700 boxes'), 'second plan saved, newest first (700 of 700)');
+  await pp.fill('[data-savename]', 'Order A'); await pp.click('[data-savebtn]'); await pp.waitForTimeout(200);
+  ok(await T('[data-savedmsg]') === 'Updated “Order A”.' && await T('[data-savedsum]') === '2 on this device', 'same name updates instead of adding');
+  await pp.click('.savedlist li:nth-child(2) [data-open]'); await pp.waitForLoadState('load'); await settleP();
+  ok(await T('#r-main') === '900 of 900' && await pp.inputValue('.boxcard [data-b="qty"]') === '400', 'Open restores the saved plan (900 of 900, qty 400)');
+  // from another planner page the list shows them too, and Open goes to the right page
+  await pp.goto('http://localhost:4401/pallet-loading-calculator/'); await settleP();
+  await pp.evaluate(() => { document.querySelector('[data-saved]').open = true; });
+  ok((await T('.savedlist li:first-child')).includes('· Container loading calculator ·'), 'pallet page lists the container plans with their page (' + (await T('.savedlist li:first-child')).slice(0, 80) + ')');
+  await pp.click('[data-llpics]'); await pp.waitForTimeout(400);
+  ok(await pp.$$eval('[data-pic]', (l) => l.length) === 6, 'pallet: one picture per layer (6)');
+  await pp.click('.savedlist li:first-child [data-open]'); await pp.waitForURL(/container-loading-calculator/); await settleP();
+  ok(await T('#r-main') === '700 of 700', 'Open from the pallet page goes to the container plan (700 of 700)');
+  await pp.evaluate(() => { document.querySelector('[data-saved]').open = true; });
+  await pp.click('.savedlist li:first-child [data-delsaved]'); await pp.waitForTimeout(200);
+  ok(await T('[data-savedsum]') === '1 on this device' && (await T('[data-savedmsg]')).startsWith('Deleted “Order A”'), 'delete a saved plan');
+  ok(e3.length === 0, 'pictures and saved plans: no JS errors ' + e3.join(' | '));
+  await pp.close();
+}
 await b.close(); srv.close();
 console.log(fails ? fails + ' failing' : 'planner checks pass'); process.exit(fails ? 1 : 0);
