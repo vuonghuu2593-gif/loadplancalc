@@ -1,5 +1,6 @@
 {
-  "checked": "2026-10-20",
+  "checked": "2026-10-23",
+  "reads": "Heights, weights, safe working loads and stacking notes read twice on 2026-10-23: curl page download converted to text, and headless Chromium page text; identical. Neither EPAL nor CHEP publishes a maximum height for a loaded pallet on these pages.",
   "pallets": [
     { "id": "epal1", "name": "EPAL Euro pallet (EPAL 1)", "publisher": "EPAL", "L": 1200, "W": 800, "printed": "Length 800 mm, width 1,200 mm", "H": 144, "weightKg": 25, "swlKg": 1500, "stackNote": "Bottom pallet max. 5,500 kg when stacking laden pallets on a solid, even surface", "boards": 11, "blocks": 9,
       "url": "https://www.epal-pallets.org/eu-en/load-carriers/epal-euro-pallet" },
@@ -11,7 +12,7 @@
       "url": "https://www.epal-pallets.org/eu-en/load-carriers/epal-6-half-pallet" },
     { "id": "epal7", "name": "EPAL 7 half pallet", "publisher": "EPAL", "L": 800, "W": 600, "printed": "Length 800 mm, width 600 mm", "H": 163, "weightKg": 9.5, "swlKg": 500, "swlNote": "in shelving racks or transport with a forklift truck", "stackNote": "Bottom pallet max. 1,500 kg when stacking laden pallets on a solid, even surface", "boards": 13, "blocks": 3,
       "url": "https://www.epal-pallets.org/eu-en/load-carriers/epal-7-half-pallet" },
-    { "id": "chep4840", "name": "CHEP block pallet, North America (48 × 40 in)", "publisher": "CHEP", "L": 1219, "W": 1016, "printed": "External 1219 × 1016 × 141 mm; 48 × 40 × 5.6 in", "H": 141, "Hin": 5.6, "Lin": 48, "Win": 40, "weightKg": null, "swlLb": 2800, "swlNote": "designed to carry 2,800 lbs in normal operating circumstances with a uniformly distributed load", "stackNote": "Block stacked up to 5 unit loads high, not to exceed 10,000 lbs", "entry": "4-way entry; openings 370 × 90 mm (14.6 × 3.5 in) on the 1219 mm side, 318 × 106 mm (12.5 × 4.2 in) on the 1016 mm side",
+    { "id": "chep4840", "name": "CHEP block pallet, North America (48 × 40 in)", "publisher": "CHEP", "L": 1219, "W": 1016, "printed": "External 1219 × 1016 × 141 mm; 48 × 40 × 5.6 in", "H": 141, "Hin": 5.6, "Lin": 48, "Win": 40, "weightKg": null, "swlLb": 2800, "swlNote": "designed to carry 2,800 lbs in normal operating circumstances with a uniformly distributed load", "stackNote": "Block stacked up to 5 unit loads high, not to exceed 10,000 lbs", "emptyStack": 19, "emptyStackNote": "Empty pallets can be (stacked) stored 19 high in a trailer", "entry": "4-way entry; openings 370 × 90 mm (14.6 × 3.5 in) on the 1219 mm side, 318 × 106 mm (12.5 × 4.2 in) on the 1016 mm side",
       "url": "https://www.chep.com/us/en/product/pooled-wood-block-pallet-north-america-48-x-40-inches" }
   ]
 }

@@ -1,7 +1,7 @@
 {
-  "updated": "2026-10-22",
-  "tools": "8e1920c166e57fe7ba531dff03116318aa97cd30c4b818f09493af222c76fca4",
-  "guide": "e735516941f61a8b47ffef4c5902925051756db9f80bf48c226e39df735e19c9",
+  "updated": "2026-10-23",
+  "tools": "7f988d1e746de8735c2674adf6434f3bdac244c70d8b27171a2a09c37e57736d",
+  "guide": "881fc9d2497a3f31a89425b5b2ba0de77648e26f6d9744dfcfd7b36894b2489f",
   "toolPages": [
     "/cbm-calculator/",
     "/container-loading-calculator/",

@@ -2,6 +2,8 @@
 import Base from '../layouts/Base.astro';
 import data from '../data/pallets.json';
 import cont from '../data/containers.json';
+import tr from '../data/trailers.json';
+import xs from '../data/trailer-specs.json';
 const n = (v: number, d = 0) => v.toLocaleString('en-US', { maximumFractionDigits: d, minimumFractionDigits: d });
 const inch = (mm: number) => mm / 25.4;
 const lb = (kg: number) => kg / 0.45359237;
@@ -11,13 +13,44 @@ const euro = p.epal1, us = p.chep4840;
 const area = (x: { L: number; W: number }) => (x.L * x.W) / 1e6;
 const sqft = (x: { L: number; W: number }) => (x.L * x.W) / (304.8 * 304.8);
 const ratio = area(us) / area(euro);
+// Pallet height: empty heights and the height limits of each container and trailer (computed here, never typed)
+const inMax = (v: number) => v.toLocaleString('en-US', { maximumFractionDigits: 4 });
+// mm from inches: whole mm when exact, else rounded down to 0.1 mm (never above the printed inch figure)
+const mmTxt = (v: number) => { const r = Math.floor(v * 10 + 1e-9) / 10; return n(r, r % 1 ? 1 : 0); };
+const hs = data.pallets.map((x) => x.H);
+const hMin = Math.min(...hs), hMax = Math.max(...hs);
+// trailers: group identical heights from the same maker into one row
+const tRows: { maker: string; kind: string; models: string[]; front: number; rear: number; door: number | null; url: string }[] = [];
+const addT = (maker: string, kind: string, model: string, front: number, rear: number, door: number | null, u: string) => {
+  const r = tRows.find((x) => x.maker === maker && x.kind === kind && x.front === front && x.rear === rear && x.door === door);
+  if (r) r.models.push(model); else tRows.push({ maker, kind, models: [model], front, rear, door, url: u });
+};
+tr.trailers.forEach((t) => addT('Hyundai Translead', 'dry van', t.model, t.Hin, t.Hin, null, t.url));
+xs.hyundai.forEach((t) => addT('Hyundai Translead', t.kind, t.model, t.Hin, t.Hin, null, t.url));
+xs.others.forEach((o) => addT(o.maker, o.kind, o.model.replace(/ \(.*\)$/, '').replace(/^53' /, ''), o.heights.front, o.heights.rear, ('doorHin' in o && o.doorHin) ? (o.doorHin as number) : null, o.url));
+const mmOf = (i: number) => i * 25.4;
+const contRows = cont.containers.map((c) => {
+  const one = Math.min(c.H, c.doorH);
+  const two = Math.min(Math.floor(c.H / 2), c.doorH);
+  return { c, one, two };
+});
+const trRows = tRows.map((t) => {
+  const inside = Math.min(t.front, t.rear);
+  const one = t.door == null ? inside : Math.min(inside, t.door);
+  const two = t.door == null ? inside / 2 : Math.min(inside / 2, t.door);
+  return { t, inside, one, two };
+});
+const dv40 = cont.containers.find((c) => c.id === '40dv')!;
+const hc40 = cont.containers.find((c) => c.id === '40hc')!;
+const stackMm = us.emptyStack! * us.H;
+const htMin = Math.min(...tr.trailers.map((t) => t.Hin));
 const url = new URL('/pallet-sizes/', 'https://loadplancalc.com').href;
 const schema = { '@context': 'https://schema.org', '@type': 'Article', headline: 'Standard pallet sizes', dateModified: data.checked, mainEntityOfPage: url };
 ---
-<Base title="Standard Pallet Sizes: Euro Pallet and 48 × 40 Dimensions" description="Pallet dimensions in mm and inches with height, weight and safe working load: EPAL Euro pallet (1200 × 800), EPAL 2, 3, 6 and 7, and the North American 48 × 40 in block pallet, from EPAL and CHEP." schema={schema}>
+<Base title="Standard Pallet Sizes and Pallet Height: Euro and 48 × 40" description="Pallet sizes and pallet height in mm and inches: Euro pallet 1200 × 800, EPAL 2, 3, 6, 7 and 48 × 40 in, with weight, safe working load and max loaded height in containers and 53' trailers." schema={schema}>
   <section class="prose">
     <h1>Standard pallet sizes</h1>
-    <p class="lede">The EPAL Euro pallet is {n(euro.L)} × {n(euro.W)} mm and {euro.H} mm high ({n(inch(euro.L), 1)} × {n(inch(euro.W), 1)} × {n(inch(euro.H), 1)} in), weighs about {euro.weightKg} kg and has a safe working load of {n(euro.swlKg)} kg, according to EPAL. The North American 48 × 40 in pallet measures {n(us.L)} × {n(us.W)} × {us.H} mm in CHEP's specification for its block pallet. Below are the sizes, heights and load ratings of six common pallets, each from the organisation that sets or makes it.</p>
+    <p class="lede">The EPAL Euro pallet is {n(euro.L)} × {n(euro.W)} mm and {euro.H} mm high ({n(inch(euro.L), 1)} × {n(inch(euro.W), 1)} × {n(inch(euro.H), 1)} in), weighs about {euro.weightKg} kg and has a safe working load of {n(euro.swlKg)} kg, according to EPAL. The North American 48 × 40 in pallet measures {n(us.L)} × {n(us.W)} × {us.H} mm in CHEP's specification for its block pallet. Below are the sizes, heights and load ratings of six common pallets, each from the organisation that sets or makes it. Empty, they are {hMin}–{hMax} mm ({n(inch(hMin), 1)}–{n(inch(hMax), 1)} in) high; how high a loaded pallet may be is set by the racking, the vehicle and the customer, not by a standard (see <a href="#height">pallet height</a>).</p>
   </section>
 
   <section class="prose">
@@ -39,7 +72,7 @@ const schema = { '@context': 'https://schema.org', '@type': 'Article', headline:
     <p class="small">EPAL figures from EPAL's product pages; the 48 × 40 in figures from CHEP's product page (CHEP does not list a weight for this pallet there, and its load figure is what the pallet is "designed … to carry … in normal operating circumstances with a uniformly distributed load"). EPAL prints the Euro pallet as length 800 mm and width 1,200 mm, and the EPAL 3 as length 1,000 mm and width 1,200 mm; the table gives the long side first. Inches and pounds are converted (1 in = 25.4 mm, 1 lb = 0.45359237 kg) unless the maker prints them.</p>
   </section>
 
-  <section class="prose">
+  <section class="prose" id="stacking">
     <h2>Stacking limits</h2>
     <div class="tablebox">
       <table>
@@ -60,16 +93,43 @@ const schema = { '@context': 'https://schema.org', '@type': 'Article', headline:
     </ul>
   </section>
 
-  <section class="prose">
-    <h2>How high can you load a pallet in a container?</h2>
-    <p>The pallet itself takes part of the inside height. With a {euro.H} mm Euro pallet on the floor, the room left above the deck is:</p>
+  <section class="prose" id="height">
+    <h2>Pallet height</h2>
+    <h3>Height of an empty pallet</h3>
     <div class="tablebox">
       <table>
-        <thead><tr><th>Container</th><th class="num">Inside height</th><th class="num">Above a {euro.H} mm pallet</th><th class="num">Door height</th></tr></thead>
-        <tbody>{cont.containers.map((c) => <tr><td>{c.name}</td><td class="num">{n(c.H)} mm</td><td class="num">{n(c.H - euro.H)} mm<br><span class="small">{n(inch(c.H - euro.H), 1)} in</span></td><td class="num">{n(c.doorH)} mm</td></tr>)}</tbody>
+        <thead><tr><th>Pallet</th><th class="num">Height</th><th class="num">Inches</th></tr></thead>
+        <tbody>{data.pallets.map((x) => <tr><td><a href={x.url} rel="noopener">{x.name}</a></td><td class="num">{x.H} mm</td><td class="num">{x.Hin ? `${x.Hin} in (printed)` : `${n(inch(x.H), 2)} in`}</td></tr>)}</tbody>
       </table>
     </div>
-    <p class="small">Inside and door heights from Hapag-Lloyd's specifications (see <a href="/shipping-container-dimensions/">shipping container dimensions</a>). A loaded pallet goes in through the door, so the door height ({n(cont.containers[0].doorH)} mm on a standard container) is the real limit for one pallet plus its load; leave room for the forklift to lift it.</p>
+    <p class="small">Heights as printed by EPAL and CHEP; inches converted at 1 in = 25.4 mm (CHEP prints {us.Hin} in itself). CHEP also states: “{us.emptyStackNote}”. That stack is {us.emptyStack} × {us.H} = {n(stackMm)} mm ({n(inch(stackMm), 1)} in), under the {htMin} in ({n(mmOf(htMin))} mm) inside height of the Hyundai Translead 53' dry vans below.</p>
+
+    <h3>Is there a standard loaded pallet height?</h3>
+    <p>No. Neither EPAL nor CHEP gives a maximum height for a loaded pallet on its product pages: they rate the weight a pallet carries ({n(euro.swlKg)} kg safe working load for the Euro pallet, {n(us.swlLb!)} lb for CHEP's 48 × 40 in) and how much the bottom pallet may carry in a stack (see <a href="#stacking">stacking limits</a> above). The height limit comes from where the pallet goes: the rack opening in the warehouse, the door and inside height of the container or trailer, and the rules of the customer or carrier receiving it. Ask for that figure, and when you plan cartons on a pallet, enter it as the max height.</p>
+
+    <h3>Maximum loaded pallet height in containers and 53' trailers</h3>
+    <p>A loaded pallet goes in through the door, so the lower of door height and inside height is the most it can measure from the floor, pallet included. Two high, the two pallets together must fit under the inside height, and each still passes the door on its own.</p>
+    <div class="tablebox">
+      <table>
+        <thead><tr><th>Container or trailer</th><th class="num">One high, max</th><th class="num">Two high, each</th><th class="num">Inside / door</th></tr></thead>
+        <tbody>
+          {contRows.map(({ c, one, two }) => <tr>
+            <td><a href={c.url} rel="noopener">{c.name}</a></td>
+            <td class="num">{n(one)} mm<br><span class="small">{n(inch(one), 1)} in</span></td>
+            <td class="num">{n(two)} mm<br><span class="small">{n(inch(two), 1)} in</span></td>
+            <td class="num">{n(c.H)} / {n(c.doorH)} mm<br><span class="small">{n(inch(c.H), 1)} / {n(inch(c.doorH), 1)} in</span></td>
+          </tr>)}
+          {trRows.map(({ t, inside, one, two }) => <tr>
+            <td><a href={t.url} rel="noopener">53' {t.kind.replace('refrigerated van (reefer)', 'reefer')}, {t.maker}</a> {!t.kind.includes(t.models.join('')) && <span class="small">({t.models.join(', ')})</span>}</td>
+            <td class="num">{inMax(one)} in<br><span class="small">{mmTxt(mmOf(one))} mm</span></td>
+            <td class="num">{inMax(two)} in<br><span class="small">{mmTxt(mmOf(two))} mm</span></td>
+            <td class="num">{t.front === t.rear ? inMax(inside) : `${inMax(t.front)}–${inMax(t.rear)}`} / {t.door == null ? '–' : inMax(t.door)} in<br><span class="small">{mmTxt(mmOf(inside))}{t.door == null ? '' : ` / ${mmTxt(mmOf(t.door))}`} mm</span>{t.front !== t.rear && <><br><span class="small">front–rear; mm for the lower</span></>}</td>
+          </tr>)}
+        </tbody>
+      </table>
+    </div>
+    <p class="small">Computed from the published figures: one high = the lower of inside height and door height; two high = half the inside height, but no more than the door height. Container halves are rounded down to the millimetre; trailer millimetres are converted from the printed inches and rounded down to 0.1 mm. A dash means the maker publishes no door height. Container heights from Hapag-Lloyd's container pages, which say the figures are examples and units vary by maker (more on <a href="/shipping-container-dimensions/">shipping container dimensions</a>); trailer heights as printed in inches by Hyundai Translead, Utility Trailer and Stoughton Trailers (more on <a href="/53-foot-trailer-dimensions/">53 ft trailer dimensions</a>). Where a maker publishes no door height, the limit shown is the inside height only: measure your trailer's door. No source used here gives a clearance for the forklift, so these are the full openings: subtract the room your forklift needs to lift the pallet and drive it in, and any gap you want above the load.</p>
+    <p>With a {euro.H} mm Euro pallet, the goods on it may be up to {n(dv40.doorH)} − {euro.H} = {n(dv40.doorH - euro.H)} mm high one high in a 40' Standard ({n(hc40.doorH)} − {euro.H} = {n(hc40.doorH - euro.H)} mm in a 40' High Cube), before forklift clearance. Two high in a 40' Standard, each loaded pallet may be at most {n(Math.floor(dv40.H / 2))} mm, so {n(Math.floor(dv40.H / 2) - euro.H)} mm of goods on each pallet. To fill a pallet up to the height you choose, use the <a href="/pallet-loading-calculator/">pallet loading calculator</a> (its <strong>Max height incl. pallet</strong> input); to check how many loaded pallets of that height fit, use <a href="/how-many-pallets-fit-in-a-container/">how many pallets fit in a container</a> or <a href="/how-many-pallets-fit-in-a-53-foot-trailer/">in a 53 ft trailer</a>, which check the door height for every pallet when the door is filled in.</p>
   </section>
 
   <section class="prose">
@@ -81,6 +141,6 @@ const schema = { '@context': 'https://schema.org', '@type': 'Article', headline:
     <h2>Planning a pallet load</h2>
     <p>To see how many cartons fit on one of these pallets, with the Ti-Hi (cartons per layer × layers) and a 3D plan, use the <a href="/pallet-loading-calculator/">pallet loading calculator</a>: its presets use the sizes, heights and safe working loads on this page.</p>
     <p>To see how many of these pallets fit in a 20', 40' or high cube container, one or two high, use <a href="/how-many-pallets-fit-in-a-container/">how many pallets fit in a container</a>: pick the pallet, enter the loaded height and gross weight, and the 3D plan shows how many fit and whether the payload limit is reached. It also has a table of counts for every pallet on this page in each container. For mixed cargo, enter each pallet as a box in the <a href="/container-loading-calculator/">container loading calculator</a>. For trucks, <a href="/how-many-pallets-fit-in-a-53-foot-trailer/">how many pallets fit in a 53 ft trailer</a> does the same with the inside sizes a trailer maker publishes for its 53' dry vans.</p>
-    <p class="small">Sources: EPAL product pages for the <a href={euro.url} rel="noopener">Euro pallet</a>, <a href={p.epal2.url} rel="noopener">EPAL 2</a>, <a href={p.epal3.url} rel="noopener">EPAL 3</a>, <a href={p.epal6.url} rel="noopener">EPAL 6</a> and <a href={p.epal7.url} rel="noopener">EPAL 7</a>; <a href={us.url} rel="noopener">CHEP Pooled Wood Block Pallet North America (48 × 40 inches)</a>. Checked {data.checked}.</p>
+    <p class="small">Sources: EPAL product pages for the <a href={euro.url} rel="noopener">Euro pallet</a>, <a href={p.epal2.url} rel="noopener">EPAL 2</a>, <a href={p.epal3.url} rel="noopener">EPAL 3</a>, <a href={p.epal6.url} rel="noopener">EPAL 6</a> and <a href={p.epal7.url} rel="noopener">EPAL 7</a>; <a href={us.url} rel="noopener">CHEP Pooled Wood Block Pallet North America (48 × 40 inches)</a>. Checked {data.checked}. Container door and inside heights: Hapag-Lloyd (<a href={dv40.url} rel="noopener">40' Standard</a> and the other container pages linked in the table); trailer inside and door heights: Hyundai Translead, Utility Trailer and Stoughton Trailers spec pages (linked in the table).</p>
   </section>
 </Base>
