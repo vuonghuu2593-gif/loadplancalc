@@ -15,6 +15,7 @@ const fullTitle = title === SITE_NAME ? title : `${title} | ${SITE_NAME}`;
 <html lang="en">
 <head>
   <meta charset="utf-8">
+  <meta name="google-adsense-account" content="ca-pub-3220900391252866">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>{fullTitle}</title>
   <meta name="description" content={description}>
@@ -42,6 +43,8 @@ const fullTitle = title === SITE_NAME ? title : `${title} | ${SITE_NAME}`;
     if (navigator.webdriver) { window['ga-disable-G-TCZ4ZWR5MG'] = true; }
     else { var gs = document.createElement('script'); gs.async = true; gs.src = 'https://www.googletagmanager.com/gtag/js?id=G-TCZ4ZWR5MG'; document.head.appendChild(gs); }
   </script>
+  <!-- Google AdSense (publisher ca-pub-3220900391252866); ads appear only after AdSense approves the site and Auto ads are turned on -->
+  <script is:inline async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-3220900391252866" crossorigin="anonymous"></script>
 </head>
 <body>
   <header class="site-header">
