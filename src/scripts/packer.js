@@ -53,6 +53,13 @@ function blocks(it, o, sp, qty, wLeft) {
   let mz = Math.floor(sp.sz / dz);
   if (!it.stackable) mz = Math.min(mz, 1);
   if (it.maxLayers) mz = Math.min(mz, it.maxLayers);
+  // stacking limits: layers still allowed above the space's floor, the box's own limit on the weight
+  // above it (the bottom box of a column carries the rest), and the pressure the boxes below can take
+  if (sp.lay != null) mz = Math.min(mz, sp.lay);
+  if (it.weight > 0) {
+    if (it.maxLoad != null) mz = Math.min(mz, Math.floor(it.maxLoad / it.weight + 1e-9) + 1);
+    if (sp.pr != null && Number.isFinite(sp.pr)) mz = Math.min(mz, Math.floor((sp.pr * dx * dy) / it.weight + 1e-9));
+  }
   if (mx < 1 || my < 1 || mz < 1) return [];
   const byW = it.weight > 0 ? Math.floor(wLeft / it.weight + 1e-9) : Infinity;
   const cap = Math.min(qty, byW);
@@ -102,13 +109,20 @@ function score(rule, vol, sp, bx, by, bz) {
 function residuals(sp, c, it, useA) {
   const rx = sp.sx - c.bx, ry = sp.sy - c.by, rz = sp.sz - c.bz;
   const out = [];
-  if (rz > 0 && it.stackable) out.push({ x: sp.x, y: sp.y, z: sp.z + c.bz, sx: c.bx, sy: c.by, sz: rz, under: [c.k] });
+  if (rz > 0 && it.stackable) {
+    // what may still go on top: layers (the space's and this box's own limit) and pressure (kg per mm²
+    // of footprint), the smaller of what the floor below and the block's bottom boxes can still take
+    const area = c.o[0] * c.o[1], w = it.weight || 0;
+    const lay = Math.min(sp.lay ?? Infinity, it.maxLayers ? it.maxLayers - c.nz : Infinity);
+    const pr = Math.min((sp.pr ?? Infinity) - (c.nz * w) / area, it.maxLoad != null ? (it.maxLoad - (c.nz - 1) * w) / area : Infinity);
+    if (lay >= 1 && pr > 1e-12) out.push({ x: sp.x, y: sp.y, z: sp.z + c.bz, sx: c.bx, sy: c.by, sz: rz, under: [c.k], lay: Number.isFinite(lay) ? lay : undefined, pr: Number.isFinite(pr) ? pr : undefined });
+  }
   if (useA) { // front piece spans the full width
-    if (rx > 0) out.push({ x: sp.x + c.bx, y: sp.y, z: sp.z, sx: rx, sy: sp.sy, sz: sp.sz, under: sp.under });
-    if (ry > 0) out.push({ x: sp.x, y: sp.y + c.by, z: sp.z, sx: c.bx, sy: ry, sz: sp.sz, under: sp.under });
+    if (rx > 0) out.push({ x: sp.x + c.bx, y: sp.y, z: sp.z, sx: rx, sy: sp.sy, sz: sp.sz, under: sp.under, lay: sp.lay, pr: sp.pr });
+    if (ry > 0) out.push({ x: sp.x, y: sp.y + c.by, z: sp.z, sx: c.bx, sy: ry, sz: sp.sz, under: sp.under, lay: sp.lay, pr: sp.pr });
   } else { // side piece spans the full length
-    if (ry > 0) out.push({ x: sp.x, y: sp.y + c.by, z: sp.z, sx: sp.sx, sy: ry, sz: sp.sz, under: sp.under });
-    if (rx > 0) out.push({ x: sp.x + c.bx, y: sp.y, z: sp.z, sx: rx, sy: c.by, sz: sp.sz, under: sp.under });
+    if (ry > 0) out.push({ x: sp.x, y: sp.y + c.by, z: sp.z, sx: sp.sx, sy: ry, sz: sp.sz, under: sp.under, lay: sp.lay, pr: sp.pr });
+    if (rx > 0) out.push({ x: sp.x + c.bx, y: sp.y, z: sp.z, sx: rx, sy: c.by, sz: sp.sz, under: sp.under, lay: sp.lay, pr: sp.pr });
   }
   return out;
 }
@@ -230,7 +244,14 @@ export function normalize(container, rawItems, opts = {}) {
   const cont = { L: +container.L, W: +container.W, H: +container.H, maxWeight: +container.maxWeight || 0,
     doorW: +container.doorW || 0, doorH: +container.doorH || 0, priority: !!opts.priority,
     minSupport: supportShare(container.minSupport) };
-  const items = rawItems.map((it, i) => ({ ...it, idx: i, l: +it.l, w: +it.w, h: +it.h, weight: +it.weight || 0, qty: Math.floor(+it.qty || 0), stackable: it.stackable !== false }));
+  const items = rawItems.map((it, i) => {
+    // stacking limits printed on cartons: how many boxes may stand on this one, and how much weight
+    const onTop = it.maxOnTop === '' || it.maxOnTop == null || !Number.isFinite(+it.maxOnTop) || +it.maxOnTop < 0 ? null : Math.floor(+it.maxOnTop);
+    const maxLoad = it.maxLoad === '' || it.maxLoad == null || !Number.isFinite(+it.maxLoad) || +it.maxLoad < 0 ? null : +it.maxLoad;
+    const out = { ...it, idx: i, l: +it.l, w: +it.w, h: +it.h, weight: +it.weight || 0, qty: Math.floor(+it.qty || 0), stackable: it.stackable !== false && onTop !== 0, maxOnTop: onTop, maxLoad };
+    if (onTop != null) out.maxLayers = Math.min(it.maxLayers || Infinity, onTop + 1);
+    return out;
+  });
   for (const it of items) it.os = it.l > 0 && it.w > 0 && it.h > 0 ? orientations({ ...it, os: null }).filter((o) => (!cont.doorW || o[1] <= cont.doorW) && (!cont.doorH || o[2] <= cont.doorH)) : [];
   return { cont, items };
 }
@@ -353,6 +374,15 @@ export function validate(res, eps = 0.01) {
     if (area < ms * a.dx * a.dy - eps) errors.push(ms < 1 ? 'box not supported enough' : 'box not fully supported');
     if (ms < 1 && !centreOn(a, placed.filter((b) => Math.abs(b.z + b.dz - a.z) <= eps))) errors.push('box centre not over a box below');
   }
+  // stacking limits: boxes and weight standing on each box (see stackLoads)
+  if (items.some((it) => it.maxOnTop != null || it.maxLoad != null)) {
+    const { load, above } = stackLoads(placed, items, eps);
+    placed.forEach((p, i) => {
+      const it = items[p.k];
+      if (it.maxOnTop != null && above[i] > it.maxOnTop) errors.push('too many boxes stacked on a box');
+      if (it.maxLoad != null && load[i] > it.maxLoad * (1 + 1e-9) + 1e-6) errors.push('too much weight on a box');
+    });
+  }
   // semi-automatic steps: right box type, no more than asked, fixed orientation kept, new sections in front
   if (res.steps) {
     const st = res.steps;
@@ -373,6 +403,30 @@ export function validate(res, eps = 0.01) {
     });
   }
   return [...new Set(errors)];
+}
+
+// Weight and boxes standing on each box. Working from the top down, each box passes its own weight plus
+// everything on it to the boxes it rests on, shared by contact area. above[i] = the most boxes stacked on
+// box i in any column (1 for a single box on top). Independent of how the plan was made.
+export function stackLoads(placed, items, eps = 0.01) {
+  const n = placed.length, load = new Float64Array(n), above = new Int32Array(n);
+  const idx = placed.map((_, i) => i).sort((a, b) => (placed[b].z + placed[b].dz) - (placed[a].z + placed[a].dz) || placed[b].z - placed[a].z);
+  // boxes by the height of their top face, so the boxes under one are found quickly
+  const byTop = new Map();
+  placed.forEach((p, i) => { const k = Math.round((p.z + p.dz) * 100); if (!byTop.has(k)) byTop.set(k, []); byTop.get(k).push(i); });
+  for (const i of idx) {
+    const a = placed[i]; if (a.z < eps) continue;
+    const kz = Math.round(a.z * 100); const cand = [...(byTop.get(kz - 1) || []), ...(byTop.get(kz) || []), ...(byTop.get(kz + 1) || [])];
+    const sup = []; let tot = 0;
+    for (const j of cand) {
+      const b = placed[j]; if (j === i || Math.abs(b.z + b.dz - a.z) > eps) continue;
+      const ox = Math.min(a.x + a.dx, b.x + b.dx) - Math.max(a.x, b.x), oy = Math.min(a.y + a.dy, b.y + b.dy) - Math.max(a.y, b.y);
+      if (ox > eps && oy > eps) { sup.push([j, ox * oy]); tot += ox * oy; }
+    }
+    const w = (items[a.k].weight || 0) + load[i];
+    for (const [j, ov] of sup) { load[j] += w * ov / tot; above[j] = Math.max(above[j], above[i] + 1); }
+  }
+  return { load, above };
 }
 
 function permsOf(it, perms) { const d = [it.l, it.w, it.h]; return perms.map((p) => [d[p[0]], d[p[1]], d[p[2]]]); }

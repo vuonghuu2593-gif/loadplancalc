@@ -2,7 +2,7 @@
 // Units mm / kg; x = length from the back wall, y = across, z = up. Boxes: { k, x, y, z, dx, dy, dz }
 // where k is the box type's position in the input list. Every hand change is checked with the same
 // rules as an automatic plan (inside, no overlap, allowed position, door, full support, non-stackable).
-import { normalize, pack, allowedPerms, summarize, validate, centreOn } from './packer.js';
+import { normalize, pack, allowedPerms, summarize, validate, centreOn, stackLoads } from './packer.js';
 
 const EPS = 0.01;
 
@@ -30,11 +30,11 @@ export function makeCtx(container, rawItems, boxes) {
   const { cont, items } = normalize(container, rawItems);
   const dims = items.filter((it) => it.l > 0).flatMap((it) => [it.l, it.w, it.h]);
   const cell = Math.min(600, Math.max(100, dims.length ? Math.min(...dims) : 300));
-  const ctx = { cont, items, boxes: boxes.map((b) => ({ k: b.k, x: +b.x, y: +b.y, z: +b.z, dx: +b.dx, dy: +b.dy, dz: +b.dz })), grid: new Grid(cell) };
+  const ctx = { cont, items, boxes: boxes.map((b) => ({ k: b.k, x: +b.x, y: +b.y, z: +b.z, dx: +b.dx, dy: +b.dy, dz: +b.dz })), grid: new Grid(cell), ver: 0, loads: null };
   ctx.boxes.forEach((b, i) => ctx.grid.add(i, b));
   return ctx;
 }
-function addBox(ctx, b) { ctx.boxes.push(b); ctx.grid.add(ctx.boxes.length - 1, b); }
+function addBox(ctx, b) { ctx.boxes.push(b); ctx.grid.add(ctx.boxes.length - 1, b); ctx.ver++; }
 
 const overlap = (a, b) => a.x < b.x + b.dx - EPS && b.x < a.x + a.dx - EPS && a.y < b.y + b.dy - EPS && b.y < a.y + a.dy - EPS && a.z < b.z + b.dz - EPS && b.z < a.z + a.dz - EPS;
 
@@ -60,6 +60,55 @@ function support(ctx, b, ignore) {
   return area < b.dx * b.dy * (1 - 1e-9) - EPS ? 'it would not stand fully on the floor or on boxes below' : '';
 }
 
+// Stacking limits (boxes and weight a box may carry, see stackLoads in packer.js). Loads of the plan as it
+// is (without the boxes in `ignore`), kept until the plan changes.
+function baseLoads(ctx, ignore) {
+  const key = ctx.ver + '|' + ctx.boxes.length + '|' + (ignore ? [...ignore].sort((a, b) => a - b).join(',') : '');
+  if (ctx.loads && ctx.loads.key === key) return ctx.loads;
+  const ids = ctx.boxes.map((_, i) => i).filter((i) => !ignore?.has(i));
+  const r = stackLoads(ids.map((i) => ctx.boxes[i]), ctx.items);
+  const load = new Float64Array(ctx.boxes.length), above = new Int32Array(ctx.boxes.length);
+  ids.forEach((i, j) => { load[i] = r.load[j]; above[i] = r.above[j]; });
+  ctx.loads = { key, load, above };
+  return ctx.loads;
+}
+const hasLimits = (ctx) => ctx.items.some((it) => it.maxOnTop != null || it.maxLoad != null);
+// '' when a column of `n` boxes of b's type set at b (n = 1: just b) keeps every stacking limit, else the reason.
+// Its weight and height are passed down by contact area, highest boxes first, as the checker does.
+function limitProblem(ctx, b, ignore, n = 1) {
+  if (!hasLimits(ctx)) return '';
+  const it = ctx.items[b.k]; const w0 = (it.weight || 0) * n;
+  if (n > 1 && it.maxOnTop != null && n - 1 > it.maxOnTop) return 'too many boxes of this type would be stacked on each other';
+  if (n > 1 && it.maxLoad != null && (n - 1) * (it.weight || 0) > it.maxLoad + 1e-6) return 'too much weight would stand on the lowest box of this type';
+  if (b.z < EPS) return '';
+  const base = baseLoads(ctx, ignore);
+  const pend = new Map(); // box index -> { w: weight passed onto it, up: boxes now stacked on it }
+  const pass = (a, w, up) => {
+    let tot = 0; const sup = [];
+    for (const j of ctx.grid.near(a.x, a.y, a.z - 1, a.dx, a.dy, 1)) {
+      if (ignore?.has(j)) continue;
+      const o = ctx.boxes[j]; if (o === a || Math.abs(o.z + o.dz - a.z) > EPS) continue;
+      const ox = Math.min(a.x + a.dx, o.x + o.dx) - Math.max(a.x, o.x), oy = Math.min(a.y + a.dy, o.y + o.dy) - Math.max(a.y, o.y);
+      if (ox > EPS && oy > EPS) { sup.push([j, ox * oy]); tot += ox * oy; }
+    }
+    for (const [j, ov] of sup) { const c = pend.get(j) || { w: 0, up: 0 }; c.w += w * ov / tot; c.up = Math.max(c.up, up); pend.set(j, c); }
+  };
+  pass(b, w0, n);
+  const done = new Set();
+  while (pend.size > done.size) {
+    let j = -1; // the highest box not handled yet: nothing can still pass weight onto it
+    for (const k of pend.keys()) if (!done.has(k) && (j < 0 || ctx.boxes[k].z + ctx.boxes[k].dz > ctx.boxes[j].z + ctx.boxes[j].dz)) j = k;
+    done.add(j);
+    const o = ctx.boxes[j], c = pend.get(j), t = ctx.items[o.k];
+    const up = Math.max(base.above[j], c.up);
+    if (t.maxOnTop != null && up > t.maxOnTop) return `the ${t.name ? `“${t.name}”` : 'box'} below may carry only ${t.maxOnTop} box${t.maxOnTop === 1 ? '' : 'es'} on top`;
+    if (t.maxLoad != null && base.load[j] + c.w > t.maxLoad * (1 + 1e-9) + 1e-6) return `the ${t.name ? `“${t.name}”` : 'box'} below may carry only ${+t.maxLoad.toFixed(1)} kg on top`;
+    if (o.z >= EPS && c.w > 0) pass(o, c.w, up + 1);
+    else if (o.z >= EPS) pass(o, 0, up + 1);
+  }
+  return '';
+}
+
 // Orientation index (0-5, see ORIENT_NAMES) of a box, or -1.
 export function orientIndex(it, b) {
   const d = [it.l, it.w, it.h];
@@ -76,7 +125,7 @@ export function placeProblem(ctx, b, ignore) {
   if (!allowedPerms(it).some((p) => Math.abs(d[p[0]] - b.dx) < EPS && Math.abs(d[p[1]] - b.dy) < EPS && Math.abs(d[p[2]] - b.dz) < EPS)) return 'this box may not be turned that way';
   if ((cont.doorW && b.dy > cont.doorW + EPS) || (cont.doorH && b.dz > cont.doorH + EPS)) return 'it would not pass the door turned this way';
   if (hits(ctx, b, ignore) >= 0) return 'it would hit another box';
-  return support(ctx, b, ignore);
+  return support(ctx, b, ignore) || limitProblem(ctx, b, ignore);
 }
 
 // Boxes standing directly on box i.
@@ -183,10 +232,11 @@ export function fillAround(container, rawItems, fixed, opts = {}) {
           const cell = (i, j, m) => ({ k, x: p[0] + i * o[0], y: p[1] + j * o[1], z: p[2] + m * o[2], dx: o[0], dy: o[1], dz: o[2] });
           const free = (b) => b.x + b.dx <= front + EPS && b.y + b.dy <= cont.W + EPS && b.z + b.dz <= cont.H + EPS && hits(ctx, b) < 0;
           const base = cell(0, 0, 0);
-          if (!free(base) || support(ctx, base)) continue;
-          const maxZ = it.stackable ? (it.maxLayers || Infinity) : 1;
+          if (!free(base) || support(ctx, base) || limitProblem(ctx, base)) continue;
+          const maxZ = !it.stackable ? 1 : Math.min(it.maxLayers || Infinity, it.maxLoad != null && it.weight > 0 ? Math.floor(it.maxLoad / it.weight + 1e-9) + 1 : Infinity);
           let nz = 1; while (nz < maxZ && nz < cap && free(cell(0, 0, nz))) nz++;
-          const col = (i, j) => { for (let m = 0; m < nz; m++) if (!free(cell(i, j, m))) return false; return !support(ctx, cell(i, j, 0)); };
+          while (nz > 1 && limitProblem(ctx, base, null, nz)) nz--;
+          const col = (i, j) => { for (let m = 0; m < nz; m++) if (!free(cell(i, j, m))) return false; return !support(ctx, cell(i, j, 0)) && !limitProblem(ctx, cell(i, j, 0), null, nz); };
           let ny = 1; while (ny < Math.floor(cap / nz) && col(0, ny)) ny++;
           const slab = (i) => { for (let j = 0; j < ny; j++) if (!col(i, j)) return false; return true; };
           let nx = 1; while (nx < Math.floor(cap / (nz * ny)) && slab(nx)) nx++;
@@ -196,8 +246,14 @@ export function fillAround(container, rawItems, fixed, opts = {}) {
         if (cont.priority && best) break;
       }
       if (!best) continue;
-      for (let i = 0; i < best.nx; i++) for (let j = 0; j < best.ny; j++) for (let m = 0; m < best.nz; m++) addBox(ctx, { ...best.cell(i, j, m), add: 1 });
-      const n = best.nx * best.ny * best.nz; qty[best.k] -= n; wLeft -= n * items[best.k].weight;
+      // column by column, so each column is checked with the ones already placed (stacking limits)
+      let n = 0; const lim = hasLimits(ctx);
+      for (let i = 0; i < best.nx; i++) for (let j = 0; j < best.ny; j++) {
+        if (lim && limitProblem(ctx, best.cell(i, j, 0), null, best.nz)) continue;
+        for (let m = 0; m < best.nz; m++) { addBox(ctx, { ...best.cell(i, j, m), add: 1 }); n++; }
+      }
+      if (!n) continue;
+      qty[best.k] -= n; wLeft -= n * items[best.k].weight;
       corners({ x: p[0], y: p[1], z: p[2], dx: best.nx * best.o[0], dy: best.ny * best.o[1], dz: best.nz * best.o[2] });
     }
   }

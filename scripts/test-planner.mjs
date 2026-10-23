@@ -711,5 +711,47 @@ ok(errs.length === 0, 'no JS errors ' + errs.join(' | '));
   ok(e3.length === 0, 'pictures and saved plans: no JS errors ' + e3.join(' | '));
   await pp.close();
 }
+// Stacking limits per box type (2026-10-23). Hand-checked: 60 x 40 x 40 cm, this side up, in the 40' HC:
+// 11 per 120 cm of floor (2 x 5 along + 1 across) x 10 = 110 per layer; at most 2 on top -> 3 layers = 330.
+// 12 kg boxes with at most 30 kg on top: 30 / 12 = 2 boxes on top -> 3 layers = 330 too.
+{
+  const pl = await b.newPage({ viewport: { width: 390, height: 844 }, locale: 'en-GB' }); const e4 = []; pl.on('pageerror', (e) => e4.push(e.message));
+  const T = (sel) => pl.$eval(sel, (e) => e.textContent.trim());
+  const settleL = async () => { await pl.waitForTimeout(350); await pl.waitForFunction(() => !document.querySelector('[data-result]').classList.contains('busy'), null, { timeout: 20000 }); };
+  await pl.goto('http://localhost:4401/container-loading-calculator/'); await settleL();
+  await pl.click('.boxcard:nth-child(2) [data-del]');
+  await pl.fill('.boxcard [data-b="qty"]', '5000'); await pl.selectOption('.boxcard [data-b="rotation"]', 'upright'); await settleL();
+  const n0 = await T('#r-main');
+  await pl.fill('.boxcard [data-b="maxOnTop"]', '2'); await settleL();
+  ok(await T('#r-main') === '330 of 5,000' && !(await T('[data-r="warn"]')).includes('failed its own check'), 'max 2 boxes on top: 3 layers of 110 = 330 (' + await T('#r-main') + ', was ' + n0 + ')');
+  ok((await T('[data-r="warn"]')).includes('Stacking limits kept: “Carton A” at most 2 boxes on top'), 'the note names the limit');
+  await pl.fill('.boxcard [data-b="maxOnTop"]', ''); await pl.fill('.boxcard [data-b="maxLoad"]', '30'); await settleL();
+  ok(await T('#r-main') === '330 of 5,000', 'max 30 kg on top of 12 kg boxes: 330 (' + await T('#r-main') + ')');
+  await pl.click('[data-units="imperial"]'); await settleL();
+  ok(await pl.inputValue('.boxcard [data-b="maxLoad"]') === '66.14' && await T('#r-main') === '330 of 5,000', '30 kg shows 66.14 lb, same plan');
+  await pl.click('[data-units="metric"]'); await settleL();
+  ok(await pl.inputValue('.boxcard [data-b="maxLoad"]') === '30', 'back to 30 kg');
+  const link = pl.url();
+  const pl2 = await b.newPage({ viewport: { width: 390, height: 844 } }); pl2.on('pageerror', (e) => e4.push(e.message));
+  await pl2.goto(link); await pl2.waitForTimeout(500); await pl2.waitForFunction(() => !document.querySelector('[data-result]').classList.contains('busy') && document.querySelector('#r-main').textContent !== '–', null, { timeout: 20000 });
+  ok(await pl2.$eval('#r-main', (e) => e.textContent.trim()) === '330 of 5,000' && await pl2.inputValue('.boxcard [data-b="maxLoad"]') === '30', 'share link keeps the limit');
+  await pl2.close();
+  await pl.uncheck('.boxcard [data-b="stackable"]'); await settleL();
+  ok(await pl.isHidden('.boxcard [data-b="maxLoad"]') && await T('#r-main') === '110 of 5,000', 'not stackable: limits hidden, one layer of 110');
+  await pl.check('.boxcard [data-b="stackable"]'); await settleL();
+  // hand editing: a box on a full 3-high column is refused
+  await pl.click('[data-ed="start"]'); await pl.waitForTimeout(300);
+  await pl.click('[data-ed="next"]'); await pl.waitForTimeout(100);
+  await pl.click('[data-push="2,1"]'); await pl.waitForTimeout(200);
+  ok(!(await T('[data-r="warn"]')).includes('failed its own check'), 'hand edit with limits: plan still passes the check');
+  await pl.click('[data-ed="exit"]'); await pl.waitForTimeout(300);
+  // import with the optional columns
+  await pl.click('[data-paste]');
+  await pl.fill('[data-pastetext]', 'Name\tLength (cm)\tWidth (cm)\tHeight (cm)\tWeight (kg)\tQuantity\tThis side up\tStackable\tMax boxes on top\tMax weight on top (kg)\nCrate\t60\t40\t40\t12\t5000\tyes\tyes\t2\t');
+  await pl.click('[data-pasteuse]'); await settleL();
+  ok(await pl.inputValue('.boxcard [data-b="maxOnTop"]') === '2' && await pl.inputValue('.boxcard [data-b="maxLoad"]') === '' && await T('#r-main') === '330 of 5,000', 'pasted rows with Max boxes on top = 2: 330');
+  ok(e4.length === 0, 'stacking limits: no JS errors ' + e4.join(' | '));
+  await pl.close();
+}
 await b.close(); srv.close();
 console.log(fails ? fails + ' failing' : 'planner checks pass'); process.exit(fails ? 1 : 0);

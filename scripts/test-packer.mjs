@@ -1,6 +1,6 @@
 // Engine tests: hand-checked cases plus random cases checked by the independent validator.
 // Usage: node scripts/test-packer.mjs
-import { pack, validate, palletPack, layersOf, stackPack, packMany } from '../src/scripts/packer.js';
+import { pack, validate, palletPack, layersOf, stackPack, packMany, stackLoads } from '../src/scripts/packer.js';
 import { makeCtx, placeProblem, spots, nudge, fillAround, onTop, stackFrom, asResult, roomFor } from '../src/scripts/editor.js';
 let fails = 0;
 const ok = (cond, msg) => { if (!cond) { fails++; console.log('FAIL', msg); } else console.log('ok  ', msg); };
@@ -404,6 +404,78 @@ ok(badF === 0, `25 random "remove some, fill again" plans valid (${badF} bad)`);
     if (items.some((it, k) => per[k] + m.left[k] !== it.qty)) { bad++; console.log('packMany count', s, per, m.left); }
   }
   ok(bad === 0, `packMany: 12 random loads, every unit valid and counts add up (${bad} bad)`);
+}
+// Stacking limits per box type: max boxes on top (maxOnTop) and max weight on top (maxLoad, kg)
+{
+  const C = { L: 2000, W: 1000, H: 4000 };
+  const cube = (o) => ({ l: 1000, w: 1000, h: 1000, weight: 10, qty: 8, rotation: 'upright', ...o });
+  // hand-checked: 2 columns on a 2 x 1 m floor; at most 1 box on top -> 2 high -> 4 boxes
+  let r = pack(C, [cube({ maxOnTop: 1 })], { timeMs: 200 });
+  ok(r.totals.n === 4 && !validate(r).length, 'max 1 box on top: 2 columns x 2 high = 4 (' + r.totals.n + ')');
+  // 10 kg boxes, at most 25 kg on top: 2 on top (20 kg) -> 3 high -> 6
+  r = pack(C, [cube({ maxLoad: 25 })], { timeMs: 200 });
+  ok(r.totals.n === 6 && !validate(r).length, 'max 25 kg on 10 kg boxes: 3 high x 2 = 6 (' + r.totals.n + ')');
+  // without limits: 4 high x 2 = 8
+  ok(pack(C, [cube({})], { timeMs: 200 }).totals.n === 8, 'no limit: 8');
+  // one column 1 x 1 x 4 m: two 50 kg boxes (no limit) and two 5 kg boxes that take at most 10 kg:
+  // the light ones must go on top (A, A, B, B; the lower B carries 5 kg) -> all 4
+  r = pack({ L: 1000, W: 1000, H: 4000 }, [cube({ weight: 50, qty: 2 }), cube({ weight: 5, qty: 2, maxLoad: 10 })], { timeMs: 300 });
+  const top2 = r.placed.slice().sort((a, b) => b.z - a.z).slice(0, 2).every((p) => r.items[p.k].weight === 5);
+  ok(r.totals.n === 4 && top2 && !validate(r).length, 'heavy boxes below, light boxes (max 10 kg on top) above: all 4 (' + r.totals.n + ')');
+  // the checker: a 20 kg box of 2 x 1 m on two 1 x 1 m boxes rests half on each -> 10 kg each
+  const items = [{ l: 1000, w: 1000, h: 1000, weight: 10, qty: 2, maxLoad: 10, stackable: true, idx: 0 }, { l: 2000, w: 1000, h: 500, weight: 20, qty: 1, stackable: true, idx: 1 }];
+  const placed = [{ k: 0, x: 0, y: 0, z: 0, dx: 1000, dy: 1000, dz: 1000 }, { k: 0, x: 1000, y: 0, z: 0, dx: 1000, dy: 1000, dz: 1000 }, { k: 1, x: 0, y: 0, z: 1000, dx: 2000, dy: 1000, dz: 500 }];
+  const L = stackLoads(placed, items);
+  ok(L.load[0] === 10 && L.load[1] === 10 && L.above[0] === 1, 'shared by contact area: 20 kg on two boxes = 10 kg each');
+  const res = (its) => ({ placed, items: its, cont: { L: 2000, W: 1000, H: 2000 } });
+  ok(!validate(res(items)).length, 'checker: 10 kg on a box that takes 10 kg passes');
+  ok(validate(res([{ ...items[0], maxLoad: 9 }, items[1]])).includes('too much weight on a box'), 'checker: 10 kg on a box that takes 9 kg fails');
+  ok(validate(res([{ ...items[0], maxOnTop: 0 }, items[1]])).includes('too many boxes stacked on a box'), 'checker: a box on a box that takes none fails');
+  // three high with at most one on top fails at the bottom box
+  const p3 = [0, 1, 2].map((m) => ({ k: 0, x: 0, y: 0, z: m * 1000, dx: 1000, dy: 1000, dz: 1000 }));
+  ok(validate({ placed: p3, items: [{ ...items[0], qty: 3, maxLoad: null, maxOnTop: 1 }], cont: { L: 1000, W: 1000, H: 3000 } }).includes('too many boxes stacked on a box'), 'checker: 3 high with max 1 on top fails');
+  // random loads with limits: every plan (column, interlocked, pallet) passes the checker
+  let bad = 0, limited = 0;
+  for (let s2 = 1; s2 <= 30; s2++) {
+    let x = s2 * 15485863; const R = () => ((x = (x * 1103515245 + 12345) % 2147483648) / 2147483648);
+    const pallet = R() < 0.3;
+    const Cr = pallet ? { L: 1200, W: 800, H: 1600 } : { L: 3000 + R() * 6000, W: 2300, H: 2400, maxWeight: R() < 0.5 ? 10000 : 0 };
+    const its = [0, 1].slice(0, pallet ? 1 : 1 + Math.floor(R() * 2)).map(() => ({ l: 250 + R() * 500, w: 200 + R() * 400, h: 150 + R() * 400, weight: 2 + R() * 30, qty: 100 + Math.floor(R() * 900), rotation: R() < 0.6 ? 'upright' : 'any', stackable: true, maxOnTop: R() < 0.5 ? Math.floor(R() * 4) : null, maxLoad: R() < 0.6 ? Math.round(R() * 120) : null }));
+    const stack = R() < 0.5 ? 'interlock' : 'column';
+    const rr = stackPack(Cr, its, { timeMs: 150, pallet, stack });
+    if (rr.items.some((it) => it.maxOnTop != null || it.maxLoad != null)) limited++;
+    const e = validate(rr); if (e.length) { bad++; console.log('limits fuzz', s2, e, JSON.stringify(its)); }
+  }
+  ok(bad === 0, `30 random loads with stacking limits pass the checker (${bad} bad, ${limited} limited)`);
+  // hand editing with limits: placeProblem refuses a box that would overload the one below
+  {
+    const its = [{ l: 1000, w: 1000, h: 1000, weight: 30, qty: 3, rotation: 'upright', maxLoad: 40, name: 'Crate' }];
+    const ctx = makeCtx({ L: 1000, W: 1000, H: 3000 }, its, [{ k: 0, x: 0, y: 0, z: 0, dx: 1000, dy: 1000, dz: 1000 }, { k: 0, x: 0, y: 0, z: 1000, dx: 1000, dy: 1000, dz: 1000 }]);
+    // bottom crate already carries 30 kg; a third would put 60 kg on it (max 40)
+    const why = placeProblem(ctx, { k: 0, x: 0, y: 0, z: 2000, dx: 1000, dy: 1000, dz: 1000 });
+    ok(why.includes('may carry only 40 kg'), 'hand edit: a third 30 kg crate on a crate that takes 40 kg is refused (' + why + ')');
+    ok(spots(ctx, 0, null).length === 0, 'hand edit: no free spot offered on top');
+    const its2 = [{ ...its[0], maxLoad: null, maxOnTop: 1 }];
+    const ctx2 = makeCtx({ L: 1000, W: 1000, H: 3000 }, its2, ctx.boxes);
+    ok(placeProblem(ctx2, { k: 0, x: 0, y: 0, z: 2000, dx: 1000, dy: 1000, dz: 1000 }).includes('only 1 box on top'), 'hand edit: max 1 box on top refuses a third');
+  }
+  // fill the rest with limits keeps them (gaps behind fixed boxes)
+  {
+    let badF = 0;
+    for (let s3 = 1; s3 <= 12; s3++) {
+      let x = s3 * 32452843; const R = () => ((x = (x * 1103515245 + 12345) % 2147483648) / 2147483648);
+      const Cf = { L: 4000 + R() * 4000, W: 2300, H: 2400 };
+      const its = [0, 1].map(() => ({ l: 300 + R() * 500, w: 300 + R() * 400, h: 200 + R() * 400, weight: 5 + R() * 40, qty: 200 + Math.floor(R() * 400), rotation: 'upright', maxOnTop: R() < 0.5 ? Math.floor(R() * 3) + 1 : null, maxLoad: R() < 0.7 ? Math.round(20 + R() * 80) : null }));
+      const base = pack(Cf, its, { timeMs: 100 });
+      const keep = base.placed.filter((_, i) => i % 3 === 0).map((p) => ({ k: base.items[p.k].idx, x: p.x, y: p.y, z: p.z, dx: p.dx, dy: p.dy, dz: p.dz }));
+      const keepOk = keep.filter((b, i, arr) => b.z < 0.01 || arr.some((o) => Math.abs(o.z + o.dz - b.z) < 0.01 && o.x < b.x + b.dx && b.x < o.x + o.dx && o.y < b.y + b.dy && b.y < o.y + o.dy));
+      const ctx0 = makeCtx(Cf, its, []); const fixed = [];
+      for (const b of keepOk.sort((a, c) => a.z - c.z)) { const c = makeCtx(Cf, its, fixed); if (!placeProblem(c, b)) fixed.push(b); }
+      const r = fillAround(Cf, its, fixed, { timeMs: 100 });
+      const e = validate(r); if (e.length) { badF++; console.log('fill limits', s3, e); }
+    }
+    ok(badF === 0, `fill the rest: 12 random cases with limits pass the checker (${badF} bad)`);
+  }
 }
 console.log(fails ? `${fails} failing` : 'all engine tests pass');
 process.exit(fails ? 1 : 0);

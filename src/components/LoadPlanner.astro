@@ -70,7 +70,7 @@ const presets = mode === 'container' ? (spacePresets || data.containers) : palle
       </label>
       <button type="button" class="btn" data-pasteuse>Use these rows</button>
     </div>
-    <p class="small" style="margin:0">Columns: Name, Length, Width, Height, Weight, Quantity, This side up, Stackable (template: <a href="/load-plan-template.xlsx" download>Excel</a> · <a href="/load-plan-template.csv" download>CSV</a>). Importing replaces the box list; the file stays in your browser.</p>
+    <p class="small" style="margin:0">Columns: Name, Length, Width, Height, Weight, Quantity, This side up, Stackable, and optionally Max boxes on top and Max weight on top (template: <a href="/load-plan-template.xlsx" download>Excel</a> · <a href="/load-plan-template.csv" download>CSV</a>). Importing replaces the box list; the file stays in your browser.</p>
     <div class="importmsg" data-importmsg role="status" hidden></div>
     <details class="more" data-more>
       <summary><span class="sumk">More options</span><span class="sumv" data-moresum></span></summary>
@@ -289,6 +289,8 @@ const presets = mode === 'container' ? (spacePresets || data.containers) : palle
     <label class="dim"><span>Height <span class="small" data-ul></span></span><input data-b="h" inputmode="decimal"></label>
     <label class="rot">Orientation<select data-b="rotation"><option value="any">Automatic: any side can face down</option><option value="upright">Automatic: this side up (turn flat only)</option><option value="custom">Choose the positions allowed…</option></select></label>
     <div class="flags"><label class="check"><input type="checkbox" data-b="stackable"> Can carry boxes on top</label><button type="button" class="iconbtn" data-del aria-label="Remove this box type">✕</button></div>
+    <label class="lim" data-lim><span>Max boxes on top</span><input data-b="maxOnTop" inputmode="numeric" placeholder="No limit"></label>
+    <label class="lim" data-lim><span>Max weight on top <span class="small" data-uw></span></span><input data-b="maxLoad" inputmode="decimal" placeholder="No limit"></label>
     <div class="orients" data-orients hidden>
       <p class="small">Tap to allow or block each position. “Along” means along the {mode === 'container' ? 'container length, toward the door' : 'pallet length'}. Tick one position to fix it.</p>
       <div class="ogrid" role="group" aria-label="Allowed positions"></div>

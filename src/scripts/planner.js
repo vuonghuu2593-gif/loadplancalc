@@ -117,6 +117,9 @@ export function initPlanner(root) {
       node.querySelector('[data-b="weight"]').value = showWt(it.weight);
       node.querySelector('[data-b="rotation"]').value = it.rotation || 'any';
       node.querySelector('[data-b="stackable"]').checked = it.stackable !== false;
+      node.querySelector('[data-b="maxOnTop"]').value = it.maxOnTop == null ? '' : String(it.maxOnTop);
+      node.querySelector('[data-b="maxLoad"]').value = it.maxLoad == null ? '' : showWt(it.maxLoad);
+      node.querySelectorAll('[data-lim]').forEach((x) => { x.hidden = it.stackable === false; });
       if (boxPresets.length) {
         node.querySelector('.bpre').hidden = false;
         const sel = node.querySelector('[data-b="bpreset"]');
@@ -218,7 +221,9 @@ export function initPlanner(root) {
       else if (k === 'rotation') {
         if (t.value === 'custom' && !Array.isArray(it.orients)) it.orients = it.rotation === 'upright' ? [0, 1] : [0, 1, 2, 3, 4, 5];
         it.rotation = t.value; paintOrients(t.closest('.boxcard'), it, i);
-      } else if (k === 'stackable') it.stackable = t.checked;
+      } else if (k === 'stackable') { it.stackable = t.checked; t.closest('.boxcard').querySelectorAll('[data-lim]').forEach((x) => { x.hidden = !t.checked; }); }
+      else if (k === 'maxOnTop') { const n = parseInt(t.value, 10); it.maxOnTop = t.value.trim() === '' || !(n >= 0) ? null : Math.min(n, 999); }
+      else if (k === 'maxLoad') it.maxLoad = t.value.trim() === '' ? null : readWt(t.value);
       else if (k === 'bpreset') {
         const p = boxPresets.find((x) => x.id === t.value); if (!p) return;
         const card = t.closest('.boxcard'); it.l = p.L; it.w = p.W;
@@ -343,7 +348,9 @@ export function initPlanner(root) {
     }
     return { container: { L: c.L, W: c.W, H: c.H, maxWeight: c.maxWeight, doorW: c.doorW, doorH: c.doorH, minSupport: ms }, offset: 0 };
   }
-  const engineItems = () => state.items.map((it) => ({ l: it.l, w: it.w, h: it.h, weight: it.weight, qty: it.qty, rotation: it.rotation, orients: it.rotation === 'custom' ? allowedIdx(it) : undefined, stackable: it.stackable !== false }));
+  const engineItems = () => state.items.map((it) => ({ l: it.l, w: it.w, h: it.h, weight: it.weight, qty: it.qty, rotation: it.rotation, orients: it.rotation === 'custom' ? allowedIdx(it) : undefined, stackable: it.stackable !== false,
+    maxOnTop: it.stackable !== false && Number.isFinite(+it.maxOnTop) && it.maxOnTop !== null && it.maxOnTop !== '' ? Math.max(0, Math.floor(+it.maxOnTop)) : null,
+    maxLoad: it.stackable !== false && it.maxLoad !== null && it.maxLoad !== '' && Number.isFinite(+it.maxLoad) && +it.maxLoad >= 0 ? +it.maxLoad : null, name: it.name }));
   function schedule() {
     if (ed) { ed = null; edNotice = 'Your hand edits were cleared because the inputs changed.'; clearEditView(); }
     clearTimeout(timer); root.querySelector('[data-result]').classList.add('busy'); paintStack();
@@ -583,6 +590,8 @@ export function initPlanner(root) {
       const off = (cog.x - d.cont.L / 2) / d.cont.L * 100;
       w.push(`Centre of gravity of the cargo: ${fmt(u.fromMM(cog.x), units === 'metric' ? 0 : 1)} ${u.len} from the back wall (${off >= 0 ? fmt(off, 0) + '% toward the door' : fmt(-off, 0) + '% toward the back'} from the middle). Keep heavy cargo low and the load spread evenly.`);
     }
+    const lims = state.items.filter((it) => it.stackable !== false && ((it.maxOnTop != null && it.maxOnTop !== '') || (it.maxLoad != null && it.maxLoad !== '')));
+    if (lims.length && !d.errors.length) w.push(`Stacking limits kept: ${lims.map((it) => `“${esc(it.name)}” ${[it.maxOnTop != null && it.maxOnTop !== '' ? `at most ${fmt(+it.maxOnTop)} box${+it.maxOnTop === 1 ? '' : 'es'} on top` : '', it.maxLoad != null && it.maxLoad !== '' ? `at most ${fmt(u.fromKG(+it.maxLoad), 1)} ${u.wt} on top` : ''].filter(Boolean).join(' and ')}`).join('; ')}. Boxes that would break a limit are left out or placed elsewhere.`);
     R('warn').innerHTML = w.map((x) => `<p class="warn">${x}</p>`).join('');
     paintStackResult(d, n);
     // table

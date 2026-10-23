@@ -125,6 +125,8 @@ const FIELDS = [
   ['qty', /^(qty|quantity|pcs|pieces|count|number|no\.?|cartons|boxes|units|ctns|q'?ty)$/],
   ['rotation', /^(orientation|rotation|this side up|upright|keep upright|position)$/],
   ['stackable', /^(stackable|stack|can carry boxes on top|can stack|stacking)$/],
+  ['maxOnTop', /^(max(imum)? boxes on top|boxes on top|stacking limit|stack limit|max(imum)? stack(ing)?( number)?|max on top)$/],
+  ['maxLoad', /^(max(imum)? (weight|load|mass) on top|weight on top|load on top|stacking load|max(imum)? stacking (load|weight|mass))$/],
 ];
 const unitOf = (h) => { const m = h.match(/[([]\s*([a-z]+)\s*[)\]]/i) || h.match(/\b(mm|cm|m|in|inch|inches|ft|kg|g|lb|lbs)\s*$/i); return m ? m[1].toLowerCase() : null; };
 const bare = (h) => String(h).toLowerCase().replace(/[([].*?[)\]]/g, '').replace(/\b(mm|cm|in|inch|inches|ft|kg|lbs?)\s*$/i, '').replace(/[_*:.]+$/g, '').replace(/\s+/g, ' ').trim();
@@ -177,9 +179,16 @@ export function rowsToItems(rows, units = 'metric') {
     const sv = get('stackable');
     const stackable = map.stackable === undefined || String(sv ?? '').trim() === '' ? true : !no(sv);
     const name = String(get('name') ?? '').trim().slice(0, 40) || `Box ${items.length + 1}`;
+    // optional stacking limits; empty means no limit
+    const onTop = map.maxOnTop === undefined || String(get('maxOnTop') ?? '').trim() === '' ? null : toNumber(get('maxOnTop'));
+    const mlU = colUnits.maxLoad && KG[colUnits.maxLoad] ? colUnits.maxLoad : wtU;
+    const ml = map.maxLoad === undefined || String(get('maxLoad') ?? '').trim() === '' ? null : toNumber(get('maxLoad'));
+    const limits = {};
+    if (onTop != null && onTop >= 0) limits.maxOnTop = Math.floor(onTop);
+    if (ml != null && ml >= 0) limits.maxLoad = round6(ml * KG[mlU]);
     items.push({
       name, l: round6(l * MM[lenU[0]]), w: round6(w * MM[lenU[1]]), h: round6(h * MM[lenU[2]]),
-      weight: wt > 0 ? round6(wt * KG[wtU]) : 0, qty, rotation, stackable,
+      weight: wt > 0 ? round6(wt * KG[wtU]) : 0, qty, rotation, stackable, ...limits,
     });
   }
   if (items.length > MAX_TYPES) { notes.push(`The planner takes up to ${MAX_TYPES} box types; the first ${MAX_TYPES} were loaded and ${items.length - MAX_TYPES} left out.`); items.length = MAX_TYPES; }
