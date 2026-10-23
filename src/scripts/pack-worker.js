@@ -31,6 +31,17 @@ self.onmessage = (e) => {
     self.postMessage({ id, kind, out, ms: Date.now() - t });
     return;
   }
+  if (kind === 'fitone') {
+    // the smallest of `containers` (tried in the order given) that takes every box in one plan that passes the check
+    const want = items.reduce((t, it) => t + Math.max(0, Math.floor(+it.qty || 0)), 0);
+    let hit = null;
+    for (const c of opts.containers) {
+      const r = stackPack(c, items, opts);
+      if (r.totals.n === want && !validate(r).length) { hit = c.id; break; }
+    }
+    self.postMessage({ id, kind, key, hit, ms: Date.now() - t });
+    return;
+  }
   if (kind === 'many') {
     const { runs, left } = packMany(container, items, opts, opts.max ?? 12);
     const bad = runs.some((r) => validate(r).length);

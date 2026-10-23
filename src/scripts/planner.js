@@ -439,7 +439,13 @@ export function initPlanner(root) {
   function partDone(v) {
     if (v.boxes.length) { v.part = plans.length; v.stops = curStops; plans.push(v); nextPart(); }
     else { multiDone = true; if (!ed && shown === plans.length - 1) render({ ...plans[shown], keep: true }); } // what is left fits in none: say so on the last unit
-    paintMulti(); paintFit();
+    paintMulti(); paintFit(); mixCheck();
+  }
+  function mixLine() {
+    if (!mix || !mix.hit || plans.length < 2) return '';
+    const p = presets.find((x) => x.id === mix.hit); if (!p) return '';
+    const n = plans[plans.length - 1].boxes.length;
+    return ` <span class="mixline">Or <strong>${plans.length - 1} × ${esc(unitName())} + 1 × ${esc(p.name)}</strong>: the last ${fmt(n)} box${n === 1 ? '' : 'es'} also fit in a ${esc(p.name)} (quick check; choose it to plan the rest on its own).</span>`;
   }
   function paintMulti() {
     const bar = $('[data-multi]'); if (!bar) return;
@@ -457,7 +463,7 @@ export function initPlanner(root) {
     $('[data-multitxt]').innerHTML = pending
       ? `More than one ${noun} is needed. Planning ${noun} ${plans.length + 1}… (${counts} so far)`
       : left === 0
-        ? `All ${fmt(total)} boxes need <strong>${plans.length} × ${esc(unitName())}</strong>: ${counts}. Tap a number to see that ${noun}.`
+        ? `All ${fmt(total)} boxes need <strong>${plans.length} × ${esc(unitName())}</strong>: ${counts}. Tap a number to see that ${noun}.${mixLine()}`
         : plans.length >= MAX_UNITS
           ? `${fmt(total - left)} of ${fmt(total)} boxes in ${plans.length} × ${esc(unitName())} (${counts}); the planner stops at ${MAX_UNITS}. Choose a bigger size or split the order.`
           : `${fmt(total - left)} of ${fmt(total)} boxes in ${plans.length} × ${esc(unitName())} (${counts}); ${nBoxes(left)} fit in none of them (see the notes).`;
@@ -485,7 +491,28 @@ export function initPlanner(root) {
     const items = engineItems();
     cmpWorker.postMessage({ id: cmpId, kind: 'many', key: p.id, container: { L: p.L, W: p.W, H: p.H, maxWeight: p.payload, doorW: p.doorW, doorH: p.doorH, minSupport: engineInput().container.minSupport }, items, opts: { priority: !!state.priority, timeMs: 150, stack: state.stack, max: CMP_MAX } });
   }
-  if (cmpWorker) cmpWorker.onmessage = (e) => { if (e.data.id !== cmpId) return; cmpRes[e.data.key] = e.data; paintFit(); cmpNext(); };
+  if (cmpWorker) cmpWorker.onmessage = (e) => {
+    if (e.data.kind === 'fitone') { if (e.data.id === mixId) { mix = { key: mixKey, hit: e.data.hit }; paintMulti(); } return; }
+    if (e.data.id !== cmpId) return; cmpRes[e.data.key] = e.data; paintFit(); cmpNext();
+  };
+  // several units: could the last one be a smaller size of the same kind? (e.g. 3 × 40' HC + 1 × 20')
+  let mixId = 0, mixKey = '', mix = null;
+  function mixCheck() {
+    if (!cmpWorker || plans.length < 2 || !multiDone || ed) return;
+    const lastQ = leftBefore(plans.length - 1); const left = leftBefore(plans.length).reduce((a, b) => a + b, 0);
+    if (left) return;
+    const sel = presets.find((x) => x.id === state.cont.preset); if (!sel) return;
+    const vol = (p) => p.L * p.W * p.H; const noun = nounOf(sel.id);
+    const smaller = presets.filter((p) => p.id !== sel.id && nounOf(p.id) === noun && vol(p) < vol(sel)).sort((a, b) => vol(a) - vol(b));
+    if (!smaller.length) return;
+    const key = JSON.stringify([state.cont.preset, lastQ, engineItems().map((it) => [it.l, it.w, it.h, it.weight, it.rotation, it.maxOnTop, it.maxLoad]), state.stack, curStops ? 1 : 0]);
+    if (key === mixKey) return;
+    mixKey = key; mix = null;
+    const ms = engineInput().container.minSupport;
+    const opts = { priority: !!state.priority, timeMs: 300, stack: state.stack, containers: smaller.map((p) => ({ id: p.id, L: p.L, W: p.W, H: p.H, maxWeight: p.payload, doorW: p.doorW, doorH: p.doorH, minSupport: ms })) };
+    if (curStops) { opts.steps = curStops.map(({ stop, ...x }) => x); opts.fillRest = false; }
+    cmpWorker.postMessage({ id: ++mixId, kind: 'fitone', key, items: engineItems().map((it, k) => ({ ...it, qty: lastQ[k] })), opts });
+  }
   // the selected size shows the full plan above (fully automatic, not hand-edited), so its row matches the result
   function mainRow() {
     if (state.mode !== 'auto' || !multiDone || !plans.length) return null;

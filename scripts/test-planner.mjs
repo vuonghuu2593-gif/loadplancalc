@@ -823,5 +823,18 @@ ok(errs.length === 0, 'no JS errors ' + errs.join(' | '));
   ok(e6.length === 0, 'stops: no JS errors ' + e6.join(' | '));
   await ps.close();
 }
+// Mixed sizes for the last unit (2026-10-23). Hand-checked: 1 m cubes x 60 in the 40' HC (12.032 x 2.35 x 2.7 m):
+// 12 x 2 x 2 = 48 per unit -> 48 + 12; the last 12 fit in a 20' Standard (5.9 x 2.352 x 2.395 m: 5 x 2 x 2 = 20).
+{
+  const pm = await b.newPage({ viewport: { width: 390, height: 844 }, locale: 'en-GB' }); const e7 = []; pm.on('pageerror', (e) => e7.push(e.message));
+  await pm.goto('http://localhost:4401/container-loading-calculator/'); await pm.waitForTimeout(2500);
+  await pm.click('.boxcard:nth-child(2) [data-del]');
+  for (const [k, v] of [['l', '100'], ['w', '100'], ['h', '100'], ['weight', '10'], ['qty', '60']]) await pm.fill(`.boxcard [data-b="${k}"]`, v);
+  await pm.waitForFunction(() => /Or /.test(document.querySelector('[data-multitxt]').textContent), null, { timeout: 60000 }).catch(() => {});
+  const t = await pm.$eval('[data-multitxt]', (e) => e.textContent.trim());
+  ok(t.startsWith("All 60 boxes need 2 × 40' High Cube: 48 + 12.") && t.includes("Or 1 × 40' High Cube + 1 × 20' Standard: the last 12 boxes also fit in a 20' Standard"), 'mixed sizes: ' + t);
+  ok(e7.length === 0, 'mixed sizes: no JS errors ' + e7.join(' | '));
+  await pm.close();
+}
 await b.close(); srv.close();
 console.log(fails ? fails + ' failing' : 'planner checks pass'); process.exit(fails ? 1 : 0);
