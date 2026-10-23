@@ -126,6 +126,7 @@ const FIELDS = [
   ['rotation', /^(orientation|rotation|this side up|upright|keep upright|position)$/],
   ['stackable', /^(stackable|stack|can carry boxes on top|can stack|stacking)$/],
   ['maxOnTop', /^(max(imum)? boxes on top|boxes on top|stacking limit|stack limit|max(imum)? stack(ing)?( number)?|max on top)$/],
+  ['stop', /^(stop|delivery stop|drop|stop no\.?|drop no\.?|stop number|delivery order|unload order)$/],
   ['maxLoad', /^(max(imum)? (weight|load|mass) on top|weight on top|load on top|stacking load|max(imum)? stacking (load|weight|mass))$/],
 ];
 const unitOf = (h) => { const m = h.match(/[([]\s*([a-z]+)\s*[)\]]/i) || h.match(/\b(mm|cm|m|in|inch|inches|ft|kg|g|lb|lbs)\s*$/i); return m ? m[1].toLowerCase() : null; };
@@ -186,6 +187,8 @@ export function rowsToItems(rows, units = 'metric') {
     const limits = {};
     if (onTop != null && onTop >= 0) limits.maxOnTop = Math.floor(onTop);
     if (ml != null && ml >= 0) limits.maxLoad = round6(ml * KG[mlU]);
+    const st = map.stop === undefined || String(get('stop') ?? '').trim() === '' ? null : toNumber(get('stop'));
+    if (st != null && st >= 1) limits.stop = Math.min(99, Math.floor(st));
     items.push({
       name, l: round6(l * MM[lenU[0]]), w: round6(w * MM[lenU[1]]), h: round6(h * MM[lenU[2]]),
       weight: wt > 0 ? round6(wt * KG[wtU]) : 0, qty, rotation, stackable, ...limits,

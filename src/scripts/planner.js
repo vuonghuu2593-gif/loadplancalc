@@ -104,7 +104,7 @@ export function initPlanner(root) {
     const specs = $('[data-specsum]');
     if (specs) specs.textContent = `${L(c.L)} × ${L(c.W)} × ${L(c.H)} ${u.len} · ${c.maxWeight ? fmt(u.fromKG(c.maxWeight), 0) + ' ' + u.wt : 'no payload limit'} · door ${L(c.doorW)} × ${L(c.doorH)}`;
     const il = state.stack === 'interlock' && canInterlock();
-    $('[data-moresum]').textContent = `${state.mode === 'semi' ? `Semi-automatic (${state.steps.length} step${state.steps.length === 1 ? '' : 's'})` : 'Fully automatic'} · ${il ? 'interlocked' : 'column stacks'}${il && state.support < 1 ? ` (${fmt(state.support * 100)}%)` : ''}${state.priority ? ' · list order' : ''}`;
+    $('[data-moresum]').textContent = `${state.mode === 'semi' ? `Semi-automatic (${state.steps.length} step${state.steps.length === 1 ? '' : 's'})` : 'Fully automatic'} · ${il ? 'interlocked' : 'column stacks'}${il && state.support < 1 ? ` (${fmt(state.support * 100)}%)` : ''}${state.priority ? ' · list order' : ''}${stopSteps() ? ' · by delivery stop' : ''}`;
   }
   function paintBoxes() {
     paintPzOn();
@@ -119,8 +119,11 @@ export function initPlanner(root) {
       node.querySelector('[data-b="rotation"]').value = it.rotation || 'any';
       node.querySelector('[data-b="stackable"]').checked = it.stackable !== false;
       node.querySelector('[data-b="maxOnTop"]').value = it.maxOnTop == null ? '' : String(it.maxOnTop);
+      const sf = node.querySelector('[data-b="stop"]'); if (sf) sf.value = it.stop == null ? '' : String(it.stop);
       node.querySelector('[data-b="maxLoad"]').value = it.maxLoad == null ? '' : showWt(it.maxLoad);
       node.querySelectorAll('[data-lim]').forEach((x) => { x.hidden = it.stackable === false; });
+      node.querySelector('[data-boxmore]').open = it.rotation === 'custom' || openMore.has(i);
+      boxSum(node, it);
       if (boxPresets.length) {
         node.querySelector('.bpre').hidden = false;
         const sel = node.querySelector('[data-b="bpreset"]');
@@ -133,6 +136,15 @@ export function initPlanner(root) {
       host.appendChild(node);
     });
     paintUnits();
+  }
+  // one line for the folded part of a box card: orientation, stacking limits, delivery stop
+  const openMore = new Set();
+  function boxSum(node, it) {
+    const u = U[units];
+    const rot = it.rotation === 'upright' ? 'this side up' : it.rotation === 'custom' ? `${allowedIdx(it).length} position${allowedIdx(it).length === 1 ? '' : 's'}` : 'any side down';
+    const lim = it.stackable === false ? 'nothing on top' : [it.maxOnTop != null && it.maxOnTop !== '' ? `max ${fmt(+it.maxOnTop)} on top` : '', it.maxLoad != null && it.maxLoad !== '' ? `max ${fmt(u.fromKG(+it.maxLoad), 1)} ${u.wt} on top` : ''].filter(Boolean).join(', ') || 'no stacking limit';
+    const st = mode === 'container' && it.stop != null && it.stop !== '' ? ` · stop ${it.stop}` : '';
+    node.querySelector('[data-boxsum]').textContent = `${rot} · ${lim}${st}`;
   }
   function paintOrients(node, it, i) {
     const box = node.querySelector('[data-orients]');
@@ -225,6 +237,7 @@ export function initPlanner(root) {
       } else if (k === 'stackable') { it.stackable = t.checked; t.closest('.boxcard').querySelectorAll('[data-lim]').forEach((x) => { x.hidden = !t.checked; }); }
       else if (k === 'maxOnTop') { const n = parseInt(t.value, 10); it.maxOnTop = t.value.trim() === '' || !(n >= 0) ? null : Math.min(n, 999); }
       else if (k === 'maxLoad') it.maxLoad = t.value.trim() === '' ? null : readWt(t.value);
+      else if (k === 'stop') { const n = parseInt(t.value, 10); it.stop = t.value.trim() === '' || !(n >= 1) ? null : Math.min(n, 99); }
       else if (k === 'bpreset') {
         const p = boxPresets.find((x) => x.id === t.value); if (!p) return;
         const card = t.closest('.boxcard'); it.l = p.L; it.w = p.W;
@@ -235,6 +248,7 @@ export function initPlanner(root) {
         if (v !== null) { it[k] = v; if (it.rotation === 'custom') paintOrients(t.closest('.boxcard'), it, i); }
         const bp = t.closest('.boxcard').querySelector('[data-b="bpreset"]'); if (boxPresets.length && bp) bp.value = bpOf(it);
       }
+      boxSum(t.closest('.boxcard'), it);
       if (state.mode === 'semi' && k !== 'qty' && k !== 'weight' && k !== 'stackable') paintSteps();
       schedule();
     } else if (t.dataset.s) {
@@ -320,7 +334,13 @@ export function initPlanner(root) {
     applyImport(rowsToItems(readDelimited(text).rows, units), 'the pasted rows');
   });
 
+  $('[data-boxes]').addEventListener('toggle', (e) => {
+    if (!e.target.matches || !e.target.matches('[data-boxmore]')) return;
+    const c = e.target.closest('.boxcard'); if (!c) return;
+    if (e.target.open) openMore.add(+c.dataset.i); else openMore.delete(+c.dataset.i);
+  }, true);
   $('[data-boxes]').addEventListener('click', (e) => {
+    setTimeout(() => { const c = e.target.closest && e.target.closest('.boxcard'); if (c && c.isConnected && state.items[+c.dataset.i]) boxSum(c, state.items[+c.dataset.i]); }, 0);
     const chip = e.target.closest('[data-o]');
     if (chip) {
       const i = +chip.closest('.boxcard').dataset.i; const it = state.items[i]; const k = +chip.dataset.o;
@@ -362,7 +382,23 @@ export function initPlanner(root) {
     const { container } = engineInput();
     const opts = { priority: !!state.priority, timeMs: 1200, pallet: mode === 'pallet', stack: state.stack };
     if (state.mode === 'semi') { opts.steps = state.steps.map((st) => ({ item: st.item, qty: st.qty, orient: st.orient, newSection: !!st.newSection })); opts.fillRest = state.fillRest !== false; }
+    curStops = stopSteps();
+    if (curStops) { opts.steps = curStops.map(({ stop, ...x }) => x); opts.fillRest = false; }
     worker.postMessage({ id: ++reqId, kind: 'pack', container, items: engineItems(), opts });
+  }
+  // ---------- delivery stops (container mode, fully automatic): the last stop is loaded first, at the back,
+  // and each stop starts a new section in front of the one before, so stop 1 ends up at the door ----------
+  let curStops = null;
+  const stopOf = (it) => (it.stop != null && it.stop !== '' && Number.isInteger(+it.stop) && +it.stop >= 1 ? +it.stop : Infinity);
+  const stopLabel = (s) => (s === Infinity ? 'No stop' : `Stop ${s}`);
+  function stopSteps() {
+    if (mode !== 'container' || state.mode === 'semi') return null;
+    const live = state.items.map((it, i) => ({ i, s: stopOf(it) })).filter((x) => (state.items[x.i].qty || 0) > 0);
+    const keys = [...new Set(live.map((x) => x.s))].sort((a, b) => b - a); // no stop (delivered last) first, then the highest number
+    if (keys.length < 2) return null;
+    const out = [];
+    keys.forEach((s, g) => live.filter((x) => x.s === s).forEach((x, j) => out.push({ item: x.i, qty: null, orient: null, newSection: g > 0 && j === 0, stop: s })));
+    return out;
   }
   const toView = (d) => {
     const list = [];
@@ -372,7 +408,7 @@ export function initPlanner(root) {
   worker.onmessage = (e) => {
     if (e.data.id !== reqId) return;
     if (e.data.kind === 'fill') { fillDone(toView(e.data)); return; }
-    last = toView(e.data); last.part = 0;
+    last = toView(e.data); last.part = 0; last.stops = curStops;
     plans = [last]; shown = 0; multiDone = false;
     if (!ed) render(last); else root.querySelector('[data-result]').classList.remove('busy');
     nextPart(); paintMulti(); compare();
@@ -396,10 +432,12 @@ export function initPlanner(root) {
     const left = leftBefore(plans.length);
     if (!multiOn() || plans.length >= MAX_UNITS || !left.some((q) => q > 0) || plans.some((p) => p.errors.length)) { multiDone = true; return; }
     const items = engineItems().map((it, k) => ({ ...it, qty: left[k] }));
-    partWorker.postMessage({ id: reqId, kind: 'pack', part: plans.length, container: engineInput().container, items, opts: { priority: !!state.priority, timeMs: 800, pallet: false, stack: state.stack } });
+    const opts = { priority: !!state.priority, timeMs: 800, pallet: false, stack: state.stack };
+    if (curStops) { opts.steps = curStops.map(({ stop, ...x }) => x); opts.fillRest = false; }
+    partWorker.postMessage({ id: reqId, kind: 'pack', part: plans.length, container: engineInput().container, items, opts });
   }
   function partDone(v) {
-    if (v.boxes.length) { v.part = plans.length; plans.push(v); nextPart(); }
+    if (v.boxes.length) { v.part = plans.length; v.stops = curStops; plans.push(v); nextPart(); }
     else { multiDone = true; if (!ed && shown === plans.length - 1) render({ ...plans[shown], keep: true }); } // what is left fits in none: say so on the last unit
     paintMulti(); paintFit();
   }
@@ -516,7 +554,8 @@ export function initPlanner(root) {
   }));
   const stepText = () => {
     const v = +step.value; const b = boxes[v - 1];
-    const stTxt = !ed && b && b.s >= 0 && last && last.steps ? (last.steps[b.s].auto ? ' · automatic part' : ` · step ${b.s + 1}`) : '';
+    const dd = lastList && lastList.d;
+    const stTxt = !ed && b && b.s >= 0 && dd && dd.steps ? (dd.steps[b.s].auto ? ' · automatic part' : dd.stops ? ` · ${stopLabel(dd.stops[b.s].stop).toLowerCase()}` : ` · step ${b.s + 1}`) : '';
     const it = b ? state.items[b.k] : null; const o = it ? orientOf(it, b) : -1;
     const what = b && it && v < boxes.length ? ` · last: ${it.name || 'box'}${o >= 0 ? ` (${SHORT[o]})` : ''}` : '';
     R('stepTxt').textContent = `${fmt(v)} of ${fmt(boxes.length)} boxes${stTxt}${what}`;
@@ -575,9 +614,10 @@ export function initPlanner(root) {
     }
     if (semi) d.steps.forEach((st, si) => {
       if (st.auto) return;
-      const cfg = state.steps[si]; const name = esc(state.items[cfg?.item]?.name || 'this box type');
-      if (st.asked === 0) w.push(`Step ${si + 1} has nothing to load: no “${name}” are left for it.`);
-      else if (st.loaded < st.asked) w.push(`Step ${si + 1} loaded ${fmt(st.loaded)} of ${fmt(st.asked)} “${name}”: the rest do not fit in the space left${cfg?.orient != null ? ' in the position chosen' : ''}.`);
+      const cfg = (d.stops || state.steps)[si]; const name = esc(state.items[cfg?.item]?.name || 'this box type');
+      const sl = d.stops ? stopLabel(d.stops[si].stop) : `Step ${si + 1}`;
+      if (st.asked === 0) { if (!d.stops) w.push(`${sl} has nothing to load: no “${name}” are left for it.`); }
+      else if (st.loaded < st.asked) w.push(`${sl} loaded ${fmt(st.loaded)} of ${fmt(st.asked)} “${name}”: the rest do not fit in the space left${cfg?.orient != null ? ' in the position chosen' : ''}.`);
     });
     state.items.forEach((it, i) => {
       const dims = [it.l, it.w, it.h];
@@ -603,9 +643,15 @@ export function initPlanner(root) {
     };
     R('table').innerHTML = state.items.map((it, i) => `<tr><td><i style="display:inline-block;width:12px;height:12px;border-radius:3px;background:${SWATCH[i % SWATCH.length]};margin-right:6px"></i>${esc(it.name)}</td><td class="num">${fmt(ordQ[i])}</td><td class="num">${fmt(perItem[i])}</td><td class="num">${fmt(Math.max(0, ordQ[i] - perItem[i]))}</td><td class="num">${fmt(u.fromKG(perItem[i] * it.weight))} ${u.wt}</td><td style="white-space:nowrap">${used(boxes.filter((b) => b.k === i))}</td></tr>`).join('');
     R('stepbox').hidden = !semi || !!d.edited;
+    R('stepTh').textContent = d.stops ? 'Stop' : 'Step';
+    if (d.stops && !d.edited) {
+      const ord = [...new Set(d.stops.map((x) => x.stop))];
+      w.splice(w.length - (w.length && /^Centre of gravity/.test(w[w.length - 1]) ? 1 : 0), 0, `Loaded by delivery stop: ${ord.map(stopLabel).join(', then ')}, from the back wall toward the door, each stop in its own section, so the first stop is unloaded first at the door.`);
+      R('warn').innerHTML = w.map((x) => `<p class="warn">${x}</p>`).join('');
+    }
     R('steptable').innerHTML = semi ? d.steps.map((st, si) => {
-      const cfg = st.auto ? null : state.steps[si];
-      const label = st.auto ? 'Rest' : String(si + 1);
+      const cfg = st.auto ? null : (d.stops || state.steps)[si];
+      const label = st.auto ? 'Rest' : d.stops ? stopLabel(d.stops[si].stop) : String(si + 1);
       const type = st.auto ? 'Everything left' : esc(state.items[cfg?.item]?.name || '');
       const pos = cfg && cfg.orient != null ? SHORT[cfg.orient] : `Automatic${st.loaded ? '<br><span class="small">' + used(boxes.filter((b) => b.s === si)) + '</span>' : ''}`;
       return `<tr><td>${label}${cfg?.newSection ? ' <span class="small">(new section)</span>' : ''}</td><td>${type}</td><td style="white-space:nowrap">${pos}</td><td class="num">${fmt(st.asked)}</td><td class="num">${fmt(st.loaded)}</td></tr>`;
@@ -646,7 +692,7 @@ export function initPlanner(root) {
   // ---------- loading list (sections along the length, layers from the floor up; see loadlist.js) ----------
   let lastList = null, llAll = false;
   const LL_FEW = 2; // sections shown before "Show all" on long lists
-  const stepName = (s) => (s < 0 || !lastList?.d.steps ? '' : lastList.d.steps[s]?.auto ? 'Automatic part' : `Step ${s + 1}`);
+  const stepName = (s) => (s < 0 || !lastList?.d.steps ? '' : lastList.d.steps[s]?.auto ? 'Automatic part' : lastList.d.stops ? stopLabel(lastList.d.stops[s]?.stop) : `Step ${s + 1}`);
   function paintLoadList() {
     if (!lastList) return;
     const { ll, d } = lastList; const u = U[units];
@@ -1098,10 +1144,11 @@ export function initPlanner(root) {
       const z = state.pzs; const cartons = JSON.parse(pzBox.dataset.cartons || '[]');
       const pw = +z.palletWt || 0, ph = z.palletH || 0;
       const p = pzPresets.find((x) => x.id === z.preset);
-      const pallet = (name, n, b) => ({ name: name.slice(0, 40), l: z.L, w: z.W, h: ph + b.h, weight: b.w + pw, qty: n, rotation: 'upright', stackable: !!z.stack2, maxOnTop: z.stack2 ? 1 : null, maxLoad: null });
+      let cur = null;
+      const pallet = (name, n, b) => ({ name: name.slice(0, 40), l: z.L, w: z.W, h: ph + b.h, weight: b.w + pw, qty: n, rotation: 'upright', stackable: !!z.stack2, maxOnTop: z.stack2 ? 1 : null, maxLoad: null, stop: cur ? cur.stop ?? null : null });
       let items = [], rows = [], loose = [], looseN = 0, pallets = 0, merged = false;
       cartons.forEach((c, k) => {
-        const r = out[k]; const nm = c.name || `Box ${k + 1}`;
+        const r = out[k]; const nm = c.name || `Box ${k + 1}`; cur = c;
         if (!r || !r.per) { if ((c.qty || 0) > 0) { items.push({ ...c }); loose.push(`“${nm}”`); looseN += c.qty; } rows.push({ name: nm, per: 0 }); return; }
         if (r.single) { items.push(pallet(`${nm} · 1 pallet of ${r.single.n}`, 1, r.single)); pallets += 1; rows.push({ name: nm, per: r.per, tihi: r.tihi, desc: '1', h: [ph + r.single.h], w: [r.single.w + pw] }); return; }
         items.push({ ...pallet(`${nm} · ${r.per} per pallet`, r.full, r.f), _k: k });

@@ -10,7 +10,16 @@ const b = await chromium.launch(fs.existsSync(exe) ? { executablePath: exe } : {
 // The planner folds "Inside size, payload, door" and "More options" (details.more). Most checks below type into those
 // fields, so every page opens them after loading; the folded default itself is checked separately at the end.
 const newPage0 = b.newPage.bind(b);
-b.newPage = async (o) => { const p = await newPage0(o); await p.addInitScript(() => document.addEventListener('DOMContentLoaded', () => document.querySelectorAll('details.more').forEach((d) => { d.open = true; }))); return p; };
+b.newPage = async (o) => {
+  const p = await newPage0(o);
+  // open every folded group, also the ones box cards add later
+  await p.addInitScript(() => {
+    const openAll = (root) => root.querySelectorAll && root.querySelectorAll('details.more').forEach((d) => { d.open = true; });
+    new MutationObserver((ms) => ms.forEach((m) => m.addedNodes.forEach((n) => { if (n.nodeType === 1) { if (n.matches('details.more')) n.open = true; openAll(n); } }))).observe(document, { childList: true, subtree: true });
+    document.addEventListener('DOMContentLoaded', () => openAll(document));
+  });
+  return p;
+};
 const pg = await b.newPage({ viewport: { width: 390, height: 844 }, locale: 'en-GB' });
 const errs = []; pg.on('pageerror', (e) => errs.push(e.message));
 let fails = 0; const ok = (c, m) => { console.log(c ? 'ok  ' : 'FAIL', m); if (!c) fails++; };
@@ -784,6 +793,35 @@ ok(errs.length === 0, 'no JS errors ' + errs.join(' | '));
   await pz.click('[data-units="metric"]'); await settleZ();
   ok(e5.length === 0, 'pallets first: no JS errors ' + e5.join(' | '));
   await pz.close();
+}
+// Delivery stops (2026-10-23): the last stop is loaded first at the back, each stop in its own section
+{
+  const ps = await b.newPage({ viewport: { width: 390, height: 844 }, locale: 'en-GB' }); const e6 = []; ps.on('pageerror', (e) => e6.push(e.message));
+  const T = (sel) => ps.$eval(sel, (e) => e.textContent.trim());
+  const settleS = async () => { await ps.waitForTimeout(350); await ps.waitForFunction(() => !document.querySelector('[data-result]').classList.contains('busy'), null, { timeout: 20000 }); };
+  await ps.goto('http://localhost:4401/container-loading-calculator/'); await settleS();
+  await ps.fill('.boxcard:nth-child(1) [data-b="stop"]', '2'); await ps.fill('.boxcard:nth-child(2) [data-b="stop"]', '1'); await settleS();
+  const secs = await ps.$$eval('.lltable tr.llsec', (r) => r.map((x) => x.textContent.includes('Stop 2') ? 2 : x.textContent.includes('Stop 1') ? 1 : 0));
+  const firstB = secs.indexOf(1);
+  ok(await T('#r-main') === '900 of 900' && firstB > 0 && secs.slice(0, firstB).every((x) => x === 2) && secs.slice(firstB).every((x) => x === 1), 'stop 2 (Carton A) at the back, stop 1 (Carton B) toward the door (' + secs.join('') + ')');
+  ok(!(await T('[data-r="warn"]')).includes('failed its own check') && (await T('[data-r="warn"]')).includes('Loaded by delivery stop: Stop 2, then Stop 1'), 'stops note, plan passes the check (no box behind a new section line)');
+  ok(await T('[data-moresum]') === 'Fully automatic · column stacks · by delivery stop' && await T('[data-r="stepTh"]') === 'Stop', 'summary and table name the stops');
+  // the boxes of stop 1 all stand in front of every box of stop 2 (3D plan order: x)
+  // several containers keep the stops
+  await ps.fill('.boxcard:nth-child(2) [data-b="qty"]', '5000'); await settleS();
+  await ps.waitForFunction(() => /need/.test(document.querySelector('[data-multitxt]').textContent), null, { timeout: 60000 });
+  await ps.click('[data-unit="1"]'); await ps.waitForTimeout(600);
+  ok(!(await T('[data-r="warn"]')).includes('failed its own check'), 'second container with stops passes the check');
+  // only one stop set: the boxes without a stop count as one more stop, loaded first
+  await ps.goto('http://localhost:4401/container-loading-calculator/'); await settleS();
+  await ps.fill('.boxcard:nth-child(2) [data-b="stop"]', '1'); await settleS();
+  const s2 = await ps.$$eval('.lltable tr.llsec', (r) => r.map((x) => x.textContent.includes('No stop') ? 'n' : x.textContent.includes('Stop 1') ? '1' : '?').join(''));
+  ok(/^n+1+$/.test(s2), 'boxes with no stop go to the back, stop 1 at the door (' + s2 + ')');
+  // semi-automatic: the user's steps decide, stops are not used
+  await ps.evaluate(() => { document.querySelector('[data-more]').open = true; }); await ps.click('[data-mode="semi"]'); await settleS();
+  ok(!(await T('[data-r="warn"]')).includes('Loaded by delivery stop') && !(await T('[data-moresum]')).includes('delivery stop'), 'semi-automatic: steps decide, stops not used');
+  ok(e6.length === 0, 'stops: no JS errors ' + e6.join(' | '));
+  await ps.close();
 }
 await b.close(); srv.close();
 console.log(fails ? fails + ' failing' : 'planner checks pass'); process.exit(fails ? 1 : 0);

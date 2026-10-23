@@ -93,7 +93,7 @@ const presets = mode === 'container' ? (spacePresets || data.containers) : palle
         <div class="row3">
           <label><span>Max height incl. pallet <span class="small" data-ul></span></span><input data-pzf="H" inputmode="decimal"></label>
           <label><span>Pallet weight <span class="small" data-uw></span></span><input data-pzf="palletWt" inputmode="decimal" placeholder="0"></label>
-          <label><span>Max load per pallet <span class="small" data-uw></span></span><input data-pzf="maxWeight" inputmode="decimal" placeholder="No limit"></label>
+          <label><span>Max load per pallet <span class="small" data-uw></span></span><input data-pzf="maxWeight" inputmode="decimal" placeholder="none"></label>
         </div>
         <label class="check"><input type="checkbox" data-pzf="stack2"> Loaded pallets may stand on each other (two high)</label>
         <p class="small" data-pznote style="margin:0"></p>
@@ -283,7 +283,7 @@ const presets = mode === 'container' ? (spacePresets || data.containers) : palle
   <p class="small" style="margin:6px 0 0">“More that still fit” is how many more of that box type alone would fit in the space left, keeping the plan as it is, within the {mode === 'container' ? 'payload' : 'weight'} left.</p>
   <div class="tablebox" data-r="stepbox" hidden>
     <table>
-      <thead><tr><th>Step</th><th>Box type</th><th>Position</th><th class="num">Asked</th><th class="num">Loaded</th></tr></thead>
+      <thead><tr><th data-r="stepTh">Step</th><th>Box type</th><th>Position</th><th class="num">Asked</th><th class="num">Loaded</th></tr></thead>
       <tbody data-r="steptable"></tbody>
     </table>
   </div>
@@ -316,14 +316,20 @@ const presets = mode === 'container' ? (spacePresets || data.containers) : palle
     <label class="dim"><span>Length <span class="small" data-ul></span></span><input data-b="l" inputmode="decimal"></label>
     <label class="dim"><span>Width <span class="small" data-ul></span></span><input data-b="w" inputmode="decimal"></label>
     <label class="dim"><span>Height <span class="small" data-ul></span></span><input data-b="h" inputmode="decimal"></label>
-    <label class="rot">Orientation<select data-b="rotation"><option value="any">Automatic: any side can face down</option><option value="upright">Automatic: this side up (turn flat only)</option><option value="custom">Choose the positions allowed…</option></select></label>
     <div class="flags"><label class="check"><input type="checkbox" data-b="stackable"> Can carry boxes on top</label><button type="button" class="iconbtn" data-del aria-label="Remove this box type">✕</button></div>
-    <label class="lim" data-lim><span>Max boxes on top</span><input data-b="maxOnTop" inputmode="numeric" placeholder="No limit"></label>
-    <label class="lim" data-lim><span>Max weight on top <span class="small" data-uw></span></span><input data-b="maxLoad" inputmode="decimal" placeholder="No limit"></label>
-    <div class="orients" data-orients hidden>
-      <p class="small">Tap to allow or block each position. “Along” means along the {mode === 'container' ? 'container length, toward the door' : 'pallet length'}. Tick one position to fix it.</p>
-      <div class="ogrid" role="group" aria-label="Allowed positions"></div>
-    </div>
+    <details class="more boxmore" data-boxmore>
+      <summary><span class="sumk">{mode === 'container' ? 'Orientation, limits, stop' : 'Orientation, limits'}</span><span class="sumv" data-boxsum></span></summary>
+      <div class="bmbody">
+        <label class="rot">Orientation<select data-b="rotation"><option value="any">Automatic: any side can face down</option><option value="upright">Automatic: this side up (turn flat only)</option><option value="custom">Choose the positions allowed…</option></select></label>
+        <div class="orients" data-orients hidden>
+          <p class="small">Tap to allow or block each position. “Along” means along the {mode === 'container' ? 'container length, toward the door' : 'pallet length'}. Tick one position to fix it.</p>
+          <div class="ogrid" role="group" aria-label="Allowed positions"></div>
+        </div>
+        <label class="lim" data-lim><span>Max boxes on top</span><input data-b="maxOnTop" inputmode="numeric" placeholder="none"></label>
+        <label class="lim" data-lim><span>Max weight on top <span class="small" data-uw></span></span><input data-b="maxLoad" inputmode="decimal" placeholder="none"></label>
+        {mode === 'container' && <label class="stopf"><span>Delivery stop</span><input data-b="stop" inputmode="numeric" placeholder="none"></label>}
+      </div>
+    </details>
   </div>
 </template>
 
