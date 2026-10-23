@@ -518,3 +518,22 @@ export function stackPack(container, rawItems, opts = {}) {
   }
   return il;
 }
+
+// Several units of the same size: plan the first, then load whatever is left into the next one, until every
+// box is loaded, a unit takes no box (what is left fits in none), or `max` units are planned. Each run is an
+// ordinary plan of its own (validate() applies to each). opts.steps apply to the first unit only; the
+// others are loaded fully automatically. Returns { runs, left: boxes per input type not loaded }.
+export function packMany(container, rawItems, opts = {}, max = 20) {
+  const runs = [];
+  let left = rawItems.map((it) => Math.max(0, Math.floor(+it.qty || 0)));
+  for (let i = 0; i < max && left.some((q) => q > 0); i++) {
+    const o = i === 0 ? opts : { ...opts, steps: undefined, fillRest: undefined };
+    const res = stackPack(container, rawItems.map((it, k) => ({ ...it, qty: left[k] })), o);
+    if (!res.placed.length) break;
+    runs.push(res);
+    const per = left.map(() => 0);
+    for (const p of res.placed) per[res.items[p.k].idx]++;
+    left = left.map((q, k) => q - per[k]);
+  }
+  return { runs, left };
+}

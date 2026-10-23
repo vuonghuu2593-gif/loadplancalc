@@ -1,6 +1,6 @@
 // Engine tests: hand-checked cases plus random cases checked by the independent validator.
 // Usage: node scripts/test-packer.mjs
-import { pack, validate, palletPack, layersOf, stackPack } from '../src/scripts/packer.js';
+import { pack, validate, palletPack, layersOf, stackPack, packMany } from '../src/scripts/packer.js';
 import { makeCtx, placeProblem, spots, nudge, fillAround, onTop, stackFrom, asResult, roomFor } from '../src/scripts/editor.js';
 let fails = 0;
 const ok = (cond, msg) => { if (!cond) { fails++; console.log('FAIL', msg); } else console.log('ok  ', msg); };
@@ -377,6 +377,33 @@ ok(badF === 0, `25 random "remove some, fill again" plans valid (${badF} bad)`);
     if (errs.length || r.totals.n > it.qty) { badI++; console.log('interlock fuzz', s, errs); }
   }
   ok(badI === 0, `40 random interlock cases valid (${badI} bad, ${found} interlocked)`);
+}
+// Several units of the same size (packMany)
+{
+  // hand-checked: 5 x 2 x 2 m space, 1 m cubes: 5 x 2 x 2 = 20 per unit; 100 cubes -> 5 units of 20
+  let r = packMany({ L: 5000, W: 2000, H: 2000 }, [{ l: 1000, w: 1000, h: 1000, qty: 100 }], { timeMs: 200 });
+  ok(r.runs.length === 5 && r.runs.every((x) => x.totals.n === 20 && !validate(x).length) && r.left[0] === 0, 'packMany: 100 cubes of 1 m in a 5 x 2 x 2 m space -> 5 units of 20 (' + r.runs.map((x) => x.totals.n).join('+') + ')');
+  // weight: 1,000 kg payload, 30 kg boxes -> 33 per unit (33 x 30 = 990); 100 boxes -> 33 + 33 + 33 + 1
+  r = packMany({ L: 5000, W: 2000, H: 2000, maxWeight: 1000 }, [{ l: 500, w: 500, h: 500, weight: 30, qty: 100 }], { timeMs: 200 });
+  ok(r.runs.map((x) => x.totals.n).join('+') === '33+33+33+1' && r.runs.every((x) => !validate(x).length), 'packMany: payload 1,000 kg / 30 kg = 33 per unit -> 33+33+33+1 (' + r.runs.map((x) => x.totals.n).join('+') + ')');
+  // a box that fits in no unit stays left; the others are loaded
+  r = packMany({ L: 5000, W: 2000, H: 2000 }, [{ l: 1000, w: 1000, h: 1000, qty: 30 }, { l: 6000, w: 100, h: 100, qty: 3 }], { timeMs: 200 });
+  ok(r.runs.map((x) => x.totals.n).join('+') === '20+10' && r.left.join() === '0,3', 'packMany: a 6 m box in a 5 m space stays left (' + r.left.join() + ')');
+  // the cap
+  r = packMany({ L: 5000, W: 2000, H: 2000 }, [{ l: 1000, w: 1000, h: 1000, qty: 1000 }], { timeMs: 50 }, 3);
+  ok(r.runs.length === 3 && r.left[0] === 940, 'packMany: stops at the cap (3 units, 940 left)');
+  // random: every unit passes the check and the counts add up
+  let bad = 0;
+  for (let s = 1; s <= 12; s++) {
+    let x = s * 7919; const R = () => ((x = (x * 1103515245 + 12345) % 2147483648) / 2147483648);
+    const C = { L: 2000 + R() * 6000, W: 1500 + R() * 900, H: 1500 + R() * 1000, maxWeight: R() < 0.5 ? 2000 + R() * 8000 : 0, doorW: 0, doorH: 0 };
+    const items = [0, 1].map(() => ({ l: 200 + R() * 600, w: 200 + R() * 500, h: 150 + R() * 500, weight: R() * 40, qty: 50 + Math.floor(R() * 600), rotation: R() < 0.5 ? 'upright' : 'any', stackable: R() > 0.1 }));
+    const m = packMany(C, items, { timeMs: 60, stack: R() < 0.5 ? 'interlock' : 'column' });
+    const per = items.map(() => 0);
+    for (const run of m.runs) { if (validate(run).length) bad++; for (const p of run.placed) per[run.items[p.k].idx]++; }
+    if (items.some((it, k) => per[k] + m.left[k] !== it.qty)) { bad++; console.log('packMany count', s, per, m.left); }
+  }
+  ok(bad === 0, `packMany: 12 random loads, every unit valid and counts add up (${bad} bad)`);
 }
 console.log(fails ? `${fails} failing` : 'all engine tests pass');
 process.exit(fails ? 1 : 0);

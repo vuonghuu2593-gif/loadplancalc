@@ -7,6 +7,10 @@ const types = { '.html': 'text/html', '.css': 'text/css', '.svg': 'image/svg+xml
 const srv = http.createServer((q, s) => { let p = path.join(root, decodeURIComponent(q.url.split('?')[0])); if (fs.existsSync(p) && fs.statSync(p).isDirectory()) p = path.join(p, 'index.html'); if (!fs.existsSync(p)) { s.statusCode = 404; s.end(); return; } s.setHeader('content-type', types[path.extname(p)] || 'text/plain'); s.end(fs.readFileSync(p)); }).listen(4401);
 const exe = process.env.PW_CHROMIUM || '/opt/pw-browsers/chromium_headless_shell-1194/chrome-linux/headless_shell';
 const b = await chromium.launch(fs.existsSync(exe) ? { executablePath: exe } : {});
+// The planner folds "Inside size, payload, door" and "More options" (details.more). Most checks below type into those
+// fields, so every page opens them after loading; the folded default itself is checked separately at the end.
+const newPage0 = b.newPage.bind(b);
+b.newPage = async (o) => { const p = await newPage0(o); await p.addInitScript(() => document.addEventListener('DOMContentLoaded', () => document.querySelectorAll('details.more').forEach((d) => { d.open = true; }))); return p; };
 const pg = await b.newPage({ viewport: { width: 390, height: 844 }, locale: 'en-GB' });
 const errs = []; pg.on('pageerror', (e) => errs.push(e.message));
 let fails = 0; const ok = (c, m) => { console.log(c ? 'ok  ' : 'FAIL', m); if (!c) fails++; };
@@ -84,6 +88,7 @@ const noFail = async () => !(await pg.$eval('[data-r="warn"]', (e) => e.textCont
 await pg.goto('http://localhost:4401/container-loading-calculator/'); await pg.evaluate(() => history.replaceState(null, '', location.pathname)); await pg.reload(); await settle();
 await pg.click('[data-ed="start"]'); await pg.waitForTimeout(300);
 ok(await pg.isVisible('[data-ed-on]') && await main() === '900 of 900', 'edit mode opens on the automatic plan');
+await pg.$eval('[data-view]', (e) => e.scrollIntoView({ block: 'center' })); await pg.waitForTimeout(200);
 const box = await pg.$('[data-view] canvas').then((c) => c.boundingBox());
 await pg.mouse.click(box.x + box.width * 0.5, box.y + box.height * 0.55); await pg.waitForTimeout(200);
 ok((await pg.$eval('[data-ed-seltxt]', (e) => e.textContent)).startsWith('Box '), 'tap in the 3D view selects a box (' + await pg.$eval('[data-ed-seltxt]', (e) => e.textContent) + ')');
@@ -590,6 +595,75 @@ ok(errs.length === 0, 'no JS errors ' + errs.join(' | '));
   ok(await T('#r-main') === '–' && !(await pc.$eval('[data-r="skip"]', (e) => e.hidden)), 'cuft: empty height → no total, note shown');
   await pc.evaluate(() => localStorage.removeItem('lpc-cuft-unit'));
   await pc.close();
+}
+// Phone layout (2026-10-23): folded option groups, full-screen 3D, several units, size comparison
+{
+  const pf = await newPage0({ viewport: { width: 390, height: 844 }, locale: 'en-GB' }); const e2 = []; pf.on('pageerror', (e) => e2.push(e.message));
+  const T = (sel) => pf.$eval(sel, (e) => e.textContent.trim());
+  const settleF = async () => { await pf.waitForTimeout(350); await pf.waitForFunction(() => !document.querySelector('[data-result]').classList.contains('busy'), null, { timeout: 15000 }); };
+  await pf.goto('http://localhost:4401/container-loading-calculator/'); await settleF();
+  const fold = await pf.evaluate(() => ({ specs: document.querySelector('[data-specs]').open, more: document.querySelector('[data-more]').open, top: document.querySelector('[data-result]').getBoundingClientRect().top + scrollY }));
+  ok(!fold.specs && !fold.more, 'folded by default: size fields and More options');
+  ok(fold.top < 2200, 'phone: result starts within 2,200 px (' + Math.round(fold.top) + ')');
+  ok(await T('[data-specsum]') === '1,203.2 × 235 × 270 cm · 28,600 kg · door 234 × 259.7', 'size summary shows the preset values (' + await T('[data-specsum]') + ')');
+  ok(await T('[data-moresum]') === 'Fully automatic · column stacks', 'More options summary (' + await T('[data-moresum]') + ')');
+  await pf.click('[data-units="imperial"]'); await settleF();
+  ok((await T('[data-specsum]')).startsWith('473.7 × 92.52 × 106.3 in · 63,052 lb'), 'size summary in inches and lb (' + await T('[data-specsum]') + ')');
+  await pf.click('[data-units="metric"]'); await settleF();
+  // full screen 3D view
+  await pf.click('[data-full]'); await pf.waitForTimeout(300);
+  const full = await pf.evaluate(() => { const r = document.querySelector('[data-view]').getBoundingClientRect(); return { on: document.querySelector('[data-stage]').classList.contains('full'), h: r.height, step: !!document.querySelector('[data-stage] [data-stepbtn="1"]') }; });
+  ok(full.on && full.h > 500 && full.step, 'full screen: 3D view fills the screen with the step buttons (' + Math.round(full.h) + ' px)');
+  await pf.keyboard.press('Escape'); await pf.waitForTimeout(200);
+  ok(await pf.evaluate(() => !document.querySelector('[data-stage]').classList.contains('full') && !document.body.classList.contains('has-full')), 'Esc closes full screen');
+  // which size fits: 900 cartons = 60.9 m³ need more than one 20' (5.9 x 2.352 x 2.395 = 33.2 m³); the selected 40' HC row is the plan above
+  await pf.waitForFunction(() => !document.querySelector('[data-fittable]').textContent.includes('…'), null, { timeout: 60000 });
+  const rows = await pf.$$eval('[data-fittable] tr', (r) => r.map((x) => [...x.children].map((c) => c.textContent.trim())));
+  const row = (name) => rows.find((r) => r[0].startsWith(name));
+  ok(rows.length === 15, 'comparison lists every size in the list (' + rows.length + ')');
+  ok(row("40' High Cube")[0].includes('(selected)') && row("40' High Cube")[1] === '900' && row("40' High Cube")[2] === '1', "selected 40' HC row: 900 in one, 1 needed");
+  ok(+row("20' Standard")[2].replace('+', '') >= 2 && +row("20' Standard")[1].replace(/,/g, '') < 900, "20' Standard: takes fewer than 900, needs 2 or more (" + row("20' Standard").join(' | ') + ')');
+  ok((await T('[data-fittxt]')).startsWith('Smallest that takes all 900 boxes:'), 'suggestion line (' + await T('[data-fittxt]') + ')');
+  await pf.click('[data-usepreset="40dv"]'); await settleF();
+  ok(await pf.inputValue('[data-f="preset"]') === '40dv' && /^\d[\d,]* of 900$/.test(await T('#r-main')), "tap 40' Standard: it is planned above (" + await T('#r-main') + ')');
+  // several units, hand-checked: custom 500 x 200 x 200 cm, door 200 x 200, no payload; 100 cubes of 100 cm:
+  // 5 x 2 x 2 = 20 per unit, 100 / 20 = 5 units of 20
+  await pf.selectOption('[data-f="preset"]', 'custom'); await pf.waitForTimeout(100);
+  ok(await pf.evaluate(() => document.querySelector('[data-specs]').open), 'Custom size opens the size fields');
+  for (const [k, v] of [['L', '500'], ['W', '200'], ['H', '200'], ['doorW', '200'], ['doorH', '200'], ['maxWeight', '']]) await pf.fill(`[data-f="${k}"]`, v);
+  await pf.click('.boxcard:nth-child(2) [data-del]');
+  for (const [k, v] of [['l', '100'], ['w', '100'], ['h', '100'], ['qty', '100'], ['weight', '10']]) await pf.fill(`.boxcard [data-b="${k}"]`, v);
+  await settleF();
+  await pf.waitForFunction(() => /need/.test(document.querySelector('[data-multitxt]').textContent), null, { timeout: 30000 });
+  ok(await T('[data-multitxt]') === 'All 100 boxes need 5 × this size: 20 + 20 + 20 + 20 + 20. Tap a number to see that container.', 'several units: ' + await T('[data-multitxt]'));
+  ok(await T('[data-r="mainK"]') === 'Boxes in container 1 of 5' && await T('#r-main') === '20 of 100' && await T('[data-r="left"]') === '0' && await T('[data-r="leftK"]') === 'Left after 5 containers', 'unit 1: 20 of 100, 0 left after 5');
+  ok((await T('[data-r="warn"]')).includes('80 boxes do not fit in this container: they go into the next one'), 'unit 1 note: 80 go into the next one');
+  await pf.click('[data-unit="4"]'); await pf.waitForTimeout(500);
+  const u5 = await pf.evaluate(() => ({ k: document.querySelector('[data-r="mainK"]').textContent, m: document.querySelector('#r-main').textContent, th: document.querySelector('[data-r="ordTh"]').textContent, ed: document.querySelector('[data-editor]').hidden, warn: document.querySelector('[data-r="warn"]').textContent, ll: document.querySelector('[data-r="lltable"]').textContent }));
+  ok(u5.k === 'Boxes in container 5 of 5' && u5.m === '20 of 100' && u5.th === 'Still to load' && u5.ed && !u5.warn.includes('do not fit') && !u5.warn.includes('failed its own check'), 'unit 5: 20 boxes, still-to-load table, no hand editing, no misfit note');
+  await pf.click('[data-unit="0"]'); await pf.waitForTimeout(400);
+  await pf.click('[data-ed="start"]'); await pf.waitForTimeout(300);
+  ok(await pf.isHidden('[data-multi]') && await T('[data-r="mainK"]') === 'Boxes loaded', 'hand editing (unit 1): the unit row is hidden');
+  await pf.click('[data-ed="exit"]'); await pf.waitForTimeout(400);
+  ok(await pf.isVisible('[data-multi]'), 'back to the automatic plan: the unit row returns');
+  // a box that fits in no unit: 600 cm long in a 500 cm space
+  await pf.click('[data-add]'); await pf.waitForTimeout(100);
+  for (const [k, v] of [['l', '600'], ['w', '50'], ['h', '50'], ['qty', '2']]) await pf.fill(`.boxcard:nth-child(2) [data-b="${k}"]`, v);
+  await settleF(); await pf.waitForFunction(() => /fit in none/.test(document.querySelector('[data-multitxt]').textContent), null, { timeout: 30000 });
+  ok((await T('[data-multitxt]')).includes('100 of 102 boxes in 5 × this size') && (await T('[data-multitxt]')).includes('2 boxes fit in none'), 'a box too long for the space: ' + await T('[data-multitxt]'));
+  // a shared link with semi-automatic steps opens More options
+  await pf.click('[data-mode="semi"]').catch(() => {});
+  await pf.evaluate(() => { document.querySelector('[data-more]').open = true; }); await pf.click('[data-mode="semi"]'); await settleF();
+  const semiUrl = pf.url();
+  const pl = await newPage0({ viewport: { width: 390, height: 844 } }); pl.on('pageerror', (e) => e2.push(e.message));
+  await pl.goto(semiUrl); await pl.waitForTimeout(1500);
+  ok(await pl.evaluate(() => document.querySelector('[data-more]').open) && (await pl.$eval('[data-moresum]', (e) => e.textContent)).startsWith('Semi-automatic'), 'link with semi-automatic steps opens More options');
+  await pl.close();
+  // pallet page: no unit row or size table
+  await pf.goto('http://localhost:4401/pallet-loading-calculator/'); await settleF();
+  ok(!(await pf.$('[data-multi]')) && !(await pf.$('[data-fit]')) && await T('#r-main') === '45 of 100', 'pallet page: no unit row or size comparison, 45 of 100 (' + await T('#r-main') + ' ' + !!(await pf.$('[data-multi]')) + !!(await pf.$('[data-fit]')) + ')');
+  ok(e2.length === 0, 'phone layout: no JS errors ' + e2.join(' | '));
+  await pf.close();
 }
 await b.close(); srv.close();
 console.log(fails ? fails + ' failing' : 'planner checks pass'); process.exit(fails ? 1 : 0);

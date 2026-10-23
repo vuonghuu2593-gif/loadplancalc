@@ -89,11 +89,22 @@ export function initPlanner(root) {
     if (mode === 'pallet') f('palletWt').value = c.palletWt == null ? '' : showWt(c.palletWt);
     f('priority').checked = !!state.priority;
     const p = presets.find((x) => x.id === c.preset);
+    if (!p && $('[data-specs]')) $('[data-specs]').open = true; // custom size: show the fields to type into
+    paintSummaries();
     if (mode === 'pallet') {
       const u = U[units];
       const pw = !p ? '' : p.weightKg ? ` The pallet weight filled in is ${esc(p.source)}'s approximate figure (about ${fmt(u.fromKG(p.weightKg), 1)} ${u.wt}); it is added to the boxes for the gross weight.` : ` ${esc(p.source)} does not publish this pallet's own weight on that page: enter it as the pallet weight to see the gross weight.`;
       f('srcnote').innerHTML = p && p.url ? `Pallet length, width and height from <a href="${p.url}" rel="noopener" target="_blank">${esc(p.source)}</a>, and its safe working load (${fmt(u.fromKG(p.maxWeight), 0)} ${u.wt}) as the starting max load weight. The max height is your own limit (racking, trailer, customer or warehouse rule); the ${fmt(u.fromMM(1800), units === 'metric' ? 0 : 1)} ${u.len} filled in is only an example.${pw}` : 'Enter your pallet size, height and own weight (leave it empty to count 0), how far the load may overhang each side, the max height of the loaded pallet and the max load weight.';
     } else f('srcnote').innerHTML = p && p.url ? `Preset figures from <a href="${p.url}" rel="noopener" target="_blank">${esc(p.source || 'Hapag-Lloyd')}</a>. ${p.note ? esc(p.note) : 'Containers vary by maker and series; check the CSC plate or your booking for the exact unit.'}` : 'Enter the inside dimensions of your container or trailer.';
+  }
+  // folded groups: their summary line shows the current values, so nothing is hidden from view
+  function paintSummaries() {
+    const u = U[units]; const d = units === 'metric' ? 1 : 2; const c = state.cont;
+    const L = (mm) => (mm ? fmt(u.fromMM(mm), d) : '–');
+    const specs = $('[data-specsum]');
+    if (specs) specs.textContent = `${L(c.L)} × ${L(c.W)} × ${L(c.H)} ${u.len} · ${c.maxWeight ? fmt(u.fromKG(c.maxWeight), 0) + ' ' + u.wt : 'no payload limit'} · door ${L(c.doorW)} × ${L(c.doorH)}`;
+    const il = state.stack === 'interlock' && canInterlock();
+    $('[data-moresum]').textContent = `${state.mode === 'semi' ? `Semi-automatic (${state.steps.length} step${state.steps.length === 1 ? '' : 's'})` : 'Fully automatic'} · ${il ? 'interlocked' : 'column stacks'}${il && state.support < 1 ? ` (${fmt(state.support * 100)}%)` : ''}${state.priority ? ' · list order' : ''}`;
   }
   function paintBoxes() {
     const host = $('[data-boxes]'); host.innerHTML = '';
@@ -146,6 +157,7 @@ export function initPlanner(root) {
   function paintStack() {
     root.querySelectorAll('[data-stack]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.stack === state.stack)));
     f('support').value = String(state.support);
+    paintSummaries();
     const il = state.stack === 'interlock';
     $('[data-supportrow]').hidden = !il;
     $('[data-stackhelp]').textContent = !il
@@ -241,7 +253,7 @@ export function initPlanner(root) {
   });
   root.querySelectorAll('[data-units]').forEach((b) => b.addEventListener('click', () => {
     units = b.dataset.units; try { localStorage.setItem('lpc-units', units); } catch { /* ignore */ }
-    paintUnits(); paintContainer(); paintBoxes(); paintMode(); render(ed ? edView() : last);
+    paintUnits(); paintContainer(); paintBoxes(); paintMode(); render(ed ? edView() : plans[shown] || last); paintFit();
   }));
   root.querySelectorAll('[data-mode]').forEach((b) => b.addEventListener('click', () => {
     state.mode = b.dataset.mode;
@@ -352,9 +364,120 @@ export function initPlanner(root) {
   worker.onmessage = (e) => {
     if (e.data.id !== reqId) return;
     if (e.data.kind === 'fill') { fillDone(toView(e.data)); return; }
-    last = toView(e.data);
+    last = toView(e.data); last.part = 0;
+    plans = [last]; shown = 0; multiDone = false;
     if (!ed) render(last); else root.querySelector('[data-result]').classList.remove('busy');
+    nextPart(); paintMulti(); compare();
   };
+
+  // ---------- several units of the same size (container mode) ----------
+  // What one container cannot take is planned into the next one of the same size, one at a time in the
+  // worker, until everything is loaded, a unit takes nothing more, or MAX_UNITS. Semi-automatic steps apply
+  // to the first unit; the others are loaded automatically. Hand editing works on the first unit.
+  const MAX_UNITS = 20;
+  // a worker of its own, so a new plan never waits behind the later units
+  const partWorker = mode === 'container' ? new Worker(new URL('./pack-worker.js', import.meta.url), { type: 'module' }) : null;
+  if (partWorker) partWorker.onmessage = (e) => { if (e.data.id === reqId && e.data.part === plans.length) partDone(toView(e.data)); };
+  let plans = [], shown = 0, multiDone = true;
+  const multiOn = () => mode === 'container' && !(state.mode === 'semi' && state.fillRest === false);
+  const qtyOf = () => state.items.map((it) => Math.max(0, it.qty || 0));
+  const leftBefore = (i) => { const q = qtyOf(); for (const p of plans.slice(0, i)) for (const b of p.boxes) q[b.k]--; return q.map((x) => Math.max(0, x)); };
+  const nounOf = (id) => { const p = presets.find((x) => x.id === id); const t = p ? p.name : ''; return /truck/i.test(t) ? 'truck' : /trailer|dry van|reefer/i.test(t) ? 'trailer' : 'container'; };
+  const unitName = () => presets.find((x) => x.id === state.cont.preset)?.name || 'this size';
+  function nextPart() {
+    const left = leftBefore(plans.length);
+    if (!multiOn() || plans.length >= MAX_UNITS || !left.some((q) => q > 0) || plans.some((p) => p.errors.length)) { multiDone = true; return; }
+    const items = engineItems().map((it, k) => ({ ...it, qty: left[k] }));
+    partWorker.postMessage({ id: reqId, kind: 'pack', part: plans.length, container: engineInput().container, items, opts: { priority: !!state.priority, timeMs: 800, pallet: false, stack: state.stack } });
+  }
+  function partDone(v) {
+    if (v.boxes.length) { v.part = plans.length; plans.push(v); nextPart(); }
+    else { multiDone = true; if (!ed && shown === plans.length - 1) render({ ...plans[shown], keep: true }); } // what is left fits in none: say so on the last unit
+    paintMulti(); paintFit();
+  }
+  function paintMulti() {
+    const bar = $('[data-multi]'); if (!bar) return;
+    const total = qtyOf().reduce((a, b) => a + b, 0);
+    const pending = !multiDone;
+    const many = !ed && (plans.length > 1 || (pending && plans.length === 1));
+    bar.hidden = !many;
+    const noun = nounOf(state.cont.preset);
+    R('mainK').textContent = many ? `Boxes in ${noun} ${shown + 1} of ${pending ? plans.length + '+' : plans.length}` : 'Boxes loaded';
+    if (!many) { R('leftK').textContent = 'Boxes left over'; return; }
+    const left = leftBefore(plans.length).reduce((a, b) => a + b, 0);
+    R('leftK').textContent = pending ? 'Boxes for the next one' : `Left after ${plans.length} ${noun}s`;
+    R('left').textContent = fmt(left);
+    const counts = plans.map((p) => fmt(p.boxes.length)).join(' + ');
+    $('[data-multitxt]').innerHTML = pending
+      ? `More than one ${noun} is needed. Planning ${noun} ${plans.length + 1}… (${counts} so far)`
+      : left === 0
+        ? `All ${fmt(total)} boxes need <strong>${plans.length} × ${esc(unitName())}</strong>: ${counts}. Tap a number to see that ${noun}.`
+        : plans.length >= MAX_UNITS
+          ? `${fmt(total - left)} of ${fmt(total)} boxes in ${plans.length} × ${esc(unitName())} (${counts}); the planner stops at ${MAX_UNITS}. Choose a bigger size or split the order.`
+          : `${fmt(total - left)} of ${fmt(total)} boxes in ${plans.length} × ${esc(unitName())} (${counts}); ${nBoxes(left)} fit in none of them (see the notes).`;
+    $('[data-multibtns]').innerHTML = plans.map((p, i) => `<button type="button" data-unit="${i}" aria-pressed="${i === shown}" aria-label="Show ${noun} ${i + 1}">${i + 1}</button>`).join('') + (pending ? '<button type="button" disabled aria-label="Planning the next one">…</button>' : '');
+  }
+  if ($('[data-multi]')) $('[data-multibtns]').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-unit]'); if (!b || ed) return;
+    shown = +b.dataset.unit; render(plans[shown]);
+  });
+
+  // ---------- which size fits: a quick check of every preset with the same boxes (container mode) ----------
+  const fitBox = $('[data-fit]');
+  const cmpWorker = fitBox ? new Worker(new URL('./pack-worker.js', import.meta.url), { type: 'module' }) : null;
+  let cmpId = 0, cmpKey = '', cmpRes = {}, cmpQueue = [];
+  const CMP_MAX = 12;
+  function compare() {
+    if (!cmpWorker) return;
+    const items = engineItems(); const ms = engineInput().container.minSupport;
+    const key = JSON.stringify([items, state.stack, ms, !!state.priority]);
+    if (key === cmpKey) { paintFit(); return; }
+    cmpKey = key; cmpRes = {}; cmpId++; cmpQueue = presets.slice(); paintFit(); cmpNext();
+  }
+  function cmpNext() {
+    const p = cmpQueue.shift(); if (!p) return;
+    const items = engineItems();
+    cmpWorker.postMessage({ id: cmpId, kind: 'many', key: p.id, container: { L: p.L, W: p.W, H: p.H, maxWeight: p.payload, doorW: p.doorW, doorH: p.doorH, minSupport: engineInput().container.minSupport }, items, opts: { priority: !!state.priority, timeMs: 150, stack: state.stack, max: CMP_MAX } });
+  }
+  if (cmpWorker) cmpWorker.onmessage = (e) => { if (e.data.id !== cmpId) return; cmpRes[e.data.key] = e.data; paintFit(); cmpNext(); };
+  // the selected size shows the full plan above (fully automatic, not hand-edited), so its row matches the result
+  function mainRow() {
+    if (state.mode !== 'auto' || !multiDone || !plans.length) return null;
+    const c = plans[0].cont; const cv = c.L * c.W * c.H;
+    const vol = plans[0].boxes.reduce((t, b) => t + b.dx * b.dy * b.dz, 0);
+    return { units: plans.length, first: plans[0].boxes.length, vol: cv > 0 ? vol / cv : 0, left: leftBefore(plans.length).reduce((a, b) => a + b, 0), full: true, max: MAX_UNITS };
+  }
+  function paintFit() {
+    if (!fitBox) return;
+    const total = qtyOf().reduce((a, b) => a + b, 0);
+    const sel = state.cont.preset;
+    const rows = presets.map((p) => ({ p, r: p.id === sel ? mainRow() || cmpRes[p.id] : cmpRes[p.id] }));
+    if (!presets.some((p) => p.id === sel)) { const r = mainRow(); if (r) rows.unshift({ p: { id: 'custom', name: 'Your size', L: state.cont.L, W: state.cont.W, H: state.cont.H }, r }); }
+    const done = rows.filter((x) => x.r && !x.r.bad);
+    const vol = (p) => p.L * p.W * p.H;
+    const one = done.filter((x) => x.r.units === 1 && x.r.left === 0).sort((a, b) => vol(a.p) - vol(b.p))[0];
+    const fewest = done.filter((x) => x.r.left === 0).sort((a, b) => a.r.units - b.r.units || a.r.units * vol(a.p) - b.r.units * vol(b.p))[0];
+    const best = one || fewest;
+    const checking = rows.some((x) => !x.r);
+    $('[data-fittxt]').innerHTML = !total ? 'Enter your boxes to compare sizes.'
+      : one ? `Smallest that takes all ${fmt(total)} boxes: <strong>${esc(one.p.name)}</strong> (${fmt(one.r.vol * 100, 0)}% of its volume used).${checking ? ' Still checking the other sizes…' : ''}`
+        : fewest ? `None of these takes all ${fmt(total)} boxes in one. Fewest: <strong>${fewest.r.units} × ${esc(fewest.p.name)}</strong>.${checking ? ' Still checking…' : ''}`
+          : checking ? 'Checking each size…' : `None of these takes all ${fmt(total)} boxes in ${CMP_MAX} or fewer.`;
+    $('[data-fittable]').innerHTML = rows.map(({ p, r }) => {
+      const name = p.id === sel || p.id === 'custom' ? `${esc(p.name)} <span class="small">(selected)</span>` : `<button type="button" class="usebtn" data-usepreset="${esc(p.id)}">${esc(p.name)}</button>`;
+      const cls = [p.id === sel || p.id === 'custom' ? 'sel' : '', best && best.p.id === p.id ? 'best' : ''].join(' ').trim();
+      if (!r) return `<tr class="${cls}"><td>${name}</td><td class="num">…</td><td class="num">…</td><td class="num">…</td></tr>`;
+      if (r.bad) return `<tr class="${cls}"><td>${name}</td><td class="num" colspan="3">check failed</td></tr>`;
+      const need = r.left === 0 ? fmt(r.units) : r.units >= (r.max || CMP_MAX) ? `${fmt(r.units)}+` : `${fmt(r.units)} (${fmt(r.left)} never fit)`;
+      return `<tr class="${cls}"><td>${name}</td><td class="num">${fmt(r.first)}</td><td class="num">${r.first ? need : '–'}</td><td class="num">${fmt(r.vol * 100, 0)}%</td></tr>`;
+    }).join('');
+    $('[data-fitnote]').innerHTML = `Same boxes, ${state.stack === 'interlock' ? 'stacking pattern' : 'column stacks'} and rules in each size, fully automatic${state.mode === 'semi' ? ' (your loading steps are not used here)' : ''}. Other sizes get a quick plan of a fraction of a second each; tap a size to plan it fully above, where the count can come out a little higher. ★ marks the suggestion. “One takes”: boxes in one; “Needed”: how many of that size take the whole load (12+ = more than 12); “Volume”: share of one filled. Payload and door limits are the presets' own.`;
+  }
+  if (fitBox) fitBox.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-usepreset]'); if (!b) return;
+    const sel = f('preset'); sel.value = b.dataset.usepreset; sel.dispatchEvent(new Event('change', { bubbles: true }));
+    root.querySelector('[data-result]').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
 
   // ---------- results ----------
   let view = null, boxes = [];
@@ -396,7 +519,9 @@ export function initPlanner(root) {
     if (!d) return;
     root.querySelector('[data-result]').classList.remove('busy');
     const u = U[units];
-    const ordered = state.items.reduce((s, it) => s + (it.qty || 0), 0);
+    const ordQ = d.part ? leftBefore(d.part) : qtyOf(); // boxes still to load when this unit starts
+    const ordered = ordQ.reduce((s, q) => s + q, 0);
+    const totalOrdered = qtyOf().reduce((s, q) => s + q, 0);
     // loading list: sections from the back wall, layers from the floor; its order is the slider's order
     const il = d.stack && d.stack.pattern === 'interlock' && d.stack.section && !d.edited ? { S: d.stack.section, k: d.stack.sections } : null;
     const ll = loadList(d.boxes, state.items, { pallet: mode === 'pallet', wall: il, orientOf });
@@ -408,7 +533,7 @@ export function initPlanner(root) {
     const cog = tw > 0 ? { x: cxs / tw, y: cys / tw, z: czs / tw } : null;
     const contVol = d.cont.L * d.cont.W * d.cont.H;
     const n = totals.n;
-    $('#r-main').textContent = `${fmt(n)} of ${fmt(ordered)}`;
+    $('#r-main').textContent = `${fmt(n)} of ${fmt(totalOrdered)}`;
     R('vol').textContent = contVol > 0 ? `${fmt(totals.vol / contVol * 100, 1)}%` : '0%';
     const wt = u.fromKG(totals.w);
     R('wt').textContent = `${fmt(wt, 0)} ${u.wt}`;
@@ -434,7 +559,9 @@ export function initPlanner(root) {
     if (!hasAuto && unasked > 0) w.push(`${nBoxes(unasked)} ${unasked === 1 ? 'is' : 'are'} not in any step. Add a step for them, or tick “Then load whatever is left automatically”.`);
     const notFit = d.edited ? 0 : hasAuto ? ordered - n : asked - n;
     if (d.edited && ordered - n > 0) w.push(`${nBoxes(ordered - n)} ${ordered - n === 1 ? 'is' : 'are'} not loaded yet. Place them by hand, or tap “Fill the rest automatically”.`);
-    if (notFit > 0) {
+    const nextOne = !d.edited && multiOn() && notFit > 0 && (d.part < plans.length - 1 || !multiDone);
+    if (nextOne) w.push(`${nBoxes(notFit)} ${notFit === 1 ? 'does' : 'do'} not fit in this ${nounOf(state.cont.preset)}: ${notFit === 1 ? 'it goes' : 'they go'} into the next one (numbers above the 3D view).`);
+    else if (notFit > 0) {
       const byWeight = d.cont.maxWeight > 0 && totals.w > d.cont.maxWeight * 0.98;
       w.push(byWeight ? `Weight limit reached: ${nBoxes(notFit)} stay${notFit === 1 ? 's' : ''} out because the load would exceed ${fmt(u.fromKG(d.cont.maxWeight))} ${u.wt}.` : `${nBoxes(notFit)} ${notFit === 1 ? 'does' : 'do'} not fit ${mode === 'pallet' ? 'on this pallet' : 'in this space'}${semi ? ' with these steps' : ''}${mode === 'pallet' && !semi && state.items.length === 1 ? ' (see “Pallets for your quantity”)' : ''}.`);
     }
@@ -446,7 +573,7 @@ export function initPlanner(root) {
     });
     state.items.forEach((it, i) => {
       const dims = [it.l, it.w, it.h];
-      if (hasAuto && !d.edited && it.qty > 0 && perItem[i] === 0) w.push(`“${esc(it.name)}” could not be placed at all — check its size against the ${mode === 'container' ? 'inside dimensions and the door opening' : 'pallet size, overhang and max height'}.`);
+      if (hasAuto && !d.edited && ordQ[i] > 0 && perItem[i] === 0 && !(d.part < plans.length - 1 || !multiDone)) w.push(`“${esc(it.name)}” could not be placed at all — check its size against the ${mode === 'container' ? 'inside dimensions and the door opening' : 'pallet size, overhang and max height'}.`);
       if (!dims.every((x) => x > 0)) w.push(`“${esc(it.name)}” needs a length, width and height.`);
     });
     if (cog && n && mode === 'pallet') {
@@ -464,7 +591,7 @@ export function initPlanner(root) {
       for (const b of list) { const o = orientOf(state.items[b.k], b); c.set(o, (c.get(o) || 0) + 1); }
       return [...c.entries()].sort((a, b) => b[1] - a[1]).map(([o, m]) => `${o >= 0 ? SHORT[o] : '?'}: ${fmt(m)}`).join('<br>') || '–';
     };
-    R('table').innerHTML = state.items.map((it, i) => `<tr><td><i style="display:inline-block;width:12px;height:12px;border-radius:3px;background:${SWATCH[i % SWATCH.length]};margin-right:6px"></i>${esc(it.name)}</td><td class="num">${fmt(it.qty)}</td><td class="num">${fmt(perItem[i])}</td><td class="num">${fmt(Math.max(0, it.qty - perItem[i]))}</td><td class="num">${fmt(u.fromKG(perItem[i] * it.weight))} ${u.wt}</td><td style="white-space:nowrap">${used(boxes.filter((b) => b.k === i))}</td></tr>`).join('');
+    R('table').innerHTML = state.items.map((it, i) => `<tr><td><i style="display:inline-block;width:12px;height:12px;border-radius:3px;background:${SWATCH[i % SWATCH.length]};margin-right:6px"></i>${esc(it.name)}</td><td class="num">${fmt(ordQ[i])}</td><td class="num">${fmt(perItem[i])}</td><td class="num">${fmt(Math.max(0, ordQ[i] - perItem[i]))}</td><td class="num">${fmt(u.fromKG(perItem[i] * it.weight))} ${u.wt}</td><td style="white-space:nowrap">${used(boxes.filter((b) => b.k === i))}</td></tr>`).join('');
     R('stepbox').hidden = !semi || !!d.edited;
     R('steptable').innerHTML = semi ? d.steps.map((st, si) => {
       const cfg = st.auto ? null : state.steps[si];
@@ -497,8 +624,11 @@ export function initPlanner(root) {
     const { offset } = engineInput();
     step.max = String(boxes.length); step.value = String(boxes.length); stepText();
     const v = await ensureView();
-    v.setPlan({ cont: d.cont, boxes, colors: SWATCH, offset, keepCamera: !!d.edited, pallet: mode === 'pallet' ? { L: state.cont.L, W: state.cont.W, H: state.cont.palletH || 0 } : null });
+    v.setPlan({ cont: d.cont, boxes, colors: SWATCH, offset, keepCamera: !!d.edited || !!d.keep, pallet: mode === 'pallet' ? { L: state.cont.L, W: state.cont.W, H: state.cont.palletH || 0 } : null });
     paintEditor();
+    R('ordTh').textContent = d.part ? 'Still to load' : 'Ordered';
+    $('[data-editor]').hidden = !!d.part; // hand editing works on the first unit
+    paintMulti();
   }
 
 
@@ -772,7 +902,7 @@ export function initPlanner(root) {
     const a = t.dataset.ed;
     if (a === 'start' || a === 'empty') return startEdit(a === 'empty');
     if (!ed) return;
-    if (a === 'exit') { ed = null; clearEditView(); render(last); writeHash(); return; }
+    if (a === 'exit') { ed = null; shown = 0; clearEditView(); render(last); writeHash(); return; }
     if (a === 'undo' || a === 'redo') {
       const from = a === 'undo' ? ed.undo : ed.redo, to = a === 'undo' ? ed.redo : ed.undo;
       if (!from.length) return;
@@ -870,6 +1000,22 @@ export function initPlanner(root) {
   $('[data-print]').addEventListener('click', () => window.print());
 
   paintUnits(); paintContainer(); paintBoxes(); paintMode(); paintEditor(); run(); readEditHash();
+  // a shared link with settings other than the page's defaults opens "More options", so they can be seen
+  {
+    const dStack = defaults.stack === 'interlock' ? 'interlock' : 'column';
+    const dSup = [1, 0.9, 0.8, 0.7].includes(+defaults.support) ? +defaults.support : 0.8;
+    if (fromHash && (state.mode === 'semi' || !!state.priority !== !!defaults.priority || state.stack !== dStack || (state.stack === 'interlock' && state.support !== dSup))) $('[data-more]').open = true;
+  }
+  // full-screen 3D view (with the view and step buttons); Esc or the button closes it
+  const stage = $('[data-stage]'); const fullBtn = $('[data-full]');
+  const setFull = (on) => {
+    stage.classList.toggle('full', on); document.body.classList.toggle('has-full', on);
+    fullBtn.setAttribute('aria-pressed', String(on)); fullBtn.textContent = on ? '✕' : '⤢';
+    fullBtn.setAttribute('aria-label', on ? 'Close full screen' : 'Full screen 3D view'); fullBtn.title = on ? 'Close full screen' : 'Full screen';
+  };
+  fullBtn.addEventListener('click', () => setFull(!stage.classList.contains('full')));
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && stage.classList.contains('full')) setFull(false); });
+  window.addEventListener('beforeprint', () => setFull(false));
 }
 
 const nBoxes = (n) => `${fmt(n)} ${n === 1 ? 'box' : 'boxes'}`;
