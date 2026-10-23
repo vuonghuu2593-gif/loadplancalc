@@ -17,16 +17,18 @@ self.onmessage = (e) => {
       if (!(+it.l > 0 && +it.w > 0 && +it.h > 0) || q < 1) return { per: 0 };
       const o = { ...opts, pallet: true };
       const full = stackPack(container, [{ ...it, qty: 20000 }], o);
-      const per = full.pallet ? full.pallet.perPallet : full.totals.n;
-      if (!per || validate(full).length) return { per: 0 };
-      const one = (n) => { const r = stackPack(container, [{ ...it, qty: n }], o); return validate(r).length || r.totals.n !== n ? null : { n, h: r.placed.reduce((m, p) => Math.max(m, p.z + p.dz), 0), w: r.totals.w }; };
+      const most = full.pallet ? full.pallet.perPallet : full.totals.n;
+      if (!most || validate(full).length) return { per: 0 };
+      const per = it.cap > 0 ? Math.min(most, Math.floor(it.cap)) : most; // the user's own cap on cartons per pallet
+      // each pallet's own plan, with the carton positions (above the deck) for the 3D view
+      const one = (n) => { const r = stackPack(container, [{ ...it, qty: n }], o); return validate(r).length || r.totals.n !== n ? null : { n, h: r.placed.reduce((m, p) => Math.max(m, p.z + p.dz), 0), w: r.totals.w, boxes: r.placed.map((p) => [p.x, p.y, p.z, p.dx, p.dy, p.dz]) }; };
       const f = one(Math.min(per, q)); if (!f) return { per: 0 };
       const rest = q >= per ? q % per : 0;
       const last = rest ? one(rest) : null;
       if (rest && !last) return { per: 0 };
       const lay = full.pallet && full.pallet.layers;
       const tihi = lay && !lay.mixed ? (lay.kind === 'alt' ? `${lay.ti}/${lay.ti2} × ${lay.hi}` : lay.kind === 'even' ? `${lay.ti} × ${lay.hi}` : '') : '';
-      return { per, full: q >= per ? Math.floor(q / per) : 0, f, last: q < per ? null : last, single: q < per ? f : null, tihi };
+      return { per, most, full: q >= per ? Math.floor(q / per) : 0, f, last: q < per ? null : last, single: q < per ? f : null, tihi: per === most ? tihi : '' };
     });
     self.postMessage({ id, kind, out, ms: Date.now() - t });
     return;

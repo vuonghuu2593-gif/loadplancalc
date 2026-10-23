@@ -59,7 +59,19 @@ const presets = mode === 'container' ? (spacePresets || data.containers) : palle
     <h2>Boxes</h2>
     {palletize.length > 0 && <div class="pzon" data-pzon hidden>
       <p data-pztxt></p>
-      <div class="tablebox"><table><thead><tr><th>Box type</th><th class="num">Per pallet</th><th class="num">Pallets</th><th class="num" data-pzhh>Loaded height</th><th class="num" data-pzwh>Gross weight</th></tr></thead><tbody data-pztable></tbody></table></div>
+      <div class="tablebox"><table><thead><tr><th>Box type</th><th class="num">Per pallet</th><th class="num">Pallets</th><th class="num" data-pzhh>Loaded height</th><th class="num" data-pzwh>Gross weight</th><th>Pallet</th></tr></thead><tbody data-pztable></tbody></table></div>
+      <div class="pzview" data-pzview hidden>
+        <div class="pzvhead"><strong data-pzvtitle></strong><button type="button" class="iconbtn" data-pzvclose aria-label="Close the pallet view">✕</button></div>
+        <div class="seg pzvseg" role="group" aria-label="Which pallet" data-pzvseg></div>
+        <div class="view3d pzv3d" data-pzv3d><span class="hint">Drag to turn · pinch or scroll to zoom</span></div>
+        <p class="small" data-pzvinfo style="margin:0"></p>
+        <div class="pzvctl">
+          <label><span>Cartons per pallet</span><input data-pzcap inputmode="numeric"></label>
+          <button type="button" class="btn line" data-pzrebuild>Rebuild the pallets</button>
+        </div>
+        <p class="small" data-pzvnote style="margin:0"></p>
+        <a class="btn line" data-pzedit href="/pallet-loading-calculator/" target="_blank" rel="noopener">Edit this pallet by hand in the pallet calculator ↗</a>
+      </div>
       <button type="button" class="btn line" data-pzoff>Back to the cartons</button>
     </div>}
     <div class="boxes" data-boxes></div>
@@ -266,10 +278,11 @@ const presets = mode === 'container' ? (spacePresets || data.containers) : palle
     <p data-fittxt></p>
     <div class="tablebox">
       <table>
-        <thead><tr><th>Type</th><th class="num">One takes</th><th class="num">Needed</th><th class="num">Volume</th></tr></thead>
+        <thead><tr><th class="selcol">Select</th><th>Type</th><th class="num">One takes</th><th class="num">Needed</th></tr></thead>
         <tbody data-fittable></tbody>
       </table>
     </div>
+    <p class="fitsel" data-fitsel role="status"></p>
     <p class="small" data-fitnote></p>
   </section>}
   <div class="tablebox">

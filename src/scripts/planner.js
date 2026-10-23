@@ -478,7 +478,7 @@ export function initPlanner(root) {
   const fitBox = $('[data-fit]');
   const cmpWorker = fitBox ? new Worker(new URL('./pack-worker.js', import.meta.url), { type: 'module' }) : null;
   let cmpId = 0, cmpKey = '', cmpRes = {}, cmpQueue = [];
-  const CMP_MAX = 12;
+  const CMP_MAX = 12; const rid = Math.random().toString(36).slice(2, 7);
   function compare() {
     if (!cmpWorker) return;
     const items = engineItems(); const ms = engineInput().container.minSupport;
@@ -537,19 +537,28 @@ export function initPlanner(root) {
         : fewest ? `None of these takes all ${fmt(total)} boxes in one. Fewest: <strong>${fewest.r.units} × ${esc(fewest.p.name)}</strong>.${checking ? ' Still checking…' : ''}`
           : checking ? 'Checking each size…' : `None of these takes all ${fmt(total)} boxes in ${CMP_MAX} or fewer.`;
     $('[data-fittable]').innerHTML = rows.map(({ p, r }) => {
-      const name = p.id === sel || p.id === 'custom' ? `${esc(p.name)} <span class="small">(selected)</span>` : `<button type="button" class="usebtn" data-usepreset="${esc(p.id)}">${esc(p.name)}</button>`;
+      const isSel = p.id === sel || p.id === 'custom';
+      const name = `${esc(p.name)}${isSel ? ' <span class="small">(selected)</span>' : ''}`;
+      const pick = p.id === 'custom' ? '<td class="selcol"><span class="selmark" aria-hidden="true">●</span></td>' : `<td class="selcol"><label class="selradio"><input type="radio" name="fitsel-${rid}" data-usepreset="${esc(p.id)}"${isSel ? ' checked' : ''} aria-label="Select ${esc(p.name)} and plan it"></label></td>`;
       const cls = [p.id === sel || p.id === 'custom' ? 'sel' : '', best && best.p.id === p.id ? 'best' : ''].join(' ').trim();
-      if (!r) return `<tr class="${cls}"><td>${name}</td><td class="num">…</td><td class="num">…</td><td class="num">…</td></tr>`;
-      if (r.bad) return `<tr class="${cls}"><td>${name}</td><td class="num" colspan="3">check failed</td></tr>`;
-      const need = r.left === 0 ? fmt(r.units) : r.units >= (r.max || CMP_MAX) ? `${fmt(r.units)}+` : `${fmt(r.units)} (${fmt(r.left)} never fit)`;
-      return `<tr class="${cls}"><td>${name}</td><td class="num">${fmt(r.first)}</td><td class="num">${r.first ? need : '–'}</td><td class="num">${fmt(r.vol * 100, 0)}%</td></tr>`;
+      if (!r) return `<tr class="${cls}">${pick}<td>${name}</td><td class="num">…</td><td class="num">…</td></tr>`;
+      if (r.bad) return `<tr class="${cls}">${pick}<td>${name}</td><td class="num" colspan="2">check failed</td></tr>`;
+      const need = r.left === 0 ? fmt(r.units) : r.units >= (r.max || CMP_MAX) ? `${fmt(r.units)}+` : `${fmt(r.units)}<div class="small">${fmt(r.left)} never fit</div>`;
+      return `<tr class="${cls}">${pick}<td>${name}</td><td class="num">${fmt(r.first)}<div class="small">${fmt(r.vol * 100, 0)}% full</div></td><td class="num">${r.first ? need : '–'}</td></tr>`;
     }).join('');
-    $('[data-fitnote]').innerHTML = `Same boxes, ${state.stack === 'interlock' ? 'stacking pattern' : 'column stacks'} and rules in each size, fully automatic${state.mode === 'semi' ? ' (your loading steps are not used here)' : ''}. Other sizes get a quick plan of a fraction of a second each; tap a size to plan it fully above, where the count can come out a little higher. ★ marks the suggestion. “One takes”: boxes in one; “Needed”: how many of that size take the whole load (12+ = more than 12); “Volume”: share of one filled. Payload and door limits are the presets' own.`;
+    const selP = presets.find((x) => x.id === sel); const mr = mainRow();
+    $('[data-fitsel]').innerHTML = !total ? '' : !mr || root.querySelector('[data-result]').classList.contains('busy')
+      ? `Planning ${esc(selP ? selP.name : 'your size')}…`
+      : `<strong>${esc(selP ? selP.name : 'Your size')}</strong> is selected: ${fmt(mr.first)} of ${fmt(total)} boxes in one${mr.units > 1 ? `, ${mr.left ? `${fmt(mr.units)}${mr.units >= MAX_UNITS ? '+' : ''}` : fmt(mr.units)} needed for all` : ''}, ${fmt(mr.vol * 100, 0)}% of its volume used. The result, 3D plan and loading list above show this size. <a href="#" data-goresult>See the plan ↑</a>`;
+    $('[data-fitnote]').innerHTML = `Same boxes, ${state.stack === 'interlock' ? 'stacking pattern' : 'column stacks'} and rules in each size, fully automatic${state.mode === 'semi' ? ' (your loading steps are not used here)' : ''}. Other sizes get a quick plan of a fraction of a second each; tap a size to plan it fully above, where the count can come out a little higher. ★ marks the suggestion. “One takes”: boxes in one, and how full that one is by volume; “Needed”: how many of that size take the whole load (12+ = more than 12). Payload and door limits are the presets' own.`;
   }
   if (fitBox) fitBox.addEventListener('click', (e) => {
+    if (e.target.closest('[data-goresult]')) { e.preventDefault(); root.querySelector('[data-result]').scrollIntoView({ behavior: 'smooth', block: 'start' }); return; }
     const b = e.target.closest('[data-usepreset]'); if (!b) return;
+    if (b.dataset.usepreset === state.cont.preset) return;
+    // plan the chosen size at once and stay here: the selected row and the line under the table show its full plan
     const sel = f('preset'); sel.value = b.dataset.usepreset; sel.dispatchEvent(new Event('change', { bubbles: true }));
-    root.querySelector('[data-result]').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    paintFit();
   });
 
   // ---------- results ----------
@@ -707,7 +716,7 @@ export function initPlanner(root) {
     const { offset } = engineInput();
     step.max = String(boxes.length); step.value = String(boxes.length); stepText();
     const v = await ensureView();
-    v.setPlan({ cont: d.cont, boxes, colors: SWATCH, offset, vehicle: mode === 'container' && nounOf(state.cont.preset) === 'truck' ? 'truck' : 'tractor', keepCamera: !!d.edited || !!d.keep, pallet: mode === 'pallet' ? { L: state.cont.L, W: state.cont.W, H: state.cont.palletH || 0 } : null });
+    v.setPlan({ cont: d.cont, boxes, colors: SWATCH, offset, inner: innerOf, vehicle: mode === 'container' && nounOf(state.cont.preset) === 'truck' ? 'truck' : 'tractor', keepCamera: !!d.edited || !!d.keep, pallet: mode === 'pallet' ? { L: state.cont.L, W: state.cont.W, H: state.cont.palletH || 0 } : null });
     paintEditor();
     drawnPlan = d; if (picsOn) paintPics();
     R('ordTh').textContent = d.part ? 'Still to load' : 'Ordered';
@@ -1131,11 +1140,20 @@ export function initPlanner(root) {
     paintQr(); window.print();
   });
 
+  // the cartons on a pallet type of the box list, for the 3D view (null: draw it as one block)
+  function innerOf(k) {
+    const it = state.items[k]; if (!it || !it.pz || !state.pzs) return null;
+    const boxes = pzLay.get(`${it.pz.k}:${it.pz.n}`); if (!boxes) return null;
+    const ph = state.pzs.palletH || 0;
+    if (Math.abs(it.l - state.pzs.L) > 1 || Math.abs(it.w - state.pzs.W) > 1) return null; // pallet card edited by hand
+    return { L: state.pzs.L, W: state.pzs.W, ph, boxes };
+  }
   // ---------- cartons on pallets first (container mode): each box type is built into pallets in the worker
   // (pallet planner, same stacking pattern and limits), then the loaded pallets become the box list ----------
   const pzPresets = JSON.parse(root.dataset.pzpresets || '[]');
   const pzBox = $('[data-pz]');
-  let pzWorker = null, pzId = 0;
+  let pzWorker = null, pzId = 0, pzOnlyLay = false, pzRequest = () => {};
+  const pzLay = new Map(); // `${carton type}:${cartons}` -> carton positions on that pallet, for the 3D views
   if (pzBox) {
     const ex = pzPresets[0];
     if (!state.pzs || typeof state.pzs !== 'object') state.pzs = { preset: ex.id, L: ex.L, W: ex.W, palletH: ex.H, H: 1800, palletWt: ex.weightKg, maxWeight: ex.maxWeight, stack2: false };
@@ -1161,7 +1179,50 @@ export function initPlanner(root) {
     const u = U[units]; const dp = units === 'metric' ? 1 : 2;
     $('[data-pzhh]').textContent = `Loaded height (${u.len})`; $('[data-pzwh]').textContent = `Gross weight (${u.wt})`;
     $('[data-pztxt]').innerHTML = `Your ${fmt(z.cartons)} cartons are on <strong>${fmt(z.pallets)} pallets</strong> (${esc(z.palletName)}, at most ${fmt(u.fromMM(z.H), dp)} ${u.len} high including the pallet${z.stack2 ? ', two high allowed' : ''}). The box list below now holds the loaded pallets, and the plan loads them.${z.loose ? ` ${esc(z.loose)} could not go on this pallet and stay${z.looseN === 1 ? 's' : ''} loose.` : ''}${z.merged ? ' The last part pallets are counted as full pallets to keep within 10 box types.' : ''}`;
-    $('[data-pztable]').innerHTML = z.rows.map((r) => `<tr><td>${esc(r.name)}${r.tihi ? ` <span class="small">(${esc(r.tihi)})</span>` : ''}</td><td class="num">${r.per ? fmt(r.per) : '–'}</td><td class="num">${r.per ? r.desc : 'loose'}</td><td class="num">${r.per ? r.h.map((h) => fmt(u.fromMM(h), dp)).join(' / ') : '–'}</td><td class="num">${r.per ? r.w.map((w) => fmt(u.fromKG(w), 0)).join(' / ') : '–'}</td></tr>`).join('');
+    $('[data-pztable]').innerHTML = z.rows.map((r) => `<tr><td>${esc(r.name)}${r.tihi ? ` <span class="small">(${esc(r.tihi)})</span>` : ''}</td><td class="num">${r.per ? fmt(r.per) : '–'}</td><td class="num">${r.per ? r.desc : 'loose'}</td><td class="num">${r.per ? r.h.map((h) => fmt(u.fromMM(h), dp)).join(' / ') : '–'}</td><td class="num">${r.per ? r.w.map((w) => fmt(u.fromKG(w), 0)).join(' / ') : '–'}</td><td>${r.per ? `<button type="button" class="btn line pzvbtn" data-pzv="${r.k}" aria-pressed="${pzView && pzView.k === r.k}">View</button>` : ''}</td></tr>`).join('');
+    if (pzView) paintPzView();
+  }
+  // ---------- one pallet in 3D: how the cartons stand on it, with the cartons-per-pallet cap ----------
+  let pzView = null, pzv = null; // pzView = { k: carton type, i: 0 full / 1 last }
+  async function paintPzView() {
+    const box = $('[data-pzview]'); if (!box) return;
+    const z = state.pzOn; const row = z && z.rows.find((r) => r.k === pzView?.k && r.per);
+    if (!row) { box.hidden = true; pzView = null; return; }
+    box.hidden = false;
+    const u = U[units], dp = units === 'metric' ? 1 : 2;
+    const i = Math.min(pzView.i, row.ns.length - 1); const n = row.ns[i];
+    const lay = pzLay.get(`${row.k}:${n}`) || [];
+    const ci = Math.max(0, state.items.findIndex((it) => it.pz && it.pz.k === row.k));
+    $('[data-pzvtitle]').textContent = `${row.name} on ${state.pzOn.palletName}`;
+    $('[data-pzvseg]').style.gridTemplateColumns = `repeat(${row.ns.length},minmax(0,1fr))`;
+    $('[data-pzvseg]').innerHTML = row.ns.map((m, j) => `<button type="button" data-pzvi="${j}" aria-pressed="${j === i}">${row.ns.length > 1 ? (j ? 'Last pallet' : 'Full pallet') : 'Pallet'} (${fmt(m)})</button>`).join('');
+    $('[data-pzvinfo]').textContent = `${fmt(n)} carton${n === 1 ? '' : 's'}${row.tihi && i === 0 ? ` (${row.tihi}: per layer × layers)` : ''}, ${fmt(u.fromMM(row.h[i]), dp)} ${u.len} high and ${fmt(u.fromKG(row.w[i]), 0)} ${u.wt} including the pallet. The cartons follow the stacking pattern and limits you chose.`;
+    const cap = state.pzs.caps && state.pzs.caps[row.k];
+    const capIn = $('[data-pzcap]'); if (document.activeElement !== capIn) capIn.value = cap ? String(cap) : '';
+    capIn.placeholder = `most: ${fmt(row.most)}`;
+    $('[data-pzvnote]').textContent = `Fewer cartons per pallet make lower, lighter pallets (for example for a weak carton or a customer's height). Leave it empty for the most that fit (${fmt(row.most)}).`;
+    // the pallet calculator with this carton and pallet, for hand editing (changes there stay there)
+    const c = state.cartons[row.k]; const pz = state.pzs;
+    const st = { cont: { preset: pz.preset, L: pz.L, W: pz.W, H: pz.H, overhang: 0, palletH: pz.palletH, palletWt: pz.palletWt ?? null, maxWeight: pz.maxWeight || 0 }, priority: false, stack: state.stack, support: state.support, mode: 'auto', steps: [], fillRest: true, items: [{ ...c, qty: n }] };
+    try { $('[data-pzedit]').href = '/pallet-loading-calculator/#p=' + btoa(unescape(encodeURIComponent(JSON.stringify(st)))).replace(/=+$/, ''); } catch { /* keep the plain link */ }
+    if (!pzv) { const { createView } = await import('./view3d.js'); pzv = createView($('[data-pzv3d]')); }
+    pzv.setPlan({ cont: { L: pz.L, W: pz.W, H: Math.max(1, pz.H - (pz.palletH || 0)) }, boxes: lay.map(([x, y, zz, dx, dy, dz]) => ({ k: ci, x, y, z: zz, dx, dy, dz })), colors: SWATCH, pallet: { L: pz.L, W: pz.W, H: pz.palletH || 0 }, offset: 0 });
+  }
+  const pzOnBox = $('[data-pzon]');
+  if (pzOnBox) {
+    pzOnBox.addEventListener('click', (e) => {
+      const v = e.target.closest('[data-pzv]'), vi = e.target.closest('[data-pzvi]');
+      if (v) { const k = +v.dataset.pzv; pzView = pzView && pzView.k === k ? null : { k, i: 0 }; paintPzOn(); if (pzView) $('[data-pzview]').scrollIntoView({ behavior: 'smooth', block: 'nearest' }); else $('[data-pzview]').hidden = true; return; }
+      if (vi) { pzView.i = +vi.dataset.pzvi; paintPzView(); return; }
+      if (e.target.closest('[data-pzvclose]')) { pzView = null; $('[data-pzview]').hidden = true; paintPzOn(); return; }
+      if (e.target.closest('[data-pzrebuild]')) {
+        const k = pzView?.k; if (k == null) return;
+        const n = parseInt($('[data-pzcap]').value, 10);
+        state.pzs.caps = { ...(state.pzs.caps || {}) }; if (n > 0) state.pzs.caps[k] = n; else delete state.pzs.caps[k];
+        $('[data-pzvnote]').textContent = 'Rebuilding the pallets…';
+        pzRequest(state.cartons, false);
+      }
+    });
   }
   if (pzBox) {
     pzBox.addEventListener('input', (e) => {
@@ -1183,31 +1244,44 @@ export function initPlanner(root) {
       const z = state.pzs; const cartons = Array.isArray(state.cartons) ? state.cartons : state.items;
       if (!(z.L > 0 && z.W > 0 && z.H > (z.palletH || 0))) { $('[data-pzmsg]').textContent = 'Enter the pallet size and a max height above the pallet height.'; return; }
       $('[data-pzmsg]').textContent = 'Building the pallets…'; $('[data-pzgo]').disabled = true;
+      pzRequest(cartons, false);
+    });
+    pzRequest = function (cartons, layoutsOnly) {
+      const z = state.pzs;
       if (!pzWorker) {
         pzWorker = new Worker(new URL('./pack-worker.js', import.meta.url), { type: 'module' });
-        pzWorker.onmessage = (ev) => { if (ev.data.id === pzId) pzDone(ev.data.out); };
+        pzWorker.onmessage = (ev) => { if (ev.data.id === pzId) pzDone(ev.data.out, pzOnlyLay); };
       }
+      pzOnlyLay = layoutsOnly;
       const ms = state.stack === 'interlock' ? state.support : 1;
-      const items = cartons.map((it) => ({ l: it.l, w: it.w, h: it.h, weight: it.weight, qty: it.qty, rotation: it.rotation, orients: it.rotation === 'custom' ? allowedIdx(it) : undefined, stackable: it.stackable !== false, maxOnTop: it.maxOnTop ?? null, maxLoad: it.maxLoad ?? null }));
+      const caps = z.caps || {};
+      const items = cartons.map((it, k) => ({ l: it.l, w: it.w, h: it.h, weight: it.weight, qty: it.qty, rotation: it.rotation, orients: it.rotation === 'custom' ? allowedIdx(it) : undefined, stackable: it.stackable !== false, maxOnTop: it.maxOnTop ?? null, maxLoad: it.maxLoad ?? null, cap: +caps[k] > 0 ? +caps[k] : 0 }));
       pzWorker.postMessage({ id: ++pzId, kind: 'palletize', container: { L: z.L, W: z.W, H: z.H - (z.palletH || 0), maxWeight: z.maxWeight || 0, minSupport: ms }, items, opts: { stack: state.stack, timeMs: 300 } });
       pzBox.dataset.cartons = JSON.stringify(cartons);
-    });
-    function pzDone(out) {
+    };
+    // a page opened from a link with pallets: fetch the carton layouts for the 3D view (the pallets stay as they are)
+    if (state.pzOn && Array.isArray(state.cartons) && state.items.some((it) => it.pz)) setTimeout(() => pzRequest(state.cartons, true), 300);
+    function pzDone(out, layoutsOnly) {
       $('[data-pzgo]').disabled = false;
+      if (layoutsOnly) {
+        out.forEach((r, k) => { if (r && r.per) for (const b of [r.f, r.last, r.single]) if (b) pzLay.set(`${k}:${b.n}`, b.boxes); });
+        if (!ed && plans[shown]) render({ ...plans[shown], keep: true });
+        return;
+      }
       const z = state.pzs; const cartons = JSON.parse(pzBox.dataset.cartons || '[]');
       const pw = +z.palletWt || 0, ph = z.palletH || 0;
       const p = pzPresets.find((x) => x.id === z.preset);
-      let cur = null;
-      const pallet = (name, n, b) => ({ name: name.slice(0, 40), l: z.L, w: z.W, h: ph + b.h, weight: b.w + pw, qty: n, rotation: 'upright', stackable: !!z.stack2, maxOnTop: z.stack2 ? 1 : null, maxLoad: null, stop: cur ? cur.stop ?? null : null });
+      let cur = null, curK = -1;
+      const pallet = (name, n, b) => { pzLay.set(`${curK}:${b.n}`, b.boxes); return { name: name.slice(0, 40), l: z.L, w: z.W, h: ph + b.h, weight: b.w + pw, qty: n, rotation: 'upright', stackable: !!z.stack2, maxOnTop: z.stack2 ? 1 : null, maxLoad: null, stop: cur ? cur.stop ?? null : null, pz: { k: curK, n: b.n } }; };
       let items = [], rows = [], loose = [], looseN = 0, pallets = 0, merged = false;
       cartons.forEach((c, k) => {
-        const r = out[k]; const nm = c.name || `Box ${k + 1}`; cur = c;
+        const r = out[k]; const nm = c.name || `Box ${k + 1}`; cur = c; curK = k;
         if (!r || !r.per) { if ((c.qty || 0) > 0) { items.push({ ...c }); loose.push(`“${nm}”`); looseN += c.qty; } rows.push({ name: nm, per: 0 }); return; }
-        if (r.single) { items.push(pallet(`${nm} · 1 pallet of ${r.single.n}`, 1, r.single)); pallets += 1; rows.push({ name: nm, per: r.per, tihi: r.tihi, desc: '1', h: [ph + r.single.h], w: [r.single.w + pw] }); return; }
+        if (r.single) { items.push(pallet(`${nm} · 1 pallet of ${r.single.n}`, 1, r.single)); pallets += 1; rows.push({ name: nm, k, most: r.most, per: r.per, tihi: r.tihi, desc: '1', ns: [r.single.n], h: [ph + r.single.h], w: [r.single.w + pw] }); return; }
         items.push({ ...pallet(`${nm} · ${r.per} per pallet`, r.full, r.f), _k: k });
         pallets += r.full;
         if (r.last) { items.push({ ...pallet(`${nm} · last pallet, ${r.last.n}`, 1, r.last), _last: true }); pallets += 1; }
-        rows.push({ name: nm, per: r.per, tihi: r.tihi, desc: r.last ? `${fmt(r.full)} + 1` : fmt(r.full), h: r.last ? [ph + r.f.h, ph + r.last.h] : [ph + r.f.h], w: r.last ? [r.f.w + pw, r.last.w + pw] : [r.f.w + pw] });
+        rows.push({ name: nm, k, most: r.most, ns: r.last ? [r.f.n, r.last.n] : [r.f.n], per: r.per, tihi: r.tihi, desc: r.last ? `${fmt(r.full)} + 1` : fmt(r.full), h: r.last ? [ph + r.f.h, ph + r.last.h] : [ph + r.f.h], w: r.last ? [r.f.w + pw, r.last.w + pw] : [r.f.w + pw] });
       });
       if (items.length > 10) { // keep within 10 box types: part pallets counted as full ones (safe: as tall and heavy)
         merged = true;
@@ -1222,11 +1296,11 @@ export function initPlanner(root) {
       state.steps = state.mode === 'semi' ? state.items.map((_, i) => ({ item: i, qty: null, orient: null, newSection: false })) : [];
       $('[data-pzmsg]').textContent = '';
       paintBoxes(); paintMode(); paintPz(); schedule();
-      $('[data-pzon]').scrollIntoView({ behavior: 'smooth', block: 'start' });
+      if (!pzView) $('[data-pzon]').scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
     $('[data-pzoff]').addEventListener('click', () => {
       if (!Array.isArray(state.cartons)) return;
-      state.items = state.cartons; state.cartons = null; state.pzOn = null;
+      state.items = state.cartons; state.cartons = null; state.pzOn = null; pzView = null;
       state.steps = state.mode === 'semi' ? state.items.map((_, i) => ({ item: i, qty: null, orient: null, newSection: false })) : [];
       paintBoxes(); paintMode(); paintPz(); schedule();
     });

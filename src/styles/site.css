@@ -199,11 +199,11 @@ body.has-full .stickybar{display:none!important}
 .fitcmp h2{margin:0}.fitcmp p{margin:0}
 .fitcmp .usebtn{min-height:44px;padding:4px 0;border:0;background:none;color:var(--link);font:inherit;text-align:left;text-decoration:underline;cursor:pointer}
 .fitcmp tr.sel td{font-weight:700}
-.fitcmp tr.best td:first-child::after{content:" ★";color:var(--hi)}
+.fitcmp tr.best td:nth-child(2)::after{content:" ★";color:var(--hi)}
 .fitcmp table{font-size:14px}
 .fitcmp th,.fitcmp td{padding-left:8px;padding-right:8px}
-.fitcmp td:first-child{min-width:9.5em}
-.fitcmp td.num,.fitcmp th.num{white-space:nowrap}
+.fitcmp td:nth-child(2){min-width:7.5em}
+.fitcmp th.num{white-space:nowrap}.fitcmp td.num{white-space:nowrap}.fitcmp td.num .small{white-space:normal}
 /* loading list pictures */
 .llbtns{display:flex;flex-wrap:wrap;gap:8px}
 .lltable tr.llpic td{padding:8px 9px;background:var(--surface)}
@@ -228,3 +228,17 @@ body.has-full .stickybar{display:none!important}
 /* QR code on printed plans */
 .qrbox{display:none}
 @media print{.qrbox:not([hidden]){display:flex;gap:14px;align-items:center;break-inside:avoid}.qrbox .qrsvg svg{width:var(--qrw,34mm);height:var(--qrw,34mm);display:block}.qrbox p{font-size:11px;color:#000;max-width:9cm}}
+
+.fitcmp .selcol{width:48px;text-align:center;padding-left:4px;padding-right:4px}
+.fitcmp .selradio{display:inline-flex;align-items:center;justify-content:center;width:44px;height:44px;cursor:pointer}
+.fitcmp .selradio input{width:22px;height:22px;accent-color:var(--hi);margin:0;cursor:pointer}
+.fitcmp .selmark{color:var(--hi)}
+.fitcmp .fitsel{min-height:1.5em}
+
+/* one pallet in 3D (cartons on pallets first) */
+.pzview{display:flex;flex-direction:column;gap:10px;border:1px solid var(--line);border-radius:10px;padding:12px}
+.pzvhead{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.pzv3d{aspect-ratio:4/3;min-height:240px}
+.pzvctl{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end}.pzvctl label{flex:1 1 160px}
+.pzvbtn{min-height:44px;padding:0 14px}
+@media print{.pzview,.pzvbtn{display:none!important}}

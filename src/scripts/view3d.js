@@ -89,7 +89,7 @@ export function createView(host) {
     controls.target.copy(c); controls.update(); draw();
   }
 
-  function setPlan({ cont, boxes, colors, keepCamera, pallet = null, offset = 0, vehicle = 'tractor' }) {
+  function setPlan({ cont, boxes, colors, keepCamera, pallet = null, offset = 0, vehicle = 'tractor', inner = null }) {
     const same = keepCamera && size.L === cont.L && size.W === cont.W && size.H === cont.H;
     scene.remove(group); group.traverse((o) => { o.geometry?.dispose(); o.material?.dispose?.(); });
     group = new THREE.Group(); scene.add(group); meshes = []; order = []; stepBox = null;
@@ -120,6 +120,28 @@ export function createView(host) {
     boxes.forEach((b, i) => { if (!byK.has(b.k)) byK.set(b.k, []); byK.get(b.k).push(i); });
     const m = new THREE.Matrix4(), q = new THREE.Quaternion(), s = new THREE.Vector3(), p = new THREE.Vector3();
     for (const [k, idxs] of byK) {
+      // a loaded pallet (cartons on pallets first): its wooden deck and every carton on it, turned with the pallet
+      const lay = inner ? inner(k) : null;
+      if (lay && lay.boxes && lay.boxes.length) {
+        const slab = new THREE.InstancedMesh(geo, new THREE.MeshLambertMaterial({ color: 0xa8865a }), idxs.length);
+        const cart = new THREE.InstancedMesh(geo, new THREE.MeshLambertMaterial({ color: colors[k % colors.length] }), idxs.length * lay.boxes.length);
+        const sIdx = [], cIdx = []; let j = 0;
+        idxs.forEach((bi, si) => {
+          const b = boxes[bi]; const turned = Math.abs(b.dx - lay.L) > 1 && Math.abs(b.dx - lay.W) < 1;
+          s.set(b.dx - 6, Math.max(1, lay.ph - 2), b.dy - 6); p.set(b.x + b.dx / 2, b.z + lay.ph / 2, b.y + b.dy / 2);
+          m.compose(p, q, s); slab.setMatrixAt(si, m); sIdx.push(bi);
+          for (const [lx, ly, lz, ldx, ldy, ldz] of lay.boxes) {
+            const x = turned ? ly : lx, y = turned ? lay.L - lx - ldx : ly, dx = turned ? ldy : ldx, dy = turned ? ldx : ldy;
+            const g = Math.min(12, Math.min(dx, dy, ldz) * 0.04);
+            s.set(dx - g, ldz - g, dy - g); p.set(b.x + x + dx / 2, b.z + lay.ph + lz + ldz / 2, b.y + y + dy / 2);
+            m.compose(p, q, s); cart.setMatrixAt(j++, m); cIdx.push(bi);
+          }
+          order[bi] = { mesh: slab, j: si };
+        });
+        slab.count = idxs.length; cart.count = j;
+        group.add(slab); group.add(cart); meshes.push({ mesh: slab, idxs: sIdx }); meshes.push({ mesh: cart, idxs: cIdx });
+        continue;
+      }
       const mesh = new THREE.InstancedMesh(geo, new THREE.MeshLambertMaterial({ color: colors[k % colors.length] }), idxs.length);
       idxs.forEach((bi, j) => {
         const b = boxes[bi]; const g = Math.min(12, Math.min(b.dx, b.dy, b.dz) * 0.04);

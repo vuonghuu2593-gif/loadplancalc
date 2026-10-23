@@ -627,7 +627,8 @@ ok(errs.length === 0, 'no JS errors ' + errs.join(' | '));
   ok(await pf.evaluate(() => !document.querySelector('[data-stage]').classList.contains('full') && !document.body.classList.contains('has-full')), 'Esc closes full screen');
   // which size fits: 900 cartons = 60.9 m³ need more than one 20' (5.9 x 2.352 x 2.395 = 33.2 m³); the selected 40' HC row is the plan above
   await pf.waitForFunction(() => !document.querySelector('[data-fittable]').textContent.includes('…'), null, { timeout: 60000 });
-  const rows = await pf.$$eval('[data-fittable] tr', (r) => r.map((x) => [...x.children].map((c) => c.textContent.trim())));
+  // cells after the Select radio: type (full text), then the first line of One takes and Needed
+  const rows = await pf.$$eval('[data-fittable] tr', (r) => r.map((x) => [...x.children].slice(1).map((c, j) => (j === 0 ? c.textContent : c.childNodes[0]?.textContent || '').trim())));
   const row = (name) => rows.find((r) => r[0].startsWith(name));
   ok(rows.length === 15, 'comparison lists every size in the list (' + rows.length + ')');
   ok(row("40' High Cube")[0].includes('(selected)') && row("40' High Cube")[1] === '900' && row("40' High Cube")[2] === '1', "selected 40' HC row: 900 in one, 1 needed");
@@ -849,6 +850,54 @@ ok(errs.length === 0, 'no JS errors ' + errs.join(' | '));
   ok(await pq.isVisible('[data-qr] svg'), 'QR shown in print');
   ok(e8.length === 0, 'QR: no JS errors ' + e8.join(' | '));
   await pq.close();
+}
+// Size table: Select plans the size in place (2026-10-23)
+{
+  const pt = await b.newPage({ viewport: { width: 390, height: 844 }, locale: 'en-GB' }); const e9 = []; pt.on('pageerror', (e) => e9.push(e.message));
+  await pt.goto('http://localhost:4401/container-loading-calculator/'); await pt.waitForTimeout(2500);
+  await pt.waitForFunction(() => !document.querySelector('[data-fittable]').textContent.includes('…'), null, { timeout: 60000 });
+  await pt.evaluate(() => document.querySelector('[data-fit]').scrollIntoView()); const y0 = await pt.evaluate(() => scrollY);
+  ok(await pt.isChecked('input[data-usepreset="40hc"]'), "Select column: the 40' HC radio is on");
+  await pt.check('input[data-usepreset="40dv"]');
+  await pt.waitForFunction(() => /is selected: 900 of 900/.test(document.querySelector('[data-fitsel]').textContent), null, { timeout: 30000 });
+  const st = await pt.evaluate(() => ({ y: scrollY, pre: document.querySelector('[data-f="preset"]').value, main: document.querySelector('#r-main').textContent, line: document.querySelector('[data-fitsel]').textContent }));
+  ok(st.pre === '40dv' && st.main === '900 of 900' && Math.abs(st.y - y0) < 60 && st.line.startsWith("40' Standard is selected: 900 of 900 boxes in one"), "Select 40' Standard: planned in place, page stays at the table (" + st.line.slice(0, 60) + ')');
+  ok(e9.length === 0, 'Select column: no JS errors ' + e9.join(' | '));
+  await pt.close();
+}
+// One pallet in 3D and cartons per pallet (2026-10-23). Hand-checked: Carton A 60 x 40 x 40 cm, 12 kg x 400 on a Euro pallet
+// up to 1,800 mm: 2 x 2 = 4 per layer, (1800 - 144) / 400 = 4 layers -> 16; 25 pallets; 1,744 mm; 16 x 12 + 25 = 217 kg.
+// Capped at 10: layers 4 + 4 + 2 -> 3 x 400 + 144 = 1,344 mm, 10 x 12 + 25 = 145 kg, 400 / 10 = 40 pallets.
+{
+  const pv = await b.newPage({ viewport: { width: 390, height: 844 }, locale: 'en-GB' }); const e10 = []; pv.on('pageerror', (e) => e10.push(e.message));
+  const T = (sel) => pv.$eval(sel, (e) => e.textContent.trim());
+  await pv.goto('http://localhost:4401/container-loading-calculator/'); await pv.waitForTimeout(2500);
+  await pv.click('[data-pzgo]');
+  await pv.waitForFunction(() => !document.querySelector('[data-pzon]').hidden, null, { timeout: 60000 }); await pv.waitForTimeout(2500);
+  const rowA = async () => pv.$eval('[data-pztable] tr', (x) => [...x.children].map((c) => c.textContent.trim()));
+  let r = await rowA();
+  ok(r[1] === '16' && r[2] === '25' && r[3] === '174.4' && r[4] === '217', 'Carton A: 16 per pallet (4 × 4), 25 pallets, 174.4 cm, 217 kg (' + r.join(' | ') + ')');
+  await pv.click('[data-pzv="0"]'); await pv.waitForTimeout(1500);
+  ok((await T('[data-pzvinfo]')).startsWith('16 cartons (4 × 4: per layer × layers), 174.4 cm high and 217 kg') && await pv.isVisible('[data-pzv3d] canvas'), 'View: the pallet in 3D with its cartons');
+  ok((await pv.getAttribute('[data-pzedit]', 'href')).startsWith('/pallet-loading-calculator/#p='), 'link to edit the pallet by hand');
+  await pv.fill('[data-pzcap]', '10'); await pv.click('[data-pzrebuild]');
+  await pv.waitForFunction(() => document.querySelector('[data-pztable] tr td:nth-child(2)').textContent.trim() === '10', null, { timeout: 60000 }); await pv.waitForTimeout(2000);
+  r = await rowA();
+  ok(r[1] === '10' && r[2] === '40' && r[3] === '134.4' && r[4] === '145' && await pv.isVisible('[data-pzview]'), 'cap 10 per pallet: 40 pallets, 134.4 cm, 145 kg, view stays open (' + r.join(' | ') + ')');
+  // the hand-edit link opens the pallet calculator with that pallet: 10 cartons
+  const href = await pv.getAttribute('[data-pzedit]', 'href');
+  const pp = await b.newPage({ viewport: { width: 390, height: 844 } }); pp.on('pageerror', (e) => e10.push(e.message));
+  await pp.goto('http://localhost:4401' + href); await pp.waitForTimeout(500);
+  await pp.waitForFunction(() => document.querySelector('#r-main').textContent.trim() !== '–', null, { timeout: 20000 }); await pp.waitForTimeout(500);
+  ok(await pp.$eval('#r-main', (e) => e.textContent.trim()) === '10 of 10', 'pallet calculator opens with the same 10 cartons');
+  await pp.close();
+  // a link to the pallets plan draws the cartons again (layouts fetched in the background)
+  const pl = await b.newPage({ viewport: { width: 390, height: 844 } }); pl.on('pageerror', (e) => e10.push(e.message));
+  await pl.goto(pv.url()); await pl.waitForTimeout(6000);
+  ok(await pl.$eval('#r-main', (e) => e.textContent.trim()).then((t) => /of 57$/.test(t)) && await pl.isVisible('[data-pzon]'), 'share link: pallets plan (' + await pl.$eval('#r-main', (e) => e.textContent.trim()) + ')');
+  await pl.close();
+  ok(e10.length === 0, 'pallet view: no JS errors ' + e10.join(' | '));
+  await pv.close();
 }
 await b.close(); srv.close();
 console.log(fails ? fails + ' failing' : 'planner checks pass'); process.exit(fails ? 1 : 0);
