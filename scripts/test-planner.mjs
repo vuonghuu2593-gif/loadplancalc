@@ -899,5 +899,28 @@ ok(errs.length === 0, 'no JS errors ' + errs.join(' | '));
   ok(e10.length === 0, 'pallet view: no JS errors ' + e10.join(' | '));
   await pv.close();
 }
+// Freight density calculator (2026-10-23). Hand-checked defaults: 2 × 48 × 40 × 48 in at 500 lb + 1 × 48 × 40 × 36 in at 300 lb
+// = 106.667 + 40 = 146.667 ft³, 1,300 lb -> 8.8636 lb/ft³ = 141.98 kg/m³.
+// Other case, metric: one Euro pallet 120 × 80 × 150 cm, 300 kg -> 1.44 m³ -> 208.3 kg/m³ = 13.01 lb/ft³.
+{
+  const pd = await newPage0({ viewport: { width: 390, height: 844 }, locale: 'en-US' }); const e11 = []; pd.on('pageerror', (e) => e11.push(e.message));
+  const T = (sel) => pd.$eval(sel, (e) => e.textContent.trim());
+  await pd.goto('http://localhost:4401/freight-density-calculator/'); await pd.waitForTimeout(800);
+  ok(await T('#r-main') === '8.86 lb/ft³' && await T('[data-r="other"]') === '142 kg/m³' && await T('[data-r="wt"]') === '1,300 lb' && await T('[data-r="cube"]') === '146.67 ft³' && await T('[data-r="count"]') === '3', 'density defaults: 8.86 lb/ft³, 142 kg/m³, 1,300 lb, 146.67 ft³, 3 pieces (' + await T('#r-main') + ' / ' + await T('[data-r="other"]') + ')');
+  await pd.click('[data-units="metric"]'); await pd.waitForTimeout(200);
+  ok(await pd.inputValue('.densline [data-k="l"]') === '121.92' && await T('#r-main') === '142 kg/m³' && await T('[data-r="other"]') === '8.86 lb/ft³', 'metric: 48 in = 121.92 cm, same density');
+  for (let i = 0; i < 3; i++) { await pd.click('[data-units="imperial"]'); await pd.click('[data-units="metric"]'); }
+  await pd.click('[data-units="imperial"]');
+  ok(await pd.inputValue('.densline [data-k="l"]') === '48' && await pd.inputValue('.densline [data-k="kg"]') === '500', 'no drift after 4 unit round trips (48 in, 500 lb)');
+  await pd.click('[data-units="metric"]');
+  await pd.click('.densline:nth-child(2) [data-del]');
+  for (const [k, v] of [['l', '120'], ['w', '80'], ['h', '150'], ['kg', '300'], ['qty', '1']]) await pd.fill(`.densline [data-k="${k}"]`, v);
+  ok(await T('#r-main') === '208.3 kg/m³' && await T('[data-r="other"]') === '13.01 lb/ft³' && await T('[data-r="cube"]') === '1.44 m³', 'Euro pallet 120 × 80 × 150 cm, 300 kg: 1.44 m³, 208.3 kg/m³, 13.01 lb/ft³');
+  await pd.fill('.densline [data-k="h"]', '');
+  ok(await T('#r-main') === '–' && !(await pd.$eval('[data-r="skip"]', (e) => e.hidden)), 'empty height: no result, note shown');
+  await pd.evaluate(() => localStorage.removeItem('lpc-dens-units'));
+  ok(e11.length === 0, 'density: no JS errors ' + e11.join(' | '));
+  await pd.close();
+}
 await b.close(); srv.close();
 console.log(fails ? fails + ' failing' : 'planner checks pass'); process.exit(fails ? 1 : 0);

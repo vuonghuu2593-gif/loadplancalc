@@ -29,6 +29,7 @@ const schema = { '@context': 'https://schema.org', '@type': 'HowTo', name: `How 
       <a href="#how-many-pallets-fit-in-a-53-foot-trailer">Pallets in a 53 ft trailer</a>
       <a href="#cbm-calculator">CBM calculator</a>
       <a href="#cubic-feet-calculator">Cubic feet calculator</a>
+      <a href="#freight-density-calculator">Freight density calculator</a>
       <a href="#dimensional-weight-calculator">Dimensional weight calculator</a>
       <a href="#orientation">Carton orientation</a>
       <a href="#loading-method">Automatic or step by step</a>
@@ -178,6 +179,18 @@ const schema = { '@context': 'https://schema.org', '@type': 'HowTo', name: `How 
     </ul>
   </section>
 
+  <section class="prose" id="freight-density-calculator">
+    <h2>Freight density calculator</h2>
+    <p>The <a href="/freight-density-calculator/">freight density calculator</a> divides a shipment's weight by the space it takes, for pallets, crates or cartons. It is plain arithmetic and updates as you type. It gives the density only, not a freight class.</p>
+    <ul class="plain">
+      <li><strong>Units (in · lb or cm · kg):</strong> sizes in inches and weights in pounds, or centimetres and kilograms. Values are kept in millimetres and kilograms, so switching never changes the result. The page starts in in · lb in the US and cm · kg elsewhere; your choice is remembered on this device.</li>
+      <li><strong>Lines:</strong> one line per size of handling unit: a name, the number of <strong>Pieces</strong>, the outside <strong>Length</strong>, <strong>Width</strong> and <strong>Height</strong> as shipped (pallet included) and the <strong>Weight per piece</strong>. Each line shows the cube of one piece and the line's own density. <strong>+ Add line</strong> adds another size (up to 10); <strong>Remove</strong> deletes one. A line with an empty size, weight or count is left out, and a note says so.</li>
+      <li><strong>Starting example:</strong> two pallets of 48 × 40 × 48 in at 500 lb and one of 48 × 40 × 36 in at 300 lb: 146.67 ft³, 1,300 lb, 8.86 lb/ft³.</li>
+      <li><strong>Result:</strong> <strong>Freight density</strong> of the whole shipment (total weight ÷ total cube) in lb/ft³ with kg/m³ below it (or the other way round in metric), the total weight, the total cube and the number of pieces. On a phone, a bar at the bottom shows the density while the result is off screen.</li>
+      <li><strong>How the calculator works</strong> shows each line's cube and weight and the division with your numbers. Tables give the density of a 48 × 40 in pallet at several heights and weights, and of a Euro pallet in kg/m³.</li>
+    </ul>
+  </section>
+
   <section class="prose" id="dimensional-weight-calculator">
     <h2>Dimensional weight calculator</h2>
     <p>The <a href="/dimensional-weight-calculator/">dimensional weight calculator</a> works out the dimensional (DIM) weight and the billable weight of one package from its size and actual weight. It is plain arithmetic and updates as you type.</p>
@@ -308,6 +321,7 @@ const schema = { '@context': 'https://schema.org', '@type': 'HowTo', name: `How 
   <section class="prose" id="whats-new">
     <h2>What's new</h2>
     <ul class="plain">
+      <li><strong>October 23, 2026:</strong> new tool: <a href="/freight-density-calculator/">freight density calculator</a> — weight ÷ length × width × height for several pallets or crates, in lb/ft³ and kg/m³, with the steps shown.</li>
       <li><strong>October 23, 2026:</strong> a <strong>Select</strong> column in <a href="#several-containers">Which size fits this load</a> plans the chosen size in place. With <a href="#pallets-first">cartons on pallets</a>, the 3D view shows the cartons on each pallet, <strong>View</strong> shows one pallet on its own, and <strong>Cartons per pallet</strong> lets you build smaller pallets.</li>
       <li><strong>October 23, 2026:</strong> printed plans carry a <a href="#share">QR code</a> that opens the same plan on a phone.</li>
       <li><strong>October 23, 2026:</strong> when a load needs <a href="#several-containers">more than one container</a>, the planner also says when the last one could be a smaller size, for example 3 × 40' High Cube + 1 × 40' Standard.</li>
