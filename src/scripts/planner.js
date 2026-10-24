@@ -841,6 +841,16 @@ export function initPlanner(root) {
   // within the weight limit and its layers. Ti-Hi is only shown when every box sits on a clean layer line.
   function paintPallet(d) {
     const set = (k, v, sub = '') => { R(k).textContent = v; R(k + 'Sub').textContent = sub; };
+    // pallet cube: the outside box of the loaded pallet, the pallet and any overhanging cartons, from the floor
+    // to the top of the load (pallet height + load height), in ft³ or m³
+    {
+      const oh = state.cont.overhang || 0, c = state.cont;
+      let x0 = oh, x1 = oh + c.L, y0 = oh, y1 = oh + c.W, top = 0;
+      for (const b of boxes) { x0 = Math.min(x0, b.x); x1 = Math.max(x1, b.x + b.dx); y0 = Math.min(y0, b.y); y1 = Math.max(y1, b.y + b.dy); top = Math.max(top, b.z + b.dz); }
+      const L = x1 - x0, W = y1 - y0, H = (c.palletH || 0) + top, mm3 = L * W * H, u = U[units], dp = units === 'metric' ? 1 : 2;
+      if (boxes.length && L > 0 && W > 0) set('cube', units === 'metric' ? `${fmt(mm3 / 1e9, 3)} m³` : `${fmt(mm3 / 304.8 ** 3, 2)} ft³`, `${fmt(u.fromMM(L), dp)} × ${fmt(u.fromMM(W), dp)} × ${fmt(u.fromMM(H), dp)} ${u.len} (pallet + load) · ${units === 'metric' ? `${fmt(mm3 / 304.8 ** 3, 2)} ft³` : `${fmt(mm3 / 1e9, 3)} m³`}`);
+      else set('cube', '–', 'Shown once a carton is loaded.');
+    }
     if (state.items.length !== 1) { set('tihi', '–', 'Shown for one box type. With mixed boxes, read the plan layer by layer in the Side view.'); set('pallets', '–', 'Shown for one box type.'); return; }
     if (d.edited) { set('tihi', '–', 'Not shown while you edit by hand.'); set('pallets', '–', ''); return; }
     const P = d.pallet; const qty = state.items[0].qty;

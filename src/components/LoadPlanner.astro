@@ -196,6 +196,7 @@ const presets = mode === 'container' ? (spacePresets || data.containers) : palle
       <div><div class="k">Space left</div><div class="v" data-r="spaceLeft">–</div></div>
       <div><div class="k">{mode === 'container' ? 'Payload left' : 'Weight left'}</div><div class="v" data-r="wtLeft">–</div></div>
       <div><div class="k">Stacking</div><div class="v" data-r="stack">–</div><div class="small sub" data-r="stackSub"></div></div>
+      {mode === 'pallet' && <div><div class="k">Pallet cube</div><div class="v" data-r="cube">–</div><div class="small sub" data-r="cubeSub"></div></div>}
     </div>
     <div class="editor noprint" data-editor>
       <div class="edoff" data-ed-off>

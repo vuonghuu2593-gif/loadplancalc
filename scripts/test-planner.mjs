@@ -945,5 +945,22 @@ ok(errs.length === 0, 'no JS errors ' + errs.join(' | '));
   ok(e12.length === 0, 'pallet options: no JS errors ' + e12.join(' | '));
   await pq.close();
 }
+// Pallet cube (2026-10-24). Hand-checked default: 6 layers of 250 mm on a Euro pallet (1200 × 800, 144 mm high):
+// 1.2 × 0.8 × 1.644 = 1.578 m³; ÷ 0.028316846592 = 55.74 ft³.
+{
+  const pc = await b.newPage({ viewport: { width: 390, height: 844 }, locale: 'en-GB' }); const e13 = []; pc.on('pageerror', (e) => e13.push(e.message));
+  const T = (sel) => pc.$eval(sel, (e) => e.textContent.trim());
+  await pc.goto('http://localhost:4401/pallet-loading-calculator/'); await pc.waitForTimeout(400);
+  await pc.waitForFunction(() => !document.querySelector('[data-result]').classList.contains('busy') && document.querySelector('[data-r="cube"]').textContent !== '–', null, { timeout: 20000 });
+  ok(await T('[data-r="cube"]') === '1.578 m³' && (await T('[data-r="cubeSub"]')).startsWith('120.0 × 80.0 × 164.4 cm') || (await T('[data-r="cubeSub"]')).startsWith('120 × 80 × 164.4 cm'), 'pallet cube default: 1.578 m³, 120 × 80 × 164.4 cm (' + await T('[data-r="cube"]') + ' / ' + await T('[data-r="cubeSub"]') + ')');
+  await pc.click('[data-units="imperial"]'); await pc.waitForTimeout(600);
+  ok(await T('[data-r="cube"]') === '55.74 ft³', 'imperial: 55.74 ft³ (' + await T('[data-r="cube"]') + ')');
+  await pc.click('[data-units="metric"]'); await pc.waitForTimeout(600);
+  ok(await T('[data-r="cube"]') === '1.578 m³', 'back to metric: 1.578 m³');
+  // overhang 50 mm a side and 7 layers allowed by a higher limit change the cube
+  ok(await pc.$('#how-many-boxes') !== null && (await T('#how-many-boxes')).includes('12 × 5 = 60'), 'section: 12 in cubes on 48 × 40 in = 12 × 5 = 60');
+  ok(e13.length === 0, 'pallet cube: no JS errors ' + e13.join(' | '));
+  await pc.close();
+}
 await b.close(); srv.close();
 console.log(fails ? fails + ' failing' : 'planner checks pass'); process.exit(fails ? 1 : 0);

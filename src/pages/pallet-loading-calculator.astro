@@ -30,7 +30,7 @@ function perPallet(p: typeof euro, box: { l: number; w: number; h: number; weigh
   const r = palletPack({ L: p.L, W: p.W, H: maxH - p.H, maxWeight: p.maxWeight }, [{ ...box, qty: 20000, rotation: 'upright', stackable: true }], { timeMs: 1200 });
   const errs = validate(r);
   if (errs.length || r.totals.n !== r.pallet!.perPallet) throw new Error(`pallet table plan failed its check: ${p.id} ${errs.join(', ')}`);
-  return { n: r.totals.n, lay: r.pallet!.layers as any, kg: r.totals.w };
+  return { n: r.totals.n, lay: r.pallet!.layers as any, kg: r.totals.w, top: r.placed.reduce((m, b) => Math.max(m, b.z + b.dz), 0) };
 }
 // Interlocked layers (the planner's default): each carton rests on at least 80% of its base, centre over a carton below.
 function perPalletIL(p: typeof euro, box: { l: number; w: number; h: number; weight: number }, maxH = EX_H) {
@@ -48,6 +48,22 @@ const boxB = { l: 12 * MM_PER_IN, w: 10 * MM_PER_IN, h: 8 * MM_PER_IN, weight: 3
 const rows = presets.map((p) => ({ p, a: perPallet(p, carton), b: perPallet(p, boxB), ai: perPalletIL(p, carton), bi: perPalletIL(p, boxB) }));
 const il = (r: { n: number; a: number; b: number; hi: number; kind: string } | null) => (!r ? 'no interlocked pattern' : r.kind === 'alt' ? `${r.a} / ${r.b} × ${r.hi} = ${n(r.n)}` : r.a === r.b && r.kind === 'even' ? `${r.a} × ${r.hi} = ${n(r.n)}` : r.a === r.b ? `${n(r.n)} (${r.a} per layer, top layer short)` : `${n(r.n)} (${r.a} / ${r.b} per layer, top layer short)`);
 const tihi = (r: { n: number; lay: any }) => (r.lay.mixed ? `${n(r.n)}` : r.lay.kind === 'even' ? `${r.lay.ti} × ${r.lay.hi} = ${n(r.n)}` : r.lay.kind === 'top' ? `${r.lay.ti} × ${r.lay.hi - 1} + ${r.lay.top} = ${n(r.n)}` : `${n(r.n)}`);
+// "How many boxes fit on a pallet?": common carton sizes, column stacks, this side up, 1,800 mm incl. pallet
+const common = [
+  { label: '600 × 400 × 400 mm', l: 600, w: 400, h: 400, weight: 10 },
+  { label: '400 × 300 × 300 mm', l: 400, w: 300, h: 300, weight: 8 },
+  { label: '300 × 200 × 200 mm', l: 300, w: 200, h: 200, weight: 4 },
+  { label: '12 × 12 × 12 in', l: 12 * MM_PER_IN, w: 12 * MM_PER_IN, h: 12 * MM_PER_IN, weight: 20 * KG_PER_LB },
+  { label: '16 × 12 × 12 in', l: 16 * MM_PER_IN, w: 12 * MM_PER_IN, h: 12 * MM_PER_IN, weight: 20 * KG_PER_LB },
+  { label: '18 × 18 × 18 in', l: 18 * MM_PER_IN, w: 18 * MM_PER_IN, h: 18 * MM_PER_IN, weight: 30 * KG_PER_LB },
+  { label: '24 × 18 × 18 in', l: 24 * MM_PER_IN, w: 18 * MM_PER_IN, h: 18 * MM_PER_IN, weight: 30 * KG_PER_LB },
+].map((c) => ({ ...c, eu: perPallet(euro, c), us: perPallet(chep, c) }));
+// hand-checked: 12 in cubes on 48 × 40 in: 4 × 3 = 12 per layer; (1,800 − 141) ÷ 304.8 = 5.44 → 5 layers = 60
+const cube12 = common.find((c) => c.label === '12 × 12 × 12 in')!;
+if (cube12.us.n !== 60 || cube12.us.lay.ti !== 12 || cube12.us.lay.hi !== 5) throw new Error(`12 in cube on CHEP changed: ${cube12.us.n}`);
+for (const c of common) for (const [p, r] of [[euro, c.eu], [chep, c.us]] as const) if (r.kg >= p.maxWeight) throw new Error(`${c.label} on ${p.id} reaches the safe working load: update the note`);
+const cubeOf = (p: typeof euro, r: { top: number }) => (p.L * p.W * (p.H + r.top)) / 1e9;
+const FT3 = 0.3048 ** 3;
 const swl = (p: typeof euro) => (p.id === 'chep4840' ? `${n(2800)} lb (${n(p.maxWeight)} kg)` : `${n(p.maxWeight)} kg (${n(p.maxWeight / KG_PER_LB)} lb)`);
 ---
 <ToolPage
@@ -95,6 +111,31 @@ const swl = (p: typeof euro) => (p.id === 'chep4840' ? `${n(2800)} lb (${n(p.max
       </table>
     </div>
     <p class="small">Pallet sizes, heights and safe working loads from EPAL's product pages and CHEP's product page (linked; more on <a href="/pallet-sizes/">standard pallet sizes</a>). The CHEP 48 × 40 in pallet is entered as 48 × 40 in ({n(chep.L, 1)} × {n(chep.W)} mm): CHEP prints both 48 in and 1219 mm, and 1219 mm is 48 in rounded to the millimetre. That 0.2 mm matters for a 12 in carton: four of them (1,219.2 mm) fill exactly 48 in but would not fit in 1,219 mm. Where the weight limit stops the top layer short, the table shows it as “+ n”.</p>
+  </section>
+
+  <section class="prose" id="how-many-boxes">
+    <h2>How many boxes fit on a pallet?</h2>
+    <p>Work it out in four steps, the same ones the calculator follows for a single carton size in column stacks:</p>
+    <ol class="plain">
+      <li><strong>Boxes per layer (Ti):</strong> how many carton footprints fit on the pallet top, trying the carton both ways round and mixed rows. On a {n(euro.L)} × {n(euro.W)} mm Euro pallet, 400 × 300 mm cartons fit 4 × 2 = 8; a 48 × 40 in pallet takes 4 × 3 = 12 cartons of 12 × 12 in.</li>
+      <li><strong>Layers (Hi):</strong> the height limit minus the pallet's own height, divided by the carton height, rounded down. With a {n(EX_H)} mm limit on the Euro pallet ({euro.H} mm high), 250 mm cartons give {n(EX_H - euro.H)} ÷ 250 = 6 layers.</li>
+      <li><strong>Boxes per pallet</strong> = Ti × Hi, then check the weight: Ti × Hi × the carton weight must stay within the pallet's safe working load and your own limit. If it does not, the top layer is cut short.</li>
+      <li><strong>Pallet cube</strong> = the pallet footprint (with any overhang) × the total height, pallet included: for 6 layers of 250 mm on a Euro pallet, 1.2 × 0.8 × (0.144 + 1.5) = {n(1.2 * 0.8 * 1.644, 3)} m³ ({n(1.2 * 0.8 * 1.644 / FT3, 2)} ft³). Carriers and warehouses use the cube to charge for space; the calculator shows it as <strong>Pallet cube</strong>.</li>
+    </ol>
+    <p>Cartons per pallet for common sizes, computed with the planner (column stacks, cartons kept this side up, {n(EX_H)} mm or {inch(EX_H)} in high including the pallet, no overhang, each pallet's safe working load):</p>
+    <div class="tablebox">
+      <table>
+        <thead><tr><th>Carton</th><th class="num">{euro.name.replace(' (EPAL 1)', '')}<br><span class="small">{n(euro.L)} × {n(euro.W)} mm</span></th><th class="num">CHEP 48 × 40 in</th></tr></thead>
+        <tbody>
+          {common.map((c) => <tr>
+            <td>{c.label}</td>
+            <td class="num">{tihi(c.eu)}<br><span class="small">{n(cubeOf(euro, c.eu), 2)} m³ · {n(cubeOf(euro, c.eu) / FT3, 1)} ft³</span></td>
+            <td class="num">{tihi(c.us)}<br><span class="small">{n(cubeOf(chep, c.us), 2)} m³ · {n(cubeOf(chep, c.us) / FT3, 1)} ft³</span></td>
+          </tr>)}
+        </tbody>
+      </table>
+    </div>
+    <p class="small">Ti × Hi = cartons per pallet; the second line is the pallet cube of that full pallet (footprint × pallet height + load height). Carton weights used for the weight check: 10, 8 and 4 kg for the metric cartons, 20, 20, 30 and 30 lb for the inch cartons; none of these pallets reaches its safe working load. Pallet sizes and heights from EPAL and CHEP (linked in the table above). For your own carton, enter it in the calculator above.</p>
   </section>
 
   <section class="prose">
