@@ -10,15 +10,19 @@ const cuft = (c: any) => (c.L * c.W * c.H) / (304.8 ** 3);
 const lb = (kg: number) => kg / 0.45359237;
 const hc = data.containers.find((c) => c.id === '40hc')!;
 const s20 = data.containers.find((c) => c.id === '20dv')!;
+const s40 = data.containers.find((c) => c.id === '40dv')!;
+// VGM example (Method 2): cargo incl. pallets and dunnage + tare; IMO page read twice 2026-10-24 (curl and headless Chromium)
+const vgmCargo = 18000, vgmChecked = '2026-10-24';
+if (s20.tare !== 2350 || s20.gross !== 30480 || s40.gross !== 32500 || vgmCargo + s20.tare !== 20350) throw new Error('weight section example changed');
 const tr = tdata.trailers.find((t) => t.id === '53ht-composite')!;
 const rf20 = sp.reefers[0], rf40 = sp.reefers[1], ot40 = sp.opentops[1];
 const url = new URL('/shipping-container-dimensions/', 'https://loadplancalc.com').href;
 const schema = { '@context': 'https://schema.org', '@type': 'Article', headline: 'Shipping container dimensions', dateModified: data.source.checked, mainEntityOfPage: url };
 ---
-<Base title="Shipping Container Dimensions: 20ft, 40ft, High Cube, Reefer" description="Inside dimensions, door openings, volume and payload of 20ft, 40ft and high cube dry containers, plus 20ft and 40ft high cube reefers and open tops, in mm and feet, from Hapag-Lloyd's specifications." schema={schema}>
+<Base title="Shipping Container Dimensions and Weight: 20ft, 40ft, High Cube" description="Inside dimensions, door openings, volume, tare weight and payload of 20ft, 40ft and high cube dry containers, plus 20ft and 40ft high cube reefers and open tops, in mm and feet, from Hapag-Lloyd's specifications." schema={schema}>
   <section class="prose">
     <h1>Shipping container dimensions</h1>
-    <p class="lede">A 20' standard container measures {n(s20.L)} × {n(s20.W)} × {n(s20.H)} mm inside ({ftin(s20.L)} × {ftin(s20.W)} × {ftin(s20.H)}), and a 40' high cube {n(hc.L)} × {n(hc.W)} × {n(hc.H)} mm ({ftin(hc.L)} × {ftin(hc.W)} × {ftin(hc.H)}), according to Hapag-Lloyd's specifications. The tables below give the inside size, door opening, volume and weights of the four common dry containers, then of <a href="#reefer-open-top">reefer and open top containers</a>.</p>
+    <p class="lede">A 20' standard container measures {n(s20.L)} × {n(s20.W)} × {n(s20.H)} mm inside ({ftin(s20.L)} × {ftin(s20.W)} × {ftin(s20.H)}), and a 40' high cube {n(hc.L)} × {n(hc.W)} × {n(hc.H)} mm ({ftin(hc.L)} × {ftin(hc.W)} × {ftin(hc.H)}), according to Hapag-Lloyd's specifications. The tables below give the inside size, door opening, volume and weights of the four common dry containers, then of <a href="#reefer-open-top">reefer and open top containers</a>. For empty and loaded weights and the VGM rule, see <a href="#weight">shipping container weight</a>.</p>
   </section>
 
   <section class="prose">
@@ -36,8 +40,9 @@ const schema = { '@context': 'https://schema.org', '@type': 'Article', headline:
     <p class="small">Millimetre figures are Hapag-Lloyd's; feet and inches are converted from them (1 in = 25.4 mm) and rounded to 0.1 inch.</p>
   </section>
 
-  <section class="prose">
-    <h2>Volume and weight</h2>
+  <section class="prose" id="weight">
+    <h2>Shipping container weight</h2>
+    <p>An empty 20' standard container weighs {n(s20.tare)} kg ({n(lb(s20.tare))} lb) and a 40' standard {n(s40.tare)} kg ({n(lb(s40.tare))} lb); a 40' high cube weighs {n(hc.tare)} kg ({n(lb(hc.tare))} lb). That empty weight is the <strong>tare</strong>. Loaded, a 20' standard may weigh up to {n(s20.gross)} kg ({n(lb(s20.gross))} lb) and each 40' and 45' container up to {n(s40.gross)} kg ({n(lb(s40.gross))} lb) in Hapag-Lloyd's figures, so the cargo it can take (the <strong>max payload</strong>) is the difference: {n(s20.payload)} kg in a 20' standard. The table gives the weights with the inside volume.</p>
     <div class="tablebox">
       <table>
         <thead><tr><th>Container</th><th class="num">Inside volume</th><th class="num">Tare</th><th class="num">Max payload</th><th class="num">Max gross</th></tr></thead>
@@ -51,6 +56,15 @@ const schema = { '@context': 'https://schema.org', '@type': 'Article', headline:
       </table>
     </div>
     <p class="small">Inside volume is length × width × height of the figures above. Hapag-Lloyd lists the capacity as 33.2 m³ (20'), 67.7 m³ (40'), and 86.0 m³ (45' high cube). Pounds are converted from kilograms (1 lb = 0.45359237 kg). To see what share of these volumes your cartons take, use the <a href="/cbm-calculator/">CBM calculator</a> (cubic meters) or the <a href="/cubic-feet-calculator/">cubic feet calculator</a> (inches and feet, cubic feet and yards). Sending a few cartons as parcels instead of a container load? Parcel carriers bill by size as well as weight: the <a href="/dimensional-weight-calculator/">dimensional weight calculator</a> works out the billable weight of each box.</p>
+
+    <h3 id="vgm">Verified gross mass (VGM)</h3>
+    <p>Before a packed container is loaded onto a ship, its weight must be verified. The International Maritime Organization (IMO) amended SOLAS regulation VI/2 (resolution MSC.380(94)), in force since 1 July 2016, and approved guidelines for it (MSC.1/Circ.1475). In the IMO's summary, the <strong>shipper</strong> is responsible for providing the verified weight in the shipping document, to the master and the terminal, in time for the ship's stowage plan, and a verified gross mass is a condition for loading the container. The IMO names two ways to get it:</p>
+    <ol class="plain">
+      <li><strong>Method 1:</strong> weigh the packed container.</li>
+      <li><strong>Method 2:</strong> weigh all packages and cargo items, including pallets, dunnage and other securing material, and add the container's tare, using a certified method approved by the competent authority of the State where the container was packed.</li>
+    </ol>
+    <p>For example, Method 2 for a 20' standard packed with {n(vgmCargo)} kg of goods, pallets and securing material gives {n(vgmCargo)} + {n(s20.tare)} kg tare = <strong>{n(vgmCargo + s20.tare)} kg</strong>, within its {n(s20.gross)} kg max gross. Use the tare on your own container's door plate, not a typical figure. Road weight limits on the way to and from the port can be lower than the container's max gross.</p>
+    <p class="small">Source: IMO, <a href="https://www.imo.org/en/OurWork/Safety/Pages/Verification-of-the-gross-mass.aspx" rel="noopener">Verification of the gross mass of a packed container</a>, read {vgmChecked}. The <a href="/container-loading-calculator/">container loading calculator</a> adds up the weight of your cartons and will not show a plan that goes over the container's max payload.</p>
   </section>
 
   <section class="prose" id="reefer-open-top">
