@@ -1,0 +1,231 @@
+---
+// Dunnage bag calculator: the CTU Code's dunnage bag check (MSC.1/Circ.1497, annex 7, appendix 4, section 4) with the
+// chapter 5 acceleration coefficients and the appendix 2 friction factors. Read twice on 2026-10-24
+// (pdftotext -layout and -raw of the IMO PDF). Math in src/scripts/dunnage.js; the page only adds units and text.
+import ToolPage from '../layouts/ToolPage.astro';
+import { MODES, cargoForce, area, pbNeeded, bagForce } from '../scripts/dunnage.js';
+const CTU = 'https://wwwcdn.imo.org/localresources/en/OurWork/Safety/Documents/1497.pdf';
+const n = (v: number, d = 0) => v.toLocaleString('en-US', { maximumFractionDigits: d, minimumFractionDigits: d });
+// friction factors, appendix 2 (static, dry); the calculation uses 75% of them for sliding against a dunnage bag
+const FRICTION = [
+  { v: 0.45, label: 'Sawn timber or wooden pallet on plywood or laminate floor (0.45)' },
+  { v: 0.4, label: 'Sawn timber or wooden pallet on grooved aluminium (0.4)' },
+  { v: 0.3, label: 'Sawn timber or wooden pallet on stainless steel sheet (0.3)' },
+  { v: 0.3, label: 'Sawn timber or wooden pallet on shrink film (0.3)' },
+  { v: 0.2, label: 'Plastic pallet on plywood or laminate (0.2)' },
+  { v: 0.15, label: 'Plastic pallet on grooved aluminium or stainless steel (0.15)' },
+  { v: 0.5, label: 'Cardboard on cardboard or on a wooden pallet (0.5)' },
+  { v: 0.4, label: 'Big bag on wooden pallet (0.4)' },
+  { v: 0.45, label: 'Steel crate on plywood or laminate (0.45)' },
+  { v: 0.3, label: 'Not in the table or not verified: CTU Code maximum (0.3)' },
+];
+// worked example (lede), checked by hand:
+// 10 t, road forward c = 0.8, cz = 1.0, µ = 0.45: 10 × 9.81 × (0.8 − 0.45 × 0.75 × 1.0) = 98.1 × 0.4625 = 45.37 kN
+// bag 1.0 × 1.8 m in a 0.2 m gap: A = (1.0 − 3.14 × 0.1) × (1.8 − 0.314) = 0.686 × 1.486 = 1.019 m²
+// single use (SF 0.75): PB ≥ 45.37 ÷ (1.019 × 10 × 9.81 × 0.75) = 0.605 bar
+const road = MODES.find((m) => m.id === 'road-f')!;
+const ex = cargoForce(10000, road, 0.45, 1.2, 1.5), exA = area(1.0, 1.8, 0.2), exPb = pbNeeded(ex.f, exA, 0.75);
+if (Math.abs(ex.f - 45.37125) > 1e-9 || Math.abs(exA - 1.019396) > 1e-9 || Math.abs(exPb - 0.6049) > 1e-4) throw new Error('worked example changed; update the lede');
+// second hand check (in the guide test): 4 t, sea area B sideways (0.7 / 1.0), µ 0.3, 0.8 m wide × 2.0 m high, bag 0.9 × 1.2 m, gap 0.15 m, reusable, 0.3 bar
+const s2 = cargoForce(4000, MODES.find((m) => m.id === 'sea-b-s')!, 0.3, 0.8, 2.0), a2 = area(0.9, 1.2, 0.15);
+if (Math.abs(s2.f - 18.639) > 1e-9 || Math.abs(bagForce(a2, 0.3, 0.5) - 9.431) > 1e-3) throw new Error('second check changed');
+const defaults = { kg: 10000, mode: 'road-f', mu: 0.45, len: 1.2, wid: 1.0, hgt: 1.5, bw: 1.0, bh: 1.8, gap: 0.2, sf: 0.75, pb: 0 };
+// table: force per tonne of cargo by mode for three friction factors (no tipping)
+const perT = (m: (typeof MODES)[number], mu: number) => Math.max(0, cargoForce(1000, m, mu, 0, 0).f);
+---
+<ToolPage
+  title="Dunnage Bag Calculator: Force and Bursting Pressure (CTU Code)"
+  description="Free dunnage bag calculator: the force a load puts on an air bag in a container or trailer and the bursting pressure the bag needs, by the IMO/ILO/UNECE CTU Code formulas for road, rail and sea."
+  h1="Dunnage bag calculator"
+  name="Dunnage bag calculator"
+  lede={`Check whether a dunnage bag (air bag) is strong enough to hold your cargo, using the formulas of the IMO/ILO/UNECE CTU Code. Example: 10 t of cargo on wooden pallets (friction factor 0.45) behind a bag, in road transport braking at 0.8 g, pushes on the bag with 10 × 9.81 × (0.8 − 0.45 × 0.75 × 1.0) = <strong>${n(ex.f, 1)} kN</strong>. A 1.0 × 1.8 m bag filling a 0.2 m gap touches the cargo over (1.0 − 3.14 × 0.1) × (1.8 − 0.314) = ${n(exA, 3)} m², so a single-use bag needs a bursting pressure of at least ${n(ex.f, 2)} ÷ (${n(exA, 3)} × 10 × 9.81 × 0.75) = <strong>${n(exPb, 2)} bar</strong>.`}
+>
+  <section class="dnb" data-tool="dunnage" data-defaults={JSON.stringify(defaults)}>
+    <form class="panel" onsubmit="return false" aria-label="Cargo and dunnage bag">
+      <div class="dnhead">
+        <h2>Cargo and bag</h2>
+        <div class="seg" role="group" aria-label="Units" style="flex:0 0 190px">
+          <button type="button" data-units="metric" aria-pressed="true">kg · m</button>
+          <button type="button" data-units="imperial" aria-pressed="false">lb · in</button>
+        </div>
+      </div>
+      <div class="dngrid">
+        <label class="full">Cargo mass pushing on the bag <span data-u="m">(kg)</span><input data-k="kg" inputmode="decimal" autocomplete="off"></label>
+        <label class="full">Transport and direction
+          <select data-k="mode">{MODES.map((m) => <option value={m.id}>{m.label}: {m.c} g, vertical {m.cz} g</option>)}</select></label>
+        <label class="full">Friction between the cargo and the floor (or between layers)
+          <select data-k="mupre">{FRICTION.map((f, i) => <option value={String(i)}>{f.label}</option>)}<option value="custom">My own friction factor</option></select></label>
+        <label>Friction factor µ<input data-k="mu" inputmode="decimal" autocomplete="off"></label>
+        <label>Cargo height <span data-u="l">(m)</span><input data-k="hgt" inputmode="decimal" autocomplete="off"></label>
+        <label>Cargo length <span data-u="l">(m)</span><span class="hint">along the CTU, for tipping forward or backward</span><input data-k="len" inputmode="decimal" autocomplete="off"></label>
+        <label>Cargo width <span data-u="l">(m)</span><span class="hint">across the CTU, for tipping sideways</span><input data-k="wid" inputmode="decimal" autocomplete="off"></label>
+        <label>Bag width <span data-u="l">(m)</span><input data-k="bw" inputmode="decimal" autocomplete="off"></label>
+        <label>Bag height <span data-u="l">(m)</span><input data-k="bh" inputmode="decimal" autocomplete="off"></label>
+        <label>Gap the bag fills <span data-u="l">(m)</span><input data-k="gap" inputmode="decimal" autocomplete="off"></label>
+        <label>Bag type
+          <select data-k="sf"><option value="0.75">Single use (safety factor 0.75)</option><option value="0.5">Reusable (safety factor 0.5)</option></select></label>
+        <label class="full">Bursting pressure of your bag <span data-u="p">(bar)</span><span class="hint">from the bag's label or maker; leave empty to see the minimum</span><input data-k="pb" inputmode="decimal" autocomplete="off" placeholder="optional"></label>
+      </div>
+    </form>
+
+    <div class="result" data-result aria-live="polite">
+      <div class="grid">
+        <div><div class="k">Bursting pressure needed</div><div class="v hi" id="r-main" data-r="pb">–</div><div class="sub" data-r="pbSub"></div></div>
+        <div><div class="k">Force from the cargo</div><div class="v" data-r="f">–</div><div class="sub" data-r="fSub"></div></div>
+        <div><div class="k">Contact area</div><div class="v" data-r="a">–</div><div class="sub" data-r="aSub"></div></div>
+        <div><div class="k">Your bag can take</div><div class="v" data-r="cap">–</div><div class="sub" data-r="capSub"></div></div>
+      </div>
+      <p class="verdict" data-r="verdict">–</p>
+    </div>
+  </section>
+
+  <section class="prose">
+    <h2>How the calculator works</h2>
+    <p>It follows section 4 of appendix 4 to annex 7 of the <a href={CTU} rel="noopener">CTU Code</a> (IMO MSC.1/Circ.1497), with g = 9.81 m/s² and π = 3.14 as the Code writes them. Masses are in tonnes, forces in kN.</p>
+    <ol class="plain">
+      <li><strong>Force from the cargo, sliding:</strong> F = m · g · (c − µ · 0.75 · cz). c is the horizontal acceleration coefficient for the transport and direction, cz the vertical one, and µ the friction factor (the 0.75 turns the static friction factor into the dynamic one).</li>
+      <li><strong>Force from the cargo, tipping:</strong> F = m · g · (c − bp/hp · cz), with bp the cargo's length (forward or backward) or width (sideways) and hp its height. The larger of the two forces, and never less than zero, is the load on the bag.</li>
+      <li><strong>Contact area:</strong> A = (bag width − π · gap/2) · (bag height − π · gap/2): the wider the gap, the less of the bag presses on the cargo.</li>
+      <li><strong>What the bag can take:</strong> F<sub>DB</sub> = A · 10 · g · P<sub>B</sub> · SF, with P<sub>B</sub> the bag's bursting pressure in bar and SF 0.75 for single-use bags or 0.5 for reusable ones. The bag is strong enough when F<sub>DB</sub> ≥ F; solved for P<sub>B</sub>, that gives the bursting pressure needed.</li>
+    </ol>
+    <p>With your current inputs:</p>
+    <div class="formula" data-r="steps" aria-live="polite">–</div>
+    <p class="small">In lb · in the inputs are converted exactly (1 lb = 0.45359237 kg, 1 in = 0.0254 m) and forces are also shown in pounds-force (1 lbf = 4.4482216 N) and pressures in psi (1 bar = 14.5038 psi).</p>
+    <h3>All transport modes at once</h3>
+    <p>The Code says to use the transport mode that gives the largest force on the bag. For your cargo:</p>
+    <div class="tablebox"><table>
+      <thead><tr><th>Transport and direction</th><th class="num">c / cz</th><th class="num">Force on the bag</th><th class="num">Bursting pressure needed</th></tr></thead>
+      <tbody data-r="modes"></tbody>
+    </table></div>
+  </section>
+
+  <section class="prose">
+    <h2>Acceleration coefficients</h2>
+    <p>From chapter 5 of the CTU Code. Rail values are the general ones; the Code's bracketed rail values (1.0 g lengthwise, 0.7 g vertical) apply to short shocks of 150 ms or less, for example for packaging design. Sea areas are set by the significant wave height H<sub>s</sub> that is exceeded once in 20 years; the Code lists which seas fall in each area.</p>
+    <div class="tablebox"><table>
+      <thead><tr><th>Transport and direction</th><th class="num">Horizontal c</th><th class="num">Vertical cz</th><th class="num">Force per tonne, µ 0.2</th><th class="num">µ 0.3</th><th class="num">µ 0.45</th></tr></thead>
+      <tbody>{MODES.map((m) => <tr><td>{m.label}</td><td class="num">{m.c} g</td><td class="num">{m.cz} g</td><td class="num">{n(perT(m, 0.2), 2)} kN</td><td class="num">{n(perT(m, 0.3), 2)} kN</td><td class="num">{n(perT(m, 0.45), 2)} kN</td></tr>)}</tbody>
+    </table></div>
+    <p class="small">Force per tonne of cargo for sliding (F = 9.81 × (c − µ × 0.75 × cz)), worked out with the same formula; tipping can make it larger for tall, narrow cargo. Friction factors from appendix 2 of annex 7: swept clean, dry surfaces. The Code says to use 0.3 at most when a combination is not in its table or cannot be verified, 0.2 on frost, ice or snow, and 0.1 on oily or greasy surfaces or with slip sheets.</p>
+  </section>
+
+  <section class="prose">
+    <h2>Using dunnage bags</h2>
+    <ul class="plain">
+      <li><strong>Count only the cargo that pushes on the bag.</strong> For braking, that is the cargo behind the bag; for sideways forces, the larger of the masses on the left or right of it (CTU Code, appendix 4, 4.2.3–4.2.4).</li>
+      <li><strong>Use the lowest friction factor</strong> in the stack, between the bottom layer and the floor or between layers (4.2.5).</li>
+      <li><strong>Bursting pressure comes from the bag's maker</strong> and depends on the bag and the gap it fills. Never let the cargo forces approach it: that is what the safety factor is for (4.5.2).</li>
+      <li><strong>Inflate to a slight overpressure.</strong> Too little and the bag can work loose when the air cools or outside pressure rises; too much and it can burst or damage the cargo when the air warms (4.5.1).</li>
+      <li><strong>Mass alone is not securing.</strong> Even with high friction, cargo can move from vibration: block or lash it (chapter 5, 5.4). For the layout of the load, the <a href="/container-loading-calculator/">container loading calculator</a> shows the gaps left in a plan.</li>
+    </ul>
+  </section>
+
+  <section class="prose">
+    <h2>Related</h2>
+    <div class="chips">
+      <a href="/container-loading-calculator/">Container loading calculator</a>
+      <a href="/shipping-container-dimensions/#weight">Shipping container weight and VGM</a>
+      <a href="/how-many-pallets-fit-in-a-container/">Pallets in a container</a>
+      <a href="/pallet-loading-calculator/">Pallet loading calculator</a>
+      <a href="/how-we-calculate/">How we calculate</a>
+    </div>
+  </section>
+</ToolPage>
+
+<script>
+  import { MODES, cargoForce, area, bagForce, pbNeeded, LB, IN, LBF_N, PSI_PA } from '../scripts/dunnage.js';
+  const root = document.querySelector('[data-tool="dunnage"]') as HTMLElement;
+  const FR = [0.45, 0.4, 0.3, 0.3, 0.2, 0.15, 0.5, 0.4, 0.45, 0.3];
+  const st = JSON.parse(root.dataset.defaults!);
+  let units = 'metric';
+  try { units = localStorage.getItem('lpc-dnb-units') || (navigator.language === 'en-US' ? 'imperial' : 'metric'); } catch { /* storage blocked */ }
+  if (units !== 'imperial') units = 'metric';
+  const $ = (k: string) => root.querySelector(`[data-k="${k}"]`) as HTMLInputElement & HTMLSelectElement;
+  const R = (k: string) => document.querySelector(`[data-r="${k}"]`) as HTMLElement;
+  const f = (v: number, d = 2) => v.toLocaleString('en-US', { maximumFractionDigits: d, minimumFractionDigits: d });
+  const num = (s: string) => { const v = parseFloat(String(s).replace(/,/g, '')); return Number.isFinite(v) && v >= 0 ? v : NaN; };
+  const imp = () => units === 'imperial';
+  const showL = (m: number) => String(+(imp() ? m / IN : m).toFixed(imp() ? 2 : 3));
+  const showM = (kg: number) => String(+(imp() ? kg / LB : kg).toFixed(1));
+  const barPsi = 1e5 / PSI_PA;
+  function paint() {
+    $('kg').value = showM(st.kg);
+    for (const k of ['len', 'wid', 'hgt', 'bw', 'bh', 'gap']) $(k).value = showL(st[k]);
+    $('mode').value = st.mode; $('mu').value = String(st.mu); $('sf').value = String(st.sf);
+    const i = FR.findIndex((v, j) => v === st.mu && (st.muIdx === undefined || st.muIdx === j));
+    $('mupre').value = st.muIdx === 'custom' ? 'custom' : String(i >= 0 ? i : 'custom');
+    $('pb').value = st.pb > 0 ? String(+(imp() ? st.pb * barPsi : st.pb).toFixed(3)) : '';
+    root.querySelectorAll('[data-u="m"]').forEach((e) => { e.textContent = imp() ? '(lb)' : '(kg)'; });
+    root.querySelectorAll('[data-u="l"]').forEach((e) => { e.textContent = imp() ? '(in)' : '(m)'; });
+    root.querySelectorAll('[data-u="p"]').forEach((e) => { e.textContent = imp() ? '(psi)' : '(bar)'; });
+    root.querySelectorAll('[data-units]').forEach((b) => b.setAttribute('aria-pressed', String((b as HTMLElement).dataset.units === units)));
+  }
+  const kN = (v: number) => (imp() ? `${f(v * 1000 / LBF_N, 0)} lbf` : `${f(v)} kN`);
+  const kNo = (v: number) => (imp() ? `${f(v)} kN` : `${f(v * 1000 / LBF_N, 0)} lbf`);
+  const pr = (bar: number) => (imp() ? `${f(bar * barPsi)} psi` : `${f(bar)} bar`);
+  const pro = (bar: number) => (imp() ? `${f(bar)} bar` : `${f(bar * barPsi)} psi`);
+  function calc() {
+    const mode = MODES.find((m) => m.id === st.mode)!;
+    const bp = mode.dir === 'long' ? st.len : st.wid;
+    const ok = st.kg > 0 && st.mu >= 0 && st.bw > 0 && st.bh > 0 && st.gap >= 0;
+    const A = ok ? area(st.bw, st.bh, st.gap) : 0;
+    if (!ok || !(A > 0)) {
+      ['pb', 'f', 'a', 'cap'].forEach((k) => { R(k).textContent = '–'; }); ['pbSub', 'fSub', 'aSub', 'capSub'].forEach((k) => { R(k).textContent = ''; });
+      R('verdict').textContent = ok ? 'The gap is too wide for this bag: it would touch the cargo over no area. Use a bigger bag or close the gap.' : 'Enter the cargo mass, a friction factor and the bag size.';
+      R('steps').textContent = '–'; R('modes').innerHTML = ''; return;
+    }
+    const c = cargoForce(st.kg, mode, st.mu, bp, st.hgt), need = pbNeeded(c.f, A, st.sf);
+    R('pb').textContent = c.f > 0 ? pr(need) : 'none'; R('pbSub').textContent = c.f > 0 ? pro(need) : 'no force on the bag';
+    R('f').textContent = kN(c.f); R('fSub').textContent = c.f > 0 ? `${kNo(c.f)}, ${c.by}` : 'friction holds the cargo';
+    R('a').textContent = imp() ? `${f(A / IN / IN, 0)} in²` : `${f(A, 3)} m²`; R('aSub').textContent = imp() ? `${f(A, 3)} m²` : `${f(A / IN / IN, 0)} in²`;
+    if (st.pb > 0) {
+      const cap = bagForce(A, st.pb, st.sf);
+      R('cap').textContent = kN(cap); R('capSub').textContent = kNo(cap);
+      R('verdict').textContent = cap >= c.f ? `Strong enough: your bag can take ${kN(cap)} against ${kN(c.f)} from the cargo.` : `Not strong enough: your bag can take ${kN(cap)}, the cargo pushes with ${kN(c.f)}. Use a bag with at least ${pr(need)} bursting pressure, a bigger bag or a smaller gap.`;
+    } else {
+      R('cap').textContent = '–'; R('capSub').textContent = 'enter its bursting pressure';
+      R('verdict').textContent = c.f > 0 ? `Choose a ${st.sf === 0.75 ? 'single-use' : 'reusable'} bag with a bursting pressure of at least ${pr(need)} for this gap, or enter your bag's bursting pressure to check it.` : 'In this direction friction alone exceeds the acceleration in the formula, but the CTU Code still asks for blocking or lashing against vibration.';
+    }
+    const t = st.kg / 1000;
+    R('steps').innerHTML = [
+      `m = ${f(t, 3)} t, c = ${mode.c}, cz = ${mode.cz}, µ = ${st.mu}`,
+      `Sliding: ${f(t, 3)} × 9.81 × (${mode.c} − ${st.mu} × 0.75 × ${mode.cz}) = ${f(c.slide)} kN`,
+      st.hgt > 0 && bp > 0 ? `Tipping: ${f(t, 3)} × 9.81 × (${mode.c} − ${f(bp, 3)} / ${f(st.hgt, 3)} × ${mode.cz}) = ${f(c.tip)} kN` : 'Tipping: enter the cargo height and size to check it',
+      `Force on the bag: <strong>${f(c.f)} kN</strong> (${c.by === 'none' ? 'no force' : c.by})`,
+      `Contact area: (${f(st.bw, 3)} − 3.14 × ${f(st.gap, 3)} / 2) × (${f(st.bh, 3)} − 3.14 × ${f(st.gap, 3)} / 2) = ${f(A, 4)} m²`,
+      `Bursting pressure needed: ${f(c.f)} ÷ (${f(A, 4)} × 10 × 9.81 × ${st.sf}) = <strong>${f(need, 3)} bar</strong>`,
+      st.pb > 0 ? `Your bag: ${f(A, 4)} × 10 × 9.81 × ${f(st.pb, 3)} × ${st.sf} = ${f(bagForce(A, st.pb, st.sf))} kN` : '',
+    ].filter(Boolean).join('<br>');
+    R('modes').innerHTML = MODES.map((m) => { const x = cargoForce(st.kg, m, st.mu, m.dir === 'long' ? st.len : st.wid, st.hgt); return `<tr${m.id === st.mode ? ' class="cur"' : ''}><td>${m.label}</td><td class="num">${m.c} / ${m.cz}</td><td class="num">${kN(x.f)}</td><td class="num">${x.f > 0 ? pr(pbNeeded(x.f, A, st.sf)) : 'none'}</td></tr>`; }).join('');
+  }
+  root.addEventListener('input', (e) => {
+    const t = e.target as HTMLInputElement; const k = t.dataset.k; if (!k) return;
+    if (k === 'kg') { const v = num(t.value); st.kg = Number.isFinite(v) ? (imp() ? v * LB : v) : 0; }
+    else if (['len', 'wid', 'hgt', 'bw', 'bh', 'gap'].includes(k)) { const v = num(t.value); st[k] = Number.isFinite(v) ? (imp() ? v * IN : v) : (k === 'gap' ? -1 : 0); }
+    else if (k === 'mu') { const v = num(t.value); st.mu = Number.isFinite(v) ? v : -1; st.muIdx = 'custom'; $('mupre').value = 'custom'; }
+    else if (k === 'pb') { const v = num(t.value); st.pb = Number.isFinite(v) ? (imp() ? v / barPsi : v) : 0; }
+    calc();
+  });
+  root.addEventListener('change', (e) => {
+    const t = e.target as HTMLSelectElement; const k = t.dataset.k; if (!k) return;
+    if (k === 'mode') st.mode = t.value;
+    else if (k === 'sf') st.sf = parseFloat(t.value);
+    else if (k === 'mupre' && t.value !== 'custom') { st.muIdx = +t.value; st.mu = FR[+t.value]; $('mu').value = String(st.mu); }
+    calc();
+  });
+  root.querySelectorAll('[data-units]').forEach((b) => b.addEventListener('click', () => {
+    units = (b as HTMLElement).dataset.units!; try { localStorage.setItem('lpc-dnb-units', units); } catch { /* ignore */ }
+    paint(); calc();
+  }));
+  paint(); calc();
+</script>
+
+<style>
+  .dnb { display: flex; flex-direction: column; gap: 14px; }
+  .dnhead { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  .dngrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+  .dngrid .full { grid-column: 1 / -1; }
+  .dngrid .hint { font-weight: 400; font-size: 12px; color: var(--muted); }
+  .dnb .verdict { font-weight: 600; }
+  :global(tr.cur td) { font-weight: 700; }
+</style>

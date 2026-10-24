@@ -193,6 +193,22 @@ const schema = { '@context': 'https://schema.org', '@type': 'HowTo', name: `How 
     </ul>
   </section>
 
+  <section class="prose" id="dunnage-bag-calculator">
+    <h2>Dunnage bag calculator</h2>
+    <p>The <a href="/dunnage-bag-calculator/">dunnage bag calculator</a> checks whether an air bag can hold the cargo pushing on it, with the formulas of the IMO/ILO/UNECE CTU Code (annex 7, appendix 4). Results update as you type.</p>
+    <ul class="plain">
+      <li><strong>Units (kg · m or lb · in):</strong> mass in kilograms or pounds, sizes in metres or inches, bursting pressure in bar or psi. Values are kept in kg, m and bar, so switching never changes them.</li>
+      <li><strong>Cargo mass pushing on the bag:</strong> only the cargo that would move into the bag, for example the cargo behind it when braking.</li>
+      <li><strong>Transport and direction:</strong> road forward, backward or sideways; rail lengthwise or sideways; sea areas A, B and C lengthwise or sideways. Each fills in the Code's horizontal and vertical acceleration coefficients.</li>
+      <li><strong>Friction:</strong> pick the contact from the Code's friction table (for example a wooden pallet on a plywood floor, 0.45) or type your own factor; the calculation uses 75% of it, as the Code says.</li>
+      <li><strong>Cargo height, length and width:</strong> used to check tipping; the length counts for forward and backward, the width for sideways.</li>
+      <li><strong>Bag width, height and the gap it fills, and bag type</strong> (single use, safety factor 0.75, or reusable, 0.5).</li>
+      <li><strong>Bursting pressure (optional):</strong> from the bag's label or maker. Without it you get the minimum bursting pressure needed; with it you also get the force your bag can take and whether it is strong enough.</li>
+      <li><strong>Result:</strong> the bursting pressure needed, the force from the cargo (and whether sliding or tipping gives it), the contact area and your bag's capacity. "How the calculator works" shows every step with your numbers, and a table repeats the check for all transport modes, because the Code says to use the one with the largest force.</li>
+      <li><strong>Starting example:</strong> 10 t on wooden pallets, road braking, a 1.0 × 1.8 m single-use bag in a 0.2 m gap: 45.37 kN and at least 0.60 bar.</li>
+    </ul>
+  </section>
+
   <section class="prose" id="dimensional-weight-calculator">
     <h2>Dimensional weight calculator</h2>
     <p>The <a href="/dimensional-weight-calculator/">dimensional weight calculator</a> works out the dimensional (DIM) weight and the billable weight of one package from its size and actual weight. It is plain arithmetic and updates as you type.</p>
@@ -323,6 +339,7 @@ const schema = { '@context': 'https://schema.org', '@type': 'HowTo', name: `How 
   <section class="prose" id="whats-new">
     <h2>What's new</h2>
     <ul class="plain">
+      <li><strong>October 24, 2026:</strong> new <a href="/dunnage-bag-calculator/">dunnage bag calculator</a>: the force a load puts on an air bag and the bursting pressure the bag needs, by the CTU Code formulas for road, rail and sea.</li>
       <li><strong>October 24, 2026:</strong> the <a href="/container-loading-calculator/">container loading calculator</a> has four Mercedes-Benz Sprinter cargo vans in its space list, and a new page, <a href="/cargo-van-dimensions/">cargo van dimensions</a>, gives their inside sizes, door openings and payloads and how many pallets and cartons fit.</li>
       <li><strong>October 24, 2026:</strong> new <a href="/shipping-container-dimensions/#weight">shipping container weight</a> section (tare, max payload and max gross in kg and lb, and the IMO verified gross mass rule with its two methods); the <a href="/container-loading-calculator/">container loading calculator</a>'s loading tips now point to it and to the freight density and cubic feet calculators. How the calculators work is unchanged.</li>
       <li><strong>October 24, 2026:</strong> the <a href="/pallet-loading-calculator/">pallet loading calculator</a> shows the <strong>Pallet cube</strong> of the loaded pallet (m³ and ft³), and has a new section, How many boxes fit on a pallet?, with cartons per pallet and the cube for common carton sizes on a Euro and a 48 × 40 in pallet.</li>
