@@ -242,3 +242,4 @@ body.has-full .stickybar{display:none!important}
 .pzvctl{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end}.pzvctl label{flex:1 1 160px}
 .pzvbtn{min-height:44px;padding:0 14px}
 @media print{.pzview,.pzvbtn{display:none!important}}
+.fitcmp .payfull{color:var(--hi);font-weight:700;white-space:nowrap}

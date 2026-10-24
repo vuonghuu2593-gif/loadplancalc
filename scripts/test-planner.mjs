@@ -644,7 +644,7 @@ ok(errs.length === 0, 'no JS errors ' + errs.join(' | '));
   await pf.click('.boxcard:nth-child(2) [data-del]');
   for (const [k, v] of [['l', '100'], ['w', '100'], ['h', '100'], ['qty', '100'], ['weight', '10']]) await pf.fill(`.boxcard [data-b="${k}"]`, v);
   await settleF();
-  await pf.waitForFunction(() => /need/.test(document.querySelector('[data-multitxt]').textContent), null, { timeout: 30000 });
+  await pf.waitForFunction(() => /boxes need/.test(document.querySelector('[data-multitxt]').textContent), null, { timeout: 30000 });
   ok(await T('[data-multitxt]') === 'All 100 boxes need 5 × this size: 20 + 20 + 20 + 20 + 20. Tap a number to see that container.', 'several units: ' + await T('[data-multitxt]'));
   ok(await T('[data-r="mainK"]') === 'Boxes in container 1 of 5' && await T('#r-main') === '20 of 100' && await T('[data-r="left"]') === '0' && await T('[data-r="leftK"]') === 'Left after 5 containers', 'unit 1: 20 of 100, 0 left after 5');
   ok((await T('[data-r="warn"]')).includes('80 boxes do not fit in this container: they go into the next one'), 'unit 1 note: 80 go into the next one');
@@ -810,7 +810,7 @@ ok(errs.length === 0, 'no JS errors ' + errs.join(' | '));
   // the boxes of stop 1 all stand in front of every box of stop 2 (3D plan order: x)
   // several containers keep the stops
   await ps.fill('.boxcard:nth-child(2) [data-b="qty"]', '5000'); await settleS();
-  await ps.waitForFunction(() => /need/.test(document.querySelector('[data-multitxt]').textContent), null, { timeout: 60000 });
+  await ps.waitForFunction(() => /boxes need/.test(document.querySelector('[data-multitxt]').textContent), null, { timeout: 60000 });
   await ps.click('[data-unit="1"]'); await ps.waitForTimeout(600);
   ok(!(await T('[data-r="warn"]')).includes('failed its own check'), 'second container with stops passes the check');
   // only one stop set: the boxes without a stop count as one more stop, loaded first
@@ -921,6 +921,29 @@ ok(errs.length === 0, 'no JS errors ' + errs.join(' | '));
   await pd.evaluate(() => localStorage.removeItem('lpc-dens-units'));
   ok(e11.length === 0, 'density: no JS errors ' + e11.join(' | '));
   await pd.close();
+}
+// Pallet layer options and the payload label in the size table (2026-10-24)
+// Carton B 50 x 30 x 30 cm upright on a Euro pallet up to 1,800 mm: most cartons 6 × 5 = 30; plain grid 4 × 5 = 20.
+// U-Haul 20' truck: payload 5,700 lb = 2,585.5 kg; 12 kg cartons -> 215 (payload, not space, stops it).
+{
+  const pq = await b.newPage({ viewport: { width: 390, height: 844 }, locale: 'en-GB' }); const e12 = []; pq.on('pageerror', (e) => e12.push(e.message));
+  await pq.goto('http://localhost:4401/container-loading-calculator/'); await pq.waitForTimeout(2500);
+  await pq.waitForFunction(() => !document.querySelector('[data-fittable]').textContent.includes('…'), null, { timeout: 90000 });
+  const uh = await pq.$$eval('[data-fittable] tr', (r) => r.map((x) => x.textContent.replace(/\s+/g, ' ')).find((t) => t.includes("U-Haul 20' truck")));
+  ok(/U-Haul 20' truck\s*215\s*\d+% full\s*payload max\s*4$/.test(uh.trim()), "size table: U-Haul 20' takes 215, marked payload max (" + uh.trim() + ')');
+  const hc = await pq.$$eval('[data-fittable] tr', (r) => r.map((x) => x.textContent.replace(/\s+/g, ' ')).find((t) => t.includes("40' High Cube")));
+  ok(!hc.includes('payload max'), "40' HC (space, not payload) has no payload mark");
+  await pq.click('[data-pzgo]');
+  await pq.waitForFunction(() => !document.querySelector('[data-pzon]').hidden, null, { timeout: 60000 }); await pq.waitForTimeout(1500);
+  const rowB = async () => pq.$$eval('[data-pztable] tr', (r) => [...r[1].children].map((c) => c.textContent.trim()));
+  let rb = await rowB();
+  ok(rb[0] === 'Carton B (6 × 5)' && rb[1] === '30', 'pallets: Carton B 6 × 5 = 30 in straight columns by default (' + rb.slice(0, 2).join(' | ') + ')');
+  await pq.selectOption('[data-pzf="layer"]', 'grid');
+  await pq.waitForFunction(() => document.querySelectorAll('[data-pztable] tr')[1]?.children[1]?.textContent.trim() === '20', null, { timeout: 60000 });
+  rb = await rowB();
+  ok(rb[0] === 'Carton B (4 × 5)' && rb[1] === '20' && rb[2] === '25', 'plain grid: 4 × 5 = 20 per pallet, 500 / 20 = 25 pallets (' + rb.slice(0, 3).join(' | ') + ')');
+  ok(e12.length === 0, 'pallet options: no JS errors ' + e12.join(' | '));
+  await pq.close();
 }
 await b.close(); srv.close();
 console.log(fails ? fails + ' failing' : 'planner checks pass'); process.exit(fails ? 1 : 0);

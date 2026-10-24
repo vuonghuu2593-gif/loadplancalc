@@ -518,8 +518,11 @@ export function initPlanner(root) {
     if (state.mode !== 'auto' || !multiDone || !plans.length) return null;
     const c = plans[0].cont; const cv = c.L * c.W * c.H;
     const vol = plans[0].boxes.reduce((t, b) => t + b.dx * b.dy * b.dz, 0);
-    return { units: plans.length, first: plans[0].boxes.length, vol: cv > 0 ? vol / cv : 0, left: leftBefore(plans.length).reduce((a, b) => a + b, 0), full: true, max: MAX_UNITS };
+    const wt = plans[0].boxes.reduce((t, b) => t + (state.items[b.k]?.weight || 0), 0);
+    return { units: plans.length, first: plans[0].boxes.length, vol: cv > 0 ? vol / cv : 0, wt, left: leftBefore(plans.length).reduce((a, b) => a + b, 0), full: true, max: MAX_UNITS };
   }
+  // the size's payload (not its space) is what stops the first unit: say so, or a bigger size taking fewer boxes looks wrong
+  const payFull = (p, r) => { const cap = p.id === 'custom' ? state.cont.maxWeight : p.payload; return cap > 0 && r.wt > 0 && r.wt >= cap * 0.97; };
   function paintFit() {
     if (!fitBox) return;
     const total = qtyOf().reduce((a, b) => a + b, 0);
@@ -544,13 +547,13 @@ export function initPlanner(root) {
       if (!r) return `<tr class="${cls}">${pick}<td>${name}</td><td class="num">…</td><td class="num">…</td></tr>`;
       if (r.bad) return `<tr class="${cls}">${pick}<td>${name}</td><td class="num" colspan="2">check failed</td></tr>`;
       const need = r.left === 0 ? fmt(r.units) : r.units >= (r.max || CMP_MAX) ? `${fmt(r.units)}+` : `${fmt(r.units)}<div class="small">${fmt(r.left)} never fit</div>`;
-      return `<tr class="${cls}">${pick}<td>${name}</td><td class="num">${fmt(r.first)}<div class="small">${fmt(r.vol * 100, 0)}% full</div></td><td class="num">${r.first ? need : '–'}</td></tr>`;
+      return `<tr class="${cls}">${pick}<td>${name}</td><td class="num">${fmt(r.first)}<div class="small">${fmt(r.vol * 100, 0)}% full${payFull(p, r) ? '<br><span class="payfull">payload max</span>' : ''}</div></td><td class="num">${r.first ? need : '–'}</td></tr>`;
     }).join('');
     const selP = presets.find((x) => x.id === sel); const mr = mainRow();
     $('[data-fitsel]').innerHTML = !total ? '' : !mr || root.querySelector('[data-result]').classList.contains('busy')
       ? `Planning ${esc(selP ? selP.name : 'your size')}…`
       : `<strong>${esc(selP ? selP.name : 'Your size')}</strong> is selected: ${fmt(mr.first)} of ${fmt(total)} boxes in one${mr.units > 1 ? `, ${mr.left ? `${fmt(mr.units)}${mr.units >= MAX_UNITS ? '+' : ''}` : fmt(mr.units)} needed for all` : ''}, ${fmt(mr.vol * 100, 0)}% of its volume used. The result, 3D plan and loading list above show this size. <a href="#" data-goresult>See the plan ↑</a>`;
-    $('[data-fitnote]').innerHTML = `Same boxes, ${state.stack === 'interlock' ? 'stacking pattern' : 'column stacks'} and rules in each size, fully automatic${state.mode === 'semi' ? ' (your loading steps are not used here)' : ''}. Other sizes get a quick plan of a fraction of a second each; tap a size to plan it fully above, where the count can come out a little higher. ★ marks the suggestion. “One takes”: boxes in one, and how full that one is by volume; “Needed”: how many of that size take the whole load (12+ = more than 12). Payload and door limits are the presets' own.`;
+    $('[data-fitnote]').innerHTML = `Same boxes, ${state.stack === 'interlock' ? 'stacking pattern' : 'column stacks'} and rules in each size, fully automatic${state.mode === 'semi' ? ' (your loading steps are not used here)' : ''}. Other sizes get a quick plan of a fraction of a second each; tap a size to plan it fully above, where the count can come out a little higher. ★ marks the suggestion. “One takes”: boxes in one, and how full that one is by volume; <strong>payload max</strong> means that size's payload, not its space, stops it, so a bigger truck with a lower payload can take fewer boxes; “Needed”: how many of that size take the whole load (12+ = more than 12). Payload and door limits are the presets' own.`;
   }
   if (fitBox) fitBox.addEventListener('click', (e) => {
     if (e.target.closest('[data-goresult]')) { e.preventDefault(); root.querySelector('[data-result]').scrollIntoView({ behavior: 'smooth', block: 'start' }); return; }
@@ -1167,6 +1170,7 @@ export function initPlanner(root) {
     P('palletWt').value = z.palletWt == null ? '' : showWt(z.palletWt);
     P('maxWeight').value = z.maxWeight ? showWt(z.maxWeight) : '';
     P('stack2').checked = !!z.stack2;
+    P('layer').value = z.layer === 'grid' ? 'grid' : 'most'; P('pstack').value = z.pstack === 'interlock' ? 'interlock' : 'column';
     $('[data-pznote]').innerHTML = (p ? `Pallet size, height and safe working load from <a href="${p.url}" rel="noopener" target="_blank">${esc(p.source)}</a>${p.weightKg ? `; the pallet weight is ${esc(p.source)}'s approximate figure` : `; ${esc(p.source)} prints no pallet weight there, so enter your own`}. ` : 'Enter your pallet size, height, own weight and max load. ')
       + `The max height is your own limit (racking, door, customer or warehouse rule); ${fmt(u.fromMM(1800), units === 'metric' ? 0 : 1)} ${u.len} is only an example.`
       + (z.stack2 ? ` Two high, each loaded pallet may carry one more on top${p && p.stackNote ? `; ${esc(p.source)}: “${esc(p.stackNote)}”` : ''}. Check your cartons can take it.` : '');
@@ -1196,7 +1200,7 @@ export function initPlanner(root) {
     $('[data-pzvtitle]').textContent = `${row.name} on ${state.pzOn.palletName}`;
     $('[data-pzvseg]').style.gridTemplateColumns = `repeat(${row.ns.length},minmax(0,1fr))`;
     $('[data-pzvseg]').innerHTML = row.ns.map((m, j) => `<button type="button" data-pzvi="${j}" aria-pressed="${j === i}">${row.ns.length > 1 ? (j ? 'Last pallet' : 'Full pallet') : 'Pallet'} (${fmt(m)})</button>`).join('');
-    $('[data-pzvinfo]').textContent = `${fmt(n)} carton${n === 1 ? '' : 's'}${row.tihi && i === 0 ? ` (${row.tihi}: per layer × layers)` : ''}, ${fmt(u.fromMM(row.h[i]), dp)} ${u.len} high and ${fmt(u.fromKG(row.w[i]), 0)} ${u.wt} including the pallet. The cartons follow the stacking pattern and limits you chose.`;
+    $('[data-pzvinfo]').textContent = `${fmt(n)} carton${n === 1 ? '' : 's'}${row.tihi && i === 0 ? ` (${row.tihi}: per layer × layers)` : ''}, ${fmt(u.fromMM(row.h[i]), dp)} ${u.len} high and ${fmt(u.fromKG(row.w[i]), 0)} ${u.wt} including the pallet. ${state.pzs.layer === 'grid' ? 'Every carton stands the same way' : 'Each layer holds the most cartons'}, ${state.pzs.pstack === 'interlock' ? 'alternating layers where they can tie together' : 'the same layer every time, in straight columns'}, within the cartons' stacking limits; change both under “Put the cartons on pallets first”.`;
     const cap = state.pzs.caps && state.pzs.caps[row.k];
     const capIn = $('[data-pzcap]'); if (document.activeElement !== capIn) capIn.value = cap ? String(cap) : '';
     capIn.placeholder = `most: ${fmt(row.most)}`;
@@ -1227,6 +1231,7 @@ export function initPlanner(root) {
   if (pzBox) {
     pzBox.addEventListener('input', (e) => {
       const t = e.target; const k = t.dataset.pzf; if (!k) return; const z = state.pzs;
+      if (k === 'layer' || k === 'pstack') return; // handled on change
       if (k === 'stack2') z.stack2 = t.checked;
       else if (k === 'palletWt') z.palletWt = t.value.trim() === '' ? null : readWt(t.value);
       else if (k === 'maxWeight') z.maxWeight = t.value.trim() === '' ? 0 : readWt(t.value) ?? 0;
@@ -1235,6 +1240,11 @@ export function initPlanner(root) {
       writeHash();
     });
     pzBox.addEventListener('change', (e) => {
+      if (e.target.dataset.pzf === 'layer' || e.target.dataset.pzf === 'pstack') {
+        state.pzs[e.target.dataset.pzf] = e.target.value; writeHash();
+        if (state.pzOn && Array.isArray(state.cartons)) { $('[data-pzmsg]').textContent = 'Building the pallets…'; pzRequest(state.cartons, false); }
+        return;
+      }
       if (e.target.dataset.pzf !== 'preset') return;
       const p = pzPresets.find((x) => x.id === e.target.value);
       if (p) Object.assign(state.pzs, { preset: p.id, L: p.L, W: p.W, palletH: p.H, palletWt: p.weightKg, maxWeight: p.maxWeight }); else state.pzs.preset = 'custom';
@@ -1253,10 +1263,11 @@ export function initPlanner(root) {
         pzWorker.onmessage = (ev) => { if (ev.data.id === pzId) pzDone(ev.data.out, pzOnlyLay); };
       }
       pzOnlyLay = layoutsOnly;
-      const ms = state.stack === 'interlock' ? state.support : 1;
+      const pst = z.pstack === 'interlock' ? 'interlock' : 'column';
+      const ms = pst === 'interlock' ? state.support : 1;
       const caps = z.caps || {};
       const items = cartons.map((it, k) => ({ l: it.l, w: it.w, h: it.h, weight: it.weight, qty: it.qty, rotation: it.rotation, orients: it.rotation === 'custom' ? allowedIdx(it) : undefined, stackable: it.stackable !== false, maxOnTop: it.maxOnTop ?? null, maxLoad: it.maxLoad ?? null, cap: +caps[k] > 0 ? +caps[k] : 0 }));
-      pzWorker.postMessage({ id: ++pzId, kind: 'palletize', container: { L: z.L, W: z.W, H: z.H - (z.palletH || 0), maxWeight: z.maxWeight || 0, minSupport: ms }, items, opts: { stack: state.stack, timeMs: 300 } });
+      pzWorker.postMessage({ id: ++pzId, kind: 'palletize', container: { L: z.L, W: z.W, H: z.H - (z.palletH || 0), maxWeight: z.maxWeight || 0, minSupport: ms }, items, opts: { stack: pst, grid: z.layer === 'grid', timeMs: 300 } });
       pzBox.dataset.cartons = JSON.stringify(cartons);
     };
     // a page opened from a link with pallets: fetch the carton layouts for the 3D view (the pallets stay as they are)

@@ -1,4 +1,4 @@
-import { pack, packMany, palletPack, stackPack, validate } from './packer.js';
+import { pack, packMany, palletPack, stackPack, validate, layeredPallet, layeredPlan } from './packer.js';
 import { fillAround, roomFor } from './editor.js';
 
 // kind "pack": automatic plan (opts.pallet: one box type is built layer by layer, see palletPack); kind "fill": keep the hand-placed boxes and load the rest;
@@ -16,6 +16,17 @@ self.onmessage = (e) => {
       const q = Math.floor(+it.qty || 0);
       if (!(+it.l > 0 && +it.w > 0 && +it.h > 0) || q < 1) return { per: 0 };
       const o = { ...opts, pallet: true };
+      const box = (r, n) => ({ n, h: r.placed.reduce((m, p) => Math.max(m, p.z + p.dz), 0), w: r.totals.w, boxes: r.placed.map((p) => [p.x, p.y, p.z, p.dx, p.dy, p.dz]) });
+      // first choice: even layers, one pattern per layer (or two alternating for interlocked), centred, as a
+      // warehouse builds a pallet; every pallet still passes validate()
+      const lp = layeredPallet(container, it, o);
+      if (lp) {
+        const per = it.cap > 0 ? Math.min(lp.per, Math.floor(it.cap)) : lp.per;
+        const one = (n) => { const r = layeredPlan(container, it, lp, n, o); return validate(r).length || r.totals.n !== n ? null : box(r, n); };
+        const f = one(Math.min(per, q)); const rest = q >= per ? q % per : 0; const last = rest ? one(rest) : null;
+        if (f && (!rest || last)) return { per, most: lp.per, full: q >= per ? Math.floor(q / per) : 0, f, last: q < per ? null : last, single: q < per ? f : null, tihi: per === lp.per ? lp.tihi : '', layered: true };
+      }
+      // fallback: the pallet planner's own plan (mixed positions)
       const full = stackPack(container, [{ ...it, qty: 20000 }], o);
       const most = full.pallet ? full.pallet.perPallet : full.totals.n;
       if (!most || validate(full).length) return { per: 0 };

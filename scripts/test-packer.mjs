@@ -1,6 +1,6 @@
 // Engine tests: hand-checked cases plus random cases checked by the independent validator.
 // Usage: node scripts/test-packer.mjs
-import { pack, validate, palletPack, layersOf, stackPack, packMany, stackLoads } from '../src/scripts/packer.js';
+import { pack, validate, palletPack, layersOf, stackPack, packMany, stackLoads, layeredPallet, layeredPlan } from '../src/scripts/packer.js';
 import { makeCtx, placeProblem, spots, nudge, fillAround, onTop, stackFrom, asResult, roomFor } from '../src/scripts/editor.js';
 let fails = 0;
 const ok = (cond, msg) => { if (!cond) { fails++; console.log('FAIL', msg); } else console.log('ok  ', msg); };
@@ -476,6 +476,32 @@ ok(badF === 0, `25 random "remove some, fill again" plans valid (${badF} bad)`);
     }
     ok(badF === 0, `fill the rest: 12 random cases with limits pass the checker (${badF} bad)`);
   }
+}
+// Layered pallets (cartons on pallets first): even layers, hand-checked on a Euro pallet 1200 x 800, 1,800 mm incl. 144 mm deck
+{
+  const P = { L: 1200, W: 800, H: 1656, maxWeight: 1500, minSupport: 0.8 };
+  const Bx = { l: 500, w: 300, h: 300, weight: 6, rotation: 'upright', stackable: true };
+  // 50 x 30 cm: 6 per layer (most cartons), 1656 / 300 = 5 layers -> 30; plain grid 2 x 2 = 4 per layer -> 20
+  let lp = layeredPallet(P, Bx, { stack: 'column' });
+  let r = layeredPlan(P, Bx, lp, lp.per);
+  const layerSets = [0, 1, 2, 3, 4].map((i) => r.placed.filter((p) => p.z === i * 300).map((p) => `${p.x},${p.y},${p.dx}`).sort().join(';'));
+  ok(lp.per === 30 && lp.tihi === '6 × 5' && !validate(r).length && layerSets.every((x) => x === layerSets[0]), 'layered pallet, columns: 6 × 5 = 30, every layer the same (' + lp.tihi + ')');
+  lp = layeredPallet(P, Bx, { stack: 'column', grid: true }); r = layeredPlan(P, Bx, lp, lp.per);
+  ok(lp.per === 20 && lp.tihi === '4 × 5' && new Set(r.placed.map((p) => p.dx)).size === 1 && !validate(r).length, 'plain grid: every carton the same way, 4 × 5 = 20');
+  lp = layeredPallet(P, Bx, { stack: 'interlock' }); r = layeredPlan(P, Bx, lp, lp.per);
+  ok(lp.per === 30 && !validate(r).length, 'interlocked layers: 30, plan passes the check (' + lp.tihi + ')');
+  // last pallet: 20 of 30 = 3 full layers of 6 + 2 on top
+  lp = layeredPallet(P, Bx, { stack: 'column' }); r = layeredPlan(P, Bx, lp, 20);
+  const byZ = [0, 300, 600, 900].map((z) => r.placed.filter((p) => p.z === z).length);
+  ok(byZ.join() === '6,6,6,2' && !validate(r).length, 'part pallet of 20: layers 6, 6, 6, 2 (' + byZ.join() + ')');
+  // 60 x 40 x 40 cm, any side down: 4 per layer, 4 layers of 400 = 16 (vs 6 x 2 = 12 with 60 up)
+  lp = layeredPallet(P, { l: 600, w: 400, h: 400, weight: 12, rotation: 'any', stackable: true }, { stack: 'column' });
+  ok(lp.per === 16 && lp.up === 400, '60 × 40 × 40 any side down: 4 × 4 = 16 with 40 cm up');
+  // limits: max 2 on top -> 3 layers; pallet max load 100 kg with 6 kg cartons -> 16
+  lp = layeredPallet(P, { ...Bx, maxOnTop: 2 }, { stack: 'column' });
+  ok(lp.per === 18 && lp.hi === 3, 'max 2 on top: 3 layers of 6 = 18');
+  lp = layeredPallet({ ...P, maxWeight: 100 }, Bx, { stack: 'column' });
+  ok(lp.per === 16, 'pallet max load 100 kg / 6 kg = 16');
 }
 console.log(fails ? `${fails} failing` : 'all engine tests pass');
 process.exit(fails ? 1 : 0);

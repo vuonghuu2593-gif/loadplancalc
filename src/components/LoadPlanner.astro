@@ -107,6 +107,10 @@ const presets = mode === 'container' ? (spacePresets || data.containers) : palle
           <label><span>Pallet weight <span class="small" data-uw></span></span><input data-pzf="palletWt" inputmode="decimal" placeholder="0"></label>
           <label><span>Max load per pallet <span class="small" data-uw></span></span><input data-pzf="maxWeight" inputmode="decimal" placeholder="none"></label>
         </div>
+        <div class="row2">
+          <label>Layer pattern<select data-pzf="layer"><option value="most">Most cartons per layer</option><option value="grid">All cartons the same way (plain grid)</option></select></label>
+          <label>Layers<select data-pzf="pstack"><option value="column">Same every layer (straight columns)</option><option value="interlock">Alternating (interlocked)</option></select></label>
+        </div>
         <label class="check"><input type="checkbox" data-pzf="stack2"> Loaded pallets may stand on each other (two high)</label>
         <p class="small" data-pznote style="margin:0"></p>
         <button type="button" class="btn" data-pzgo>Put on pallets and load the pallets</button>

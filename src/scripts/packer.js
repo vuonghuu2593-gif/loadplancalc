@@ -8,7 +8,7 @@
 // fully on the floor or on boxes below it. Many greedy runs with different scoring rules and seeded
 // random choices are tried; the best run is kept, so the same input always gives the same answer.
 
-import { bestPair, bestLayer } from './interlock.js';
+import { bestPair, bestLayer, tie } from './interlock.js';
 
 export const ORIENT = {
   // permutation of [l, w, h] -> [dx, dy, dz]
@@ -590,4 +590,67 @@ export function packMany(container, rawItems, opts = {}, max = 20) {
     left = left.map((q, k) => q - per[k]);
   }
   return { runs, left };
+}
+
+// A pallet built the way a warehouse builds it: even layers of one box type, the same layer pattern every
+// layer (column stacks) or two patterns that alternate (interlocked), each pattern centred on the pallet.
+// Every allowed height orientation is tried; the one with the most boxes per pallet wins (within the
+// height, the pallet's max load, and the box's stacking limits). Returns { up, A, B, hi, per, tihi } or null.
+// `container` is the load space above the deck (L × W × H, maxWeight, minSupport); `raw` one box type.
+export function layeredPallet(container, raw, opts = {}) {
+  const { cont, items } = normalize(container, [{ ...raw, qty: 1 }], opts);
+  const it = items[0];
+  if (!it.os || !it.os.length || !(cont.L > 0 && cont.W > 0 && cont.H > 0)) return null;
+  const byUp = new Map();
+  for (const o of it.os) { if (!byUp.has(o[2])) byUp.set(o[2], []); byUp.get(o[2]).push([o[0], o[1]]); }
+  let best = null;
+  for (const [up, fps] of byUp) {
+    let hi = Math.floor((cont.H + 1e-6) / up);
+    if (!it.stackable) hi = Math.min(hi, 1);
+    if (it.maxLayers) hi = Math.min(hi, it.maxLayers);
+    if (it.maxLoad != null && it.weight > 0) hi = Math.min(hi, Math.floor(it.maxLoad / it.weight + 1e-9) + 1);
+    if (hi < 1) continue;
+    let A, B;
+    if (opts.grid) {
+      // every carton the same way: the best plain grid, centred; interlocked = the grid turned 90° on
+      // alternate layers, used only when it holds as many cartons and the layers tie (validate() checks)
+      const grids = fps.map((fp) => gridLayer(cont.L, cont.W, fp)).filter((g) => g.length).sort((a, b) => b.length - a.length);
+      if (!grids.length) continue;
+      A = grids[0]; B = A;
+      if (opts.stack === 'interlock' && hi > 1 && grids[1] && grids[1].length === A.length && tie(grids[1], A, cont.minSupport) > 0 && tie(A, grids[1], cont.minSupport) > 0) B = grids[1];
+    } else {
+      A = bestLayer(cont.L, cont.W, fps); B = A;
+      if (!A || !A.length) continue;
+      if (opts.stack === 'interlock' && hi > 1) {
+        const pr = bestPair(cont.L, cont.W, fps, { mirror: 'xy', min: cont.minSupport, deadline: Date.now() + 400 });
+        if (pr) { A = pr.A; B = pr.B; }
+      }
+    }
+    const full = Array.from({ length: hi }, (_, i) => (i % 2 ? B : A).length).reduce((s, n) => s + n, 0);
+    let per = full;
+    if (cont.maxWeight > 0 && it.weight > 0) per = Math.min(per, Math.floor(cont.maxWeight / it.weight + 1e-9));
+    const cand = { up, A, B, hi, per, inter: A !== B };
+    if (!best || cand.per > best.per || (cand.per === best.per && cand.inter && !best.inter)) best = cand;
+  }
+  if (!best || best.per < 1) return null;
+  best.tihi = best.inter ? `${best.A.length}/${best.B.length} × ${best.hi}` : `${best.A.length} × ${best.hi}`;
+  return best;
+}
+// One footprint in rows and columns, centred on an X × Y floor.
+export function gridLayer(X, Y, fp) {
+  const nx = Math.floor((X + 1e-6) / fp[0]), ny = Math.floor((Y + 1e-6) / fp[1]);
+  const ox = (X - nx * fp[0]) / 2, oy = (Y - ny * fp[1]) / 2, out = [];
+  for (let i = 0; i < nx; i++) for (let j = 0; j < ny; j++) out.push({ x: ox + i * fp[0], y: oy + j * fp[1], dx: fp[0], dy: fp[1] });
+  return out;
+}
+// The first n boxes of a layered pallet: full layers from the deck up, then the top layer filled from the
+// back edge and the right-hand side. Returns a result in the shape of pack() for validate().
+export function layeredPlan(container, raw, lp, n, opts = {}) {
+  const { cont, items } = normalize(container, [{ ...raw, qty: n }], opts);
+  const placed = [];
+  for (let i = 0; placed.length < n && i < lp.hi; i++) {
+    const pat = (i % 2 ? lp.B : lp.A).slice().sort((a, b) => a.x - b.x || a.y - b.y);
+    for (const r of pat) { if (placed.length >= n) break; placed.push({ k: 0, x: r.x, y: r.y, z: i * lp.up, dx: r.dx, dy: r.dy, dz: lp.up }); }
+  }
+  return { placed, items, cont, steps: null, ...summarize(placed, items) };
 }
