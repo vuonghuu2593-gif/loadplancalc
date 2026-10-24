@@ -1,0 +1,129 @@
+---
+// Reference page: inside dimensions of the Mercedes-Benz Sprinter cargo van as Mercedes-Benz Vans USA prints them
+// (cargo-vans.json). Inch and pound figures as printed; mm and kg converted exactly (1 in = 25.4 mm, 1 lb = 0.45359237 kg).
+// Every count is computed by the engine at build time and checked by validate(); the build fails otherwise.
+import Base from '../layouts/Base.astro';
+import vd from '../data/cargo-vans.json';
+import pdata from '../data/pallets.json';
+import bt from '../data/box-trucks.json';
+import { pack, validate } from '../scripts/packer.js';
+const IN = 25.4, LB = 0.45359237;
+const n = (v: number, d = 0) => v.toLocaleString('en-US', { maximumFractionDigits: d, minimumFractionDigits: 0 });
+const ftin = (inches: number) => { const ft = Math.floor(inches / 12 + 1e-9); const r = Math.round(inches - ft * 12); return `${ft}′ ${r}″`; };
+type V = (typeof vd.vans)[number];
+const V = vd.vans as V[];
+if (V.length !== 4) throw new Error('expected 4 Sprinter bodies');
+for (const v of V) {
+  if (Math.abs(v.L - v.Lin * IN) > 1e-6 || Math.abs(v.W - v.wheelhouseWin * IN) > 1e-6 || Math.abs(v.H - v.Hin * IN) > 1e-6 || Math.abs(v.doorW - v.doorWin * IN) > 1e-6 || Math.abs(v.doorH - v.doorHin * IN) > 1e-6) throw new Error(`${v.id}: mm not converted exactly`);
+  if (Math.abs(v.payloadKg - v.payloadLb * LB) > 1e-6) throw new Error(`${v.id}: kg not converted exactly`);
+}
+const s144 = V[0], h144 = V[1], h170 = V[2], x170 = V[3];
+// lede example by hand: 133 × 53 × 79 = 556,871 in³ ÷ 1,728 = 322.3 ft³ between the wheel arches (high roof 144)
+const box = (v: V) => (v.Lin * v.wheelhouseWin * v.Hin) / 1728;
+if (h144.Lin * h144.wheelhouseWin * h144.Hin !== 556871 || Math.abs(box(h144) - 322.26) > 0.01) throw new Error('lede volume example changed');
+
+const euro = pdata.pallets.find((p) => p.id === 'epal1')!;
+const PH = 50 * IN; // example loaded pallet height, not a standard
+type Load = { key: string; label: string; l: number; w: number; h: number; rotation: string; stackable: boolean };
+const loads: Load[] = [
+  { key: 'chep', label: '48 × 40 in pallets, one high', l: 48 * IN, w: 40 * IN, h: PH, rotation: 'upright', stackable: false },
+  { key: 'euro', label: 'Euro pallets 1,200 × 800 mm, one high', l: euro.L, w: euro.W, h: PH, rotation: 'upright', stackable: false },
+  { key: 'c1', label: 'Cartons 24 × 16 × 12 in', l: 24 * IN, w: 16 * IN, h: 12 * IN, rotation: 'any', stackable: true },
+  { key: 'c2', label: 'Cartons 18 × 18 × 16 in', l: 18 * IN, w: 18 * IN, h: 16 * IN, rotation: 'any', stackable: true },
+  { key: 'c3', label: 'Cartons 600 × 400 × 400 mm', l: 600, w: 400, h: 400, rotation: 'any', stackable: true },
+];
+const space = (v: V) => ({ L: v.L, W: v.W, H: v.H, doorW: v.doorW, doorH: v.doorH });
+function fit(v: V, x: Load) {
+  const r = pack(space(v), [{ l: x.l, w: x.w, h: x.h, weight: 0, qty: 2000, rotation: x.rotation, stackable: x.stackable }], { timeMs: 3000 });
+  const errs = validate(r);
+  if (errs.length) throw new Error(`cargo van plan failed its check: ${v.id} ${x.key}: ${errs.join(', ')}`);
+  return r.totals.n;
+}
+const perms = (a: number, b: number, c: number, any: boolean) => any ? [[a, b, c], [a, c, b], [b, a, c], [b, c, a], [c, a, b], [c, b, a]] : [[a, b, c], [b, a, c]];
+const block = (v: V, x: Load) => Math.max(...perms(x.l, x.w, x.h, x.rotation === 'any').map(([l, w, h]) =>
+  (w <= v.doorW + 1e-9 && h <= v.doorH + 1e-9 ? 1 : 0) * Math.floor(v.L / l + 1e-9) * Math.floor(v.W / w + 1e-9) * (x.stackable ? Math.floor(v.H / h + 1e-9) : 1)));
+const fits = V.map((v) => ({ v, c: Object.fromEntries(loads.map((x) => { const k = fit(v, x); if (k < block(v, x)) throw new Error(`${v.id} ${x.key}: engine ${k} < block ${block(v, x)}`); return [x.key, k]; })) as Record<string, number> }));
+const F = (id: string) => fits.find((f) => f.v.id === id)!.c;
+// hand checks quoted in the text (width between the wheel arches 53 in = 1,346.2 mm, so pallets go one across):
+// 48 × 40 in: 48 in side across (48 ≤ 53), rows of 40 in: 133 → 3 (120), 174 → 4 (160), 189 → 4 (160; 5 would need 200)
+// Euro: 1,200 mm across (≤ 1,346.2), rows of 800 mm: 133 in = 3,378.2 mm → 4 (3,200); 174 in = 4,419.6 → 5 (4,000); 189 in = 4,800.6 → 6 (4,800)
+const want: Record<string, [number, number]> = { 'sprinter-144-std': [3, 4], 'sprinter-144-high': [3, 4], 'sprinter-170-high': [4, 5], 'sprinter-170-ext': [4, 6] };
+for (const v of V) { const c = F(v.id); if (c.chep !== want[v.id][0] || c.euro !== want[v.id][1]) throw new Error(`${v.id}: hand-checked pallet counts changed: ${c.chep} / ${c.euro}`); }
+const u10 = bt.trucks.find((t) => t.id === 'uhaul-10')!;
+const url = new URL('/cargo-van-dimensions/', 'https://loadplancalc.com').href;
+const schema = { '@context': 'https://schema.org', '@type': 'Article', headline: 'Cargo van dimensions', dateModified: vd.checked, mainEntityOfPage: url };
+const len = (i: number) => `${ftin(i)}<br><span class="small">${i} in<br>${n(i * IN)} mm</span>`;
+const rows: { label: string; cell: (v: V) => string }[] = [
+  { label: 'Cargo bed length (max.)', cell: (v) => len(v.Lin) },
+  { label: 'Width between wheel arches', cell: (v) => len(v.wheelhouseWin) },
+  { label: 'Width at floor (max.)', cell: (v) => len(v.floorWin) },
+  { label: 'Interior height', cell: (v) => len(v.Hin) },
+  { label: 'Rear door width', cell: (v) => len(v.doorWin) },
+  { label: 'Rear door height', cell: (v) => len(v.doorHin) },
+  { label: 'Cargo volume (printed)', cell: (v) => `${v.cuftPrinted} cu ft<br><span class="small">${n(parseFloat(v.cuftPrinted) * 0.3048 ** 3, 1)} m³</span>` },
+  { label: 'Payload, 2500 Standard Output', cell: (v) => `${n(v.payloadLb)} lb<br><span class="small">${n(v.payloadKg)} kg</span>` },
+  { label: 'GVWR, 2500 Standard Output', cell: (v) => `${n(v.gvwrLb)} lb<br><span class="small">${n(v.gvwrLb * LB)} kg</span>` },
+];
+---
+<Base title="Cargo Van Dimensions: Sprinter Inside Sizes & Pallet Counts" description="Inside length, width between the wheel arches, height, rear door opening, volume and payload of the Mercedes-Benz Sprinter cargo van (144 and 170 in wheelbase), in inches and mm, with how many pallets and cartons fit." schema={schema}>
+  <section class="prose">
+    <h1>Cargo van dimensions</h1>
+    <p class="lede">The Mercedes-Benz Sprinter cargo van with the 144 in wheelbase and high roof has a cargo bed {h144.Lin} in long, {h144.wheelhouseWin} in wide between the rear wheel arches ({h144.floorWin} in at the floor outside them) and {h144.Hin} in high, as Mercedes-Benz prints it. Multiplied out between the wheel arches: {h144.Lin} × {h144.wheelhouseWin} × {h144.Hin} = 556,871 in³, ÷ 1,728 = <strong>{n(box(h144), 1)} ft³</strong>; Mercedes-Benz prints a cargo volume of {h144.cuftPrinted} cu ft; it does not say how that is measured, and the floor beside the arches is not in the figure above. It takes <strong>{F(h144.id).chep} pallets of 48 × 40 in</strong> on the floor, one behind the other with the 48 in side across. Below are all four Sprinter cargo van bodies and what fits in each.</p>
+  </section>
+
+  <section class="prose">
+    <h2>Sprinter cargo van inside dimensions</h2>
+    <div class="tablebox">
+      <table class="vantable">
+        <thead><tr><th></th>{V.map((v) => <th class="num">{v.short}</th>)}</tr></thead>
+        <tbody>{rows.map((r) => <tr><th scope="row">{r.label}</th>{V.map((v) => <td class="num" set:html={r.cell(v)} />)}</tr>)}</tbody>
+      </table>
+    </div>
+    <p class="small">Inches and pounds as printed on Mercedes-Benz Vans' <a href={vd.url} rel="noopener">Sprinter cargo van page</a> (2026 model year) for the 2500 Standard Output version, checked {vd.checked}; the WORKER and other 2500 versions print the same cargo figures. Millimetres converted at exactly 1 in = 25.4 mm and kilograms at 1 lb = 0.45359237 kg. The same page prints {vd.wheelhouseOther.wheelhouseWin} in at the wheel arches for the {vd.wheelhouseOther.versions} versions, and a different payload for every version: check the figures for the van you have. Mercedes-Benz notes that specifications are subject to change.</p>
+  </section>
+
+  <section class="prose">
+    <h2>How many pallets fit in a Sprinter van?</h2>
+    <p>Computed with the <a href="/container-loading-calculator/">load planner</a>'s engine for each body and checked by its independent validator. The usable width is the {s144.wheelhouseWin} in between the rear wheel arches, because the arches stand inside the cargo floor; every item must also pass the rear door opening the way it is stowed. Pallets are kept this side up (turned either way flat), one high, 50 in ({n(PH)} mm) tall when loaded; cartons may stand any way up and stack to the roof. Weight is not limited here: check your load against the payload.</p>
+    <div class="tablebox">
+      <table class="vantable">
+        <thead><tr><th></th>{V.map((v) => <th class="num">{v.short}</th>)}</tr></thead>
+        <tbody>{loads.map((x) => <tr><th scope="row">{x.label}</th>{V.map((v) => <td class="num">{n(F(v.id)[x.key])}</td>)}</tr>)}</tbody>
+      </table>
+    </div>
+    <p class="small">Hand checks. 48 × 40 in pallets: two side by side would need at least 80 in, so they go one across, the 48 in side across ({s144.wheelhouseWin} in available) and 40 in along: 3 rows in {s144.Lin} in (120 in), 4 in {h170.Lin} in (160 in) and still 4 in {x170.Lin} in (5 would need 200 in). Euro pallets: the 1,200 mm side fits across ({n(s144.W, 1)} mm) and rows of 800 mm go along: 4 in {n(s144.L, 1)} mm (3,200 mm), 5 in {n(h170.L, 1)} mm (4,000 mm) and 6 in {n(x170.L, 1)} mm (4,800 mm). The {s144.doorWin} in rear door is wide enough for every pallet the way it is stowed. For your own pallets and cartons, with weights, pick a Sprinter in the <a href="/container-loading-calculator/">container loading calculator</a>.</p>
+  </section>
+
+  <section class="prose">
+    <h2>Before you load a cargo van</h2>
+    <ul class="plain">
+      <li><strong>The wheel arches decide the width.</strong> The floor is {s144.floorWin} in wide, but only {s144.wheelhouseWin} in between the rear wheel arches. Long items and pallets have to fit between them; the space beside the arches suits small cartons.</li>
+      <li><strong>The roof decides the height, the door decides what goes in.</strong> The standard roof gives {s144.Hin} in inside and a {s144.doorHin} in high rear door; the high roof {h144.Hin} in inside and a {h144.doorHin} in door. An item taller than the door has to be tipped to go in.</li>
+      <li><strong>Payload runs out fast.</strong> The 2500 Standard Output prints {n(x170.payloadLb)} to {n(s144.payloadLb)} lb of payload, depending on the body. Four pallets of 1,000 lb would be 4,000 lb: more than the {n(x170.payloadLb)} lb of the extended body before you add the driver. Enter the weight of each pallet or box in the planner and the payload stops the plan.</li>
+      <li><strong>A van against a small truck.</strong> The longest Sprinter is {x170.Lin} in long inside; U-Haul's 10′ truck is {u10.Lin} in long and {u10.Win} in wide inside: see <a href="/box-truck-dimensions/">box truck dimensions</a> for 10′ to 26′ trucks.</li>
+      <li><strong>Other vans.</strong> Ram ProMaster and Ford Transit cargo vans are not on this page: their makers' spec pages could not be read twice when this page was written. Measure your van and enter its size as a custom space.</li>
+    </ul>
+  </section>
+
+  <section class="prose">
+    <h2>Related</h2>
+    <div class="chips">
+      <a href="/container-loading-calculator/">Container loading calculator</a>
+      <a href="/box-truck-dimensions/">Box truck dimensions</a>
+      <a href="/pallet-sizes/">Standard pallet sizes</a>
+      <a href="/cubic-feet-calculator/">Cubic feet calculator</a>
+      <a href="/53-foot-trailer-dimensions/">53 ft trailer dimensions</a>
+      <a href="/how-to-use/#container-loading-calculator">How to use the planner</a>
+      <a href="/how-we-calculate/">How we calculate</a>
+    </div>
+  </section>
+</Base>
+
+<style>
+  .vantable { font-size: 14px; }
+  .vantable td.num { font-family: inherit; font-size: 13.5px; }
+  .vantable th, .vantable td { padding: 8px 4px; }
+  .vantable th:first-child { padding-left: 10px; }
+  .vantable tbody th { font-weight: 600; min-width: 80px; }
+  .vantable td:last-child, .vantable th:last-child { padding-right: 10px; }
+</style>

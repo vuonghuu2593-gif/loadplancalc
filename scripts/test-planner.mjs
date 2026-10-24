@@ -367,6 +367,13 @@ await pg.screenshot({ path: process.env.SHOT || '/tmp/semi.png', fullPage: true 
   ok(await V8('[data-f="L"]') === '144' && await V8('[data-f="maxWeight"]') === '3100' && await pg8.$eval('#r-main', (e) => e.textContent.trim()) === '3 of 20', 'Penske 12\': no drift after 3 unit round trips');
   await pg8.click('[data-units="metric"]'); await pg8.waitForTimeout(300);
   ok(await V8('[data-f="L"]') === '365.8' && await V8('[data-f="W"]') === '198.1', 'Penske 12\' in metric: 144 x 78 in = 365.76 x 198.12 cm, shown 365.8 x 198.1 (' + await V8('[data-f="L"]') + ')');
+  // Sprinter cargo van (cargo-vans.json): 189 x 53 x 79 in, door 61 x 73 in, payload 3,704 lb; hand: 48 in across (<= 53), 4 rows of 40 in = 160 <= 189 -> 4;
+  // 1,000 lb pallets: 4 x 1,000 = 4,000 > 3,704 -> 3
+  await pg8.click('[data-units="imperial"]'); await pg8.selectOption('[data-f="preset"]', 'sprinter-170-ext'); await pg8.waitForTimeout(400); await bw();
+  ok(await V8('[data-f="L"]') === '189' && await V8('[data-f="W"]') === '53' && await V8('[data-f="H"]') === '79' && await V8('[data-f="doorW"]') === '61' && await V8('[data-f="doorH"]') === '73' && await V8('[data-f="maxWeight"]') === '3704', 'Sprinter 170 ext preset: 189 x 53 x 79 in, door 61 x 73 in, payload 3,704 lb');
+  ok(await pg8.$eval('#r-main', (e) => e.textContent.trim()) === '3 of 20', 'Sprinter 170 ext with 1,000 lb pallets: payload stops at 3 (' + await pg8.$eval('#r-main', (e) => e.textContent.trim()) + ')');
+  await pg8.fill('.boxcard [data-b="weight"]', '500'); await pg8.waitForTimeout(400); await bw();
+  ok(await pg8.$eval('#r-main', (e) => e.textContent.trim()) === '4 of 20', 'Sprinter 170 ext with 500 lb pallets: 4 fit (' + await pg8.$eval('#r-main', (e) => e.textContent.trim()) + ')');
   await pg8.evaluate(() => localStorage.removeItem('lpc-units'));
   await pg8.close();
 }
@@ -630,7 +637,7 @@ ok(errs.length === 0, 'no JS errors ' + errs.join(' | '));
   // cells after the Select radio: type (full text), then the first line of One takes and Needed
   const rows = await pf.$$eval('[data-fittable] tr', (r) => r.map((x) => [...x.children].slice(1).map((c, j) => (j === 0 ? c.textContent : c.childNodes[0]?.textContent || '').trim())));
   const row = (name) => rows.find((r) => r[0].startsWith(name));
-  ok(rows.length === 15, 'comparison lists every size in the list (' + rows.length + ')');
+  ok(rows.length === 19, 'comparison lists every size in the list, 4 containers + 3 trailers + 8 box trucks + 4 Sprinter vans = 19 (' + rows.length + ')');
   ok(row("40' High Cube")[0].includes('(selected)') && row("40' High Cube")[1] === '900' && row("40' High Cube")[2] === '1', "selected 40' HC row: 900 in one, 1 needed");
   ok(+row("20' Standard")[2].replace('+', '') >= 2 && +row("20' Standard")[1].replace(/,/g, '') < 900, "20' Standard: takes fewer than 900, needs 2 or more (" + row("20' Standard").join(' | ') + ')');
   ok((await T('[data-fittxt]')).startsWith('Smallest that takes all 900 boxes:'), 'suggestion line (' + await T('[data-fittxt]') + ')');

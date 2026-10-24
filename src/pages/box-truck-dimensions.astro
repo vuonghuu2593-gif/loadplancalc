@@ -142,6 +142,7 @@ const fleets: { name: string; upTo: boolean; trucks: Tk[]; rows: Row[] }[] = [
   <section class="prose">
     <h2>Before you load a box truck</h2>
     <ul class="plain">
+      <li><strong>Smaller than a box truck?</strong> A Sprinter cargo van is 133 to 189 in long inside and 53 in wide between the wheel arches: see <a href="/cargo-van-dimensions/">cargo van dimensions</a>.</li>
       <li><strong>The name is roughly the inside length.</strong> U-Haul's 10′ is {ftin(u10.Lin)} inside and its 20′ is {ftin(U.find((t) => t.id === 'uhaul-20')!.Lin)}; Penske's 22′ and 26′ are “up to” {ftin(P.find((t) => t.id === 'penske-22')!.Lin)} and {ftin(p26.Lin)}. The truck itself is longer, because the cab is in front of the box. For height, U-Haul prints a clearance height of {U.map((t) => `${t.clearanceFt} ft for the ${t.size}`).join(', ')}: use that, not the inside height, for bridges, drive-throughs and parking garages.</li>
       <li><strong>The door is lower than the box.</strong> U-Haul's door openings are {U.map((t) => `${t.doorHin} in high in the ${t.size} (inside ${t.Hin} in)`).join(', ')}. Anything taller than the door has to be tipped to go in, however much room there is inside. Pick a U-Haul truck in the <a href="/container-loading-calculator/">container loading calculator</a> and every box is checked against the door; for a Penske truck, measure the door and type its width and height.</li>
       <li><strong>Width decides pallet counts.</strong> Two 48 in sides need 96 in and two 40 in sides 80 in. The 26′ trucks and Penske's 22′ (97 in) take two pallets across either way; the U-Haul 15′ and 20′ and Penske 16′ ({u15.Win}, {u20.Win} and {p16.Win} in) take one of each side by side; the U-Haul 10′ ({u10.Win} in) and Penske 12′ ({p12.Win} in) take only one across. Because Penske's sizes are “up to”, a truck 1 in narrower can lose a whole lane: measure before you promise a count.</li>
@@ -156,6 +157,7 @@ const fleets: { name: string; upTo: boolean; trucks: Tk[]; rows: Row[] }[] = [
     <div class="chips">
       <a href="/container-loading-calculator/">Container loading calculator</a>
       <a href="/53-foot-trailer-dimensions/">53 ft trailer dimensions</a>
+      <a href="/cargo-van-dimensions/">Cargo van dimensions</a>
       <a href="/how-many-pallets-fit-in-a-53-foot-trailer/">Pallets in a 53 ft trailer</a>
       <a href="/cubic-feet-calculator/">Cubic feet calculator</a>
       <a href="/pallet-sizes/">Standard pallet sizes</a>
