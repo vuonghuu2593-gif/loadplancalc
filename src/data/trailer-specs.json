@@ -1,61 +1,221 @@
 {
-  "note": "53' trailer figures for /53-foot-trailer-dimensions/ that are not planner presets. The three Hyundai Translead planner presets (Original, HY-Cube, Composite) stay in trailers.json. Inches as printed by each maker; mm are converted on the page (1 in = 25.4 mm). Every figure read twice: (1) headless Chromium page text, (2) a separate browser session reading the spec table cell by cell (Hyundai Translead) or a curl download parsed as HTML text (Utility, Stoughton); both reads identical.",
-  "checked": "2026-10-25",
-  "hyundai": [
-    { "id": "53ht-composite-xt", "model": "Composite XT", "kind": "dry van",
-      "Lin": 630, "Win": 101.5, "Hin": 110,
-      "printed": { "length": "Exterior: 53′ 0″ Interior: 52′ 6″", "width": "Exterior: 102.36″ Interior: 101.50″ above side scuff, wall to wall", "height": "Exterior: 13′ 6″ Interior: 110″" },
-      "widthNote": "above side scuff, wall to wall",
-      "cuft": 4070, "gvwrLb": 68000, "standardWeightLb": 13460,
-      "url": "https://www.hyundaitranslead.com/product/dry-van/composite-xt/" },
-    { "id": "53ht-thermotech", "model": "ThermoTech", "kind": "refrigerated van (reefer)",
-      "Lin": 626, "Win": 97.4, "Hin": 105.5,
-      "printed": { "length": "Exterior: 53′ 0″ Interior: 52′ 2″", "width": "Exterior: 102.36″ Interior: 97.4″ lining to lining", "height": "Exterior: 13′ 6″ Interior: 105.5″" },
-      "widthNote": "lining to lining",
-      "cuft": 3722, "gvwrLb": 68000, "standardWeightLb": 11950, "standardWeightNote": "excluding reefer unit", "floorRatingLb": 20000,
-      "url": "https://www.hyundaitranslead.com/product/refrigerated/thermotech/" }
-  ],
-  "exterior": { "publisher": "Hyundai Translead", "length": "53′ 0″", "widthIn": 102.36, "height": "13′ 6″" },
-  "others": [
-    { "id": "utility-dryvan", "maker": "Utility Trailer", "model": "53' dry van (specifications page)", "kind": "dry van",
-      "widths": [100, 101], "widthNote": "at wearband (two widths listed)",
-      "heights": { "front": 110.5, "rear": 111 },
-      "printed": "Gross vehicle weight rating (GVWR) 65,000 lb Payload capacity 55,000 lb Inside height 110½\" at front and 111\" at rear Inside width 100\" at wearband 101\" at wearband Overall length 53' 0\" Overall height 13' 6\" on 46½\" height 5th wheel Overall width 102⅜\"",
-      "overall": { "length": "53′ 0″", "widthIn": 102.375, "height": "13′ 6″ on a 46½″ fifth wheel" },
-      "gvwrLb": 65000, "payloadLb": 55000,
-      "url": "https://www.utilitytrailer.com/dry-vans/specifications" },
-    { "id": "utility-reefer", "maker": "Utility Trailer", "model": "53' reefer (specifications page)", "kind": "refrigerated van (reefer)",
-      "widths": [97.5], "widthNote": "at wearband",
-      "heights": { "front": 104.125, "rear": 104.125 },
-      "printed": "Gross vehicle weight rating (GVWR) 65,000 lb Payload capacity 55,000 lb Inside height 104⅛\" Inside width 97½\" at wearband Overall length 53' 0\" Overall height 13' 6\" on 46½\" height 5th wheel Overall width 102⅜\"",
-      "overall": { "length": "53′ 0″", "widthIn": 102.375, "height": "13′ 6″ on a 46½″ fifth wheel" },
-      "gvwrLb": 65000, "payloadLb": 55000,
-      "url": "https://www.utilitytrailer.com/reefers/specifications" },
-    { "id": "stoughton-avw", "maker": "Stoughton Trailers", "model": "Aluminum Sheet & Post (AVW-535T-S-C-AR)", "kind": "dry van",
-      "widths": [98.5], "widthNote": "",
-      "heights": { "front": 110, "rear": 110 }, "doorHin": 109.875,
-      "printed": "Length Overall - 53’-0\" Width Overall - 102\"; Inside 98-1/2\" Height Overall - 13’-6\" based on 47\" 5th wheel height Inside front - 110\" Inside rear - 110\" Door opening - 109-7/8\" Dock height - 49-1/2\"",
-      "overall": { "length": "53′ 0″", "widthIn": 102, "height": "13′ 6″ on a 47″ fifth wheel" },
-      "url": "https://www.stoughtontrailers.com/products-and-services/aluminum-sheet-post" },
-    { "id": "stoughton-avxw", "maker": "Stoughton Trailers", "model": "Extra Wide (AVXW-535T-S-C-AR)", "kind": "dry van",
-      "widths": [100.75], "widthNote": "",
-      "heights": { "front": 110, "rear": 110 }, "doorHin": 109.875,
-      "printed": "Length Overall - 53’-0\" Width Overall - 102\" Inside - 100-3/4\" Height Overall - 13’-6\" based on 47\" 5th wheel height Inside front - 110\" Inside rear - 110\" Door opening - 109-7/8\" Dock height - 49-3/8\"",
-      "overall": { "length": "53′ 0″", "widthIn": 102, "height": "13′ 6″ on a 47″ fifth wheel" },
-      "url": "https://www.stoughtontrailers.com/products-and-services/extra-wide" },
-    { "id": "stoughton-ztpvw", "maker": "Stoughton Trailers", "model": "Tough Plate (ZTPVW-535T-S-C-AR)", "kind": "dry van",
-      "widths": [101], "widthNote": "",
-      "heights": { "front": 110, "rear": 110 }, "doorHin": 109.875,
-      "printed": "Length Overall - 53’-0\" Width Overall - 102\" Inside - 101\" Height Overall - 13’-6\" based on 47\" 5th wheel height Inside front - 110\" Inside rear - 110\" Door opening - 109-7/8\" Dock height - 49-1/2\"",
-      "overall": { "length": "53′ 0″", "widthIn": 102, "height": "13′ 6″ on a 47″ fifth wheel" },
-      "url": "https://www.stoughtontrailers.com/products-and-services/tough-plate" }
-  ],
-  "law": {
-    "length": { "ref": "23 CFR 658.13(b)(1)", "quote": "No State shall impose a length limitation of less than 48 feet on a semitrailer operating in a truck tractor-semitrailer combination.",
-      "grandfather": "No State shall prohibit the use of trailers or semitrailers of such dimensions as those that were in actual and lawful use in such State on December 1, 1982, as set out in appendix B of this part.",
-      "url": "https://www.ecfr.gov/current/title-23/chapter-I/subchapter-G/part-658/section-658.13" },
-    "width": { "ref": "23 CFR 658.15(a)", "quote": "No State shall impose a width limitation of more or less than 102 inches, or its approximate metric equivalent, 2.6 meters (102.36 inches) on a vehicle operating on the National Network, except for the State of Hawaii, which is allowed to keep the State's 108-inch width maximum by virtue of section 416(a) of the STAA.",
-      "url": "https://www.ecfr.gov/current/title-23/chapter-I/subchapter-G/part-658/section-658.15" },
-    "reads": "Read twice: eCFR versioner API XML (title 23, part 658, date 2026-10-01) and the eCFR renderer API (current); quotes found verbatim in both."
+ "note": "53' trailer figures for /53-foot-trailer-dimensions/ that are not planner presets. The three Hyundai Translead planner presets (Original, HY-Cube, Composite) stay in trailers.json. Inches as printed by each maker; mm are converted on the page (1 in = 25.4 mm). Every figure read twice: (1) headless Chromium page text, (2) a separate browser session reading the spec table cell by cell (Hyundai Translead) or a curl download parsed as HTML text (Utility, Stoughton); both reads identical.",
+ "checked": "2026-10-25",
+ "hyundai": [
+  {
+   "id": "53ht-composite-xt",
+   "model": "Composite XT",
+   "kind": "dry van",
+   "Lin": 630,
+   "Win": 101.5,
+   "Hin": 110,
+   "printed": {
+    "length": "Exterior: 53′ 0″ Interior: 52′ 6″",
+    "width": "Exterior: 102.36″ Interior: 101.50″ above side scuff, wall to wall",
+    "height": "Exterior: 13′ 6″ Interior: 110″"
+   },
+   "widthNote": "above side scuff, wall to wall",
+   "cuft": 4070,
+   "gvwrLb": 68000,
+   "standardWeightLb": 13460,
+   "url": "https://www.hyundaitranslead.com/product/dry-van/composite-xt/"
+  },
+  {
+   "id": "53ht-thermotech",
+   "model": "ThermoTech",
+   "kind": "refrigerated van (reefer)",
+   "Lin": 626,
+   "Win": 97.4,
+   "Hin": 105.5,
+   "printed": {
+    "length": "Exterior: 53′ 0″ Interior: 52′ 2″",
+    "width": "Exterior: 102.36″ Interior: 97.4″ lining to lining",
+    "height": "Exterior: 13′ 6″ Interior: 105.5″"
+   },
+   "widthNote": "lining to lining",
+   "cuft": 3722,
+   "gvwrLb": 68000,
+   "standardWeightLb": 11950,
+   "standardWeightNote": "excluding reefer unit",
+   "floorRatingLb": 20000,
+   "url": "https://www.hyundaitranslead.com/product/refrigerated/thermotech/"
   }
+ ],
+ "exterior": {
+  "publisher": "Hyundai Translead",
+  "length": "53′ 0″",
+  "widthIn": 102.36,
+  "height": "13′ 6″"
+ },
+ "others": [
+  {
+   "id": "utility-dryvan",
+   "maker": "Utility Trailer",
+   "model": "53' dry van (specifications page)",
+   "kind": "dry van",
+   "widths": [
+    100,
+    101
+   ],
+   "widthNote": "at wearband (two widths listed)",
+   "heights": {
+    "front": 110.5,
+    "rear": 111
+   },
+   "printed": "Gross vehicle weight rating (GVWR) 65,000 lb Payload capacity 55,000 lb Inside height 110½\" at front and 111\" at rear Inside width 100\" at wearband 101\" at wearband Overall length 53' 0\" Overall height 13' 6\" on 46½\" height 5th wheel Overall width 102⅜\"",
+   "overall": {
+    "length": "53′ 0″",
+    "widthIn": 102.375,
+    "height": "13′ 6″ on a 46½″ fifth wheel"
+   },
+   "gvwrLb": 65000,
+   "payloadLb": 55000,
+   "url": "https://www.utilitytrailer.com/dry-vans/specifications"
+  },
+  {
+   "id": "utility-reefer",
+   "maker": "Utility Trailer",
+   "model": "53' reefer (specifications page)",
+   "kind": "refrigerated van (reefer)",
+   "widths": [
+    97.5
+   ],
+   "widthNote": "at wearband",
+   "heights": {
+    "front": 104.125,
+    "rear": 104.125
+   },
+   "printed": "Gross vehicle weight rating (GVWR) 65,000 lb Payload capacity 55,000 lb Inside height 104⅛\" Inside width 97½\" at wearband Overall length 53' 0\" Overall height 13' 6\" on 46½\" height 5th wheel Overall width 102⅜\"",
+   "overall": {
+    "length": "53′ 0″",
+    "widthIn": 102.375,
+    "height": "13′ 6″ on a 46½″ fifth wheel"
+   },
+   "gvwrLb": 65000,
+   "payloadLb": 55000,
+   "url": "https://www.utilitytrailer.com/reefers/specifications"
+  },
+  {
+   "id": "stoughton-avw",
+   "maker": "Stoughton Trailers",
+   "model": "Aluminum Sheet & Post (AVW-535T-S-C-AR)",
+   "kind": "dry van",
+   "widths": [
+    98.5
+   ],
+   "widthNote": "",
+   "heights": {
+    "front": 110,
+    "rear": 110
+   },
+   "doorHin": 109.875,
+   "printed": "Length Overall - 53’-0\" Width Overall - 102\"; Inside 98-1/2\" Height Overall - 13’-6\" based on 47\" 5th wheel height Inside front - 110\" Inside rear - 110\" Door opening - 109-7/8\" Dock height - 49-1/2\"",
+   "overall": {
+    "length": "53′ 0″",
+    "widthIn": 102,
+    "height": "13′ 6″ on a 47″ fifth wheel"
+   },
+   "url": "https://www.stoughtontrailers.com/products-and-services/aluminum-sheet-post"
+  },
+  {
+   "id": "stoughton-avxw",
+   "maker": "Stoughton Trailers",
+   "model": "Extra Wide (AVXW-535T-S-C-AR)",
+   "kind": "dry van",
+   "widths": [
+    100.75
+   ],
+   "widthNote": "",
+   "heights": {
+    "front": 110,
+    "rear": 110
+   },
+   "doorHin": 109.875,
+   "printed": "Length Overall - 53’-0\" Width Overall - 102\" Inside - 100-3/4\" Height Overall - 13’-6\" based on 47\" 5th wheel height Inside front - 110\" Inside rear - 110\" Door opening - 109-7/8\" Dock height - 49-3/8\"",
+   "overall": {
+    "length": "53′ 0″",
+    "widthIn": 102,
+    "height": "13′ 6″ on a 47″ fifth wheel"
+   },
+   "url": "https://www.stoughtontrailers.com/products-and-services/extra-wide"
+  },
+  {
+   "id": "stoughton-ztpvw",
+   "maker": "Stoughton Trailers",
+   "model": "Tough Plate (ZTPVW-535T-S-C-AR)",
+   "kind": "dry van",
+   "widths": [
+    101
+   ],
+   "widthNote": "",
+   "heights": {
+    "front": 110,
+    "rear": 110
+   },
+   "doorHin": 109.875,
+   "printed": "Length Overall - 53’-0\" Width Overall - 102\" Inside - 101\" Height Overall - 13’-6\" based on 47\" 5th wheel height Inside front - 110\" Inside rear - 110\" Door opening - 109-7/8\" Dock height - 49-1/2\"",
+   "overall": {
+    "length": "53′ 0″",
+    "widthIn": 102,
+    "height": "13′ 6″ on a 47″ fifth wheel"
+   },
+   "url": "https://www.stoughtontrailers.com/products-and-services/tough-plate"
+  }
+ ],
+ "law": {
+  "length": {
+   "ref": "23 CFR 658.13(b)(1)",
+   "quote": "No State shall impose a length limitation of less than 48 feet on a semitrailer operating in a truck tractor-semitrailer combination.",
+   "grandfather": "No State shall prohibit the use of trailers or semitrailers of such dimensions as those that were in actual and lawful use in such State on December 1, 1982, as set out in appendix B of this part.",
+   "url": "https://www.ecfr.gov/current/title-23/chapter-I/subchapter-G/part-658/section-658.13"
+  },
+  "width": {
+   "ref": "23 CFR 658.15(a)",
+   "quote": "No State shall impose a width limitation of more or less than 102 inches, or its approximate metric equivalent, 2.6 meters (102.36 inches) on a vehicle operating on the National Network, except for the State of Hawaii, which is allowed to keep the State's 108-inch width maximum by virtue of section 416(a) of the STAA.",
+   "url": "https://www.ecfr.gov/current/title-23/chapter-I/subchapter-G/part-658/section-658.15"
+  },
+  "reads": "Read twice: eCFR versioner API XML (title 23, part 658, date 2026-10-01) and the eCFR renderer API (current); quotes found verbatim in both."
+ },
+ "flatbeds": [
+  {
+   "id": "ht-latitude",
+   "maker": "Hyundai Translead",
+   "model": "Latitude flatbed",
+   "url": "https://www.hyundaitranslead.com/product/flatbed/latitude/",
+   "lengthMinIn": 384,
+   "lengthMaxIn": 636,
+   "widthIn": 102,
+   "fifthWheelIn": 47,
+   "rearDeckMaxIn": 54.3125,
+   "concentrated": [
+    {
+     "lb": 60000,
+     "ft": 10
+    },
+    {
+     "lb": 55000,
+     "ft": 4
+    }
+   ],
+   "printed": "Length 32′ 0″ – 53′ 0″ Width 102″ Fifth Wheel Height 47″ (Nominal) Rear Deck Height: 54-5/16″ (Maximum) Concentrated Load Rating 60,000 lbs in 10′ 55,000 lbs in 4′"
+  },
+  {
+   "id": "utility-flatbed",
+   "maker": "Utility Trailer",
+   "model": "flatbed (specifications page)",
+   "url": "https://www.utilitytrailer.com/flatbeds/specifications",
+   "lengthIn": 576,
+   "widthIn": 102,
+   "gvwrLb": 73000,
+   "mainbeamLb": 80000,
+   "deckTypes": [
+    "21\" drop with 11' 0\" front deck and 40¼\" rear deck height",
+    "Straight"
+   ],
+   "printed": "Gross vehicle weight rating (GVWR) 73,000 lb Payload capacity 80,000 lb evenly distributed mainbeam Overall length 48' 0\" ... Overall width 102\" Deck type 21\" drop with 11' 0\" front deck and 40¼\" rear deck height Straight",
+   "note": "The page lists two overall heights (59⅝\" front deck height and 58 3/16\", both on a 47\" fifth wheel) without saying which deck type each belongs to, so they are not used."
+  }
+ ],
+ "flatbedsChecked": "2026-10-25",
+ "flatbedsHowRead": "Two reads each on 2026-10-25: headless Chromium (innerText and textContent) and curl HTML; identical."
 }

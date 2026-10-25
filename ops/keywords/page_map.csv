@@ -31,3 +31,6 @@ page;main keyword;status
 /cargo-van-dimensions/;sprinter van cargo dimensions;live
 /dunnage-bag-calculator/;dunnage bag;live
 /dunnage-bag-calculator/;dunnage bag calculator;live
+/semi-trailer-dimensions/;semi trailer dimensions;live
+/semi-trailer-dimensions/#flatbed;flatbed trailer dimensions;live
+/semi-trailer-dimensions/#drop-deck;step deck trailer dimensions;live

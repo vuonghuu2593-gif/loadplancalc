@@ -1,0 +1,112 @@
+---
+// Hub: semi-trailer dimensions by type. Dry vans and reefers are summarised from trailers.json / trailer-specs.json (the full
+// tables live on /53-foot-trailer-dimensions/); flatbeds come from trailer-specs.json "flatbeds" (Hyundai Translead Latitude and
+// Utility Trailer flatbed pages, read twice 2026-10-25); federal limits quote 23 CFR 658.13 and 658.15. Inch figures as printed,
+// mm converted exactly. Pallet counts on a flatbed deck are computed by the engine and checked by validate() at build time.
+import Base from '../layouts/Base.astro';
+import tdata from '../data/trailers.json';
+import xs from '../data/trailer-specs.json';
+import pdata from '../data/pallets.json';
+import { pack, validate } from '../scripts/packer.js';
+const IN = 25.4;
+const n = (v: number, d = 0) => v.toLocaleString('en-US', { maximumFractionDigits: d, minimumFractionDigits: 0 });
+const ftin = (inches: number) => { const ft = Math.floor(inches / 12 + 1e-9); const r = Math.round((inches - ft * 12) * 1000) / 1000; return `${ft}′ ${n(r, 3)}″`; };
+type V = { model: string; kind: string; Lin: number; Win: number; Hin: number; cuft: number; url: string };
+const vans: V[] = [
+  ...tdata.trailers.map((t) => ({ model: t.model, kind: 'dry van', Lin: t.Lin, Win: t.Win, Hin: t.Hin, cuft: t.cuft, url: t.url })),
+  ...(xs.hyundai as any[]).map((t) => ({ model: t.model, kind: t.kind, Lin: t.Lin, Win: t.Win, Hin: t.Hin, cuft: t.cuft, url: t.url })),
+];
+const order = ['Original', 'HY-Cube', 'Composite', 'Composite XT', 'ThermoTech'];
+vans.sort((a, b) => order.indexOf(a.model) - order.indexOf(b.model));
+const reefer = vans.find((v) => v.model === 'ThermoTech')!, comp = vans.find((v) => v.model === 'Composite')!;
+const lat = (xs as any).flatbeds.find((f: any) => f.id === 'ht-latitude'), uf = (xs as any).flatbeds.find((f: any) => f.id === 'utility-flatbed');
+if (!lat || !uf || lat.lengthMaxIn !== 636 || uf.lengthIn !== 576) throw new Error('flatbed data missing or changed');
+const law = (xs as any).law;
+
+// pallets on a flat deck, one high: space = deck length × width × one loaded pallet height
+const euro = pdata.pallets.find((p) => p.id === 'epal1')!;
+const PH = 50 * IN;
+const deck = (lenIn: number, widIn: number, l: number, w: number) => {
+  const r = pack({ L: lenIn * IN, W: widIn * IN, H: PH }, [{ l, w, h: PH, weight: 0, qty: 500, rotation: 'upright', stackable: false }], { timeMs: 3000 });
+  const e = validate(r); if (e.length) throw new Error('flatbed plan failed its check: ' + e.join(', ')); return r.totals.n;
+};
+const decks = [
+  { label: `48′ flatbed (Utility), ${uf.lengthIn} × ${uf.widthIn} in`, L: uf.lengthIn, W: uf.widthIn },
+  { label: `53′ flatbed (Hyundai Translead Latitude, longest length), ${lat.lengthMaxIn} × ${lat.widthIn} in`, L: lat.lengthMaxIn, W: lat.widthIn },
+].map((d) => ({ ...d, chep: deck(d.L, d.W, 48 * IN, 40 * IN), euro: deck(d.L, d.W, euro.L, euro.W) }));
+// hand checks (lower bounds the engine must reach): 48 × 40 in two across with 48 in across (96 ≤ 102), rows of 40 in:
+// 576 → 14 rows = 28; 636 → 15 rows = 30. Euro two across with 1,200 mm across (2,400 ≤ 2,590.8 mm), rows of 800 mm:
+// 576 in = 14,630.4 mm → 18 rows = 36; 636 in = 16,154.4 mm → 20 rows = 40.
+const want = [[28, 36], [30, 40]];
+decks.forEach((d, i) => { if (d.chep < want[i][0] || d.euro < want[i][1]) throw new Error(`flatbed counts below the hand check: ${d.label}`); });
+const d48 = decks[0], d53 = decks[1];
+const url = new URL('/semi-trailer-dimensions/', 'https://loadplancalc.com').href;
+const schema = { '@context': 'https://schema.org', '@type': 'Article', headline: 'Semi trailer dimensions', dateModified: (xs as any).flatbedsChecked, mainEntityOfPage: url };
+---
+<Base title="Semi Trailer Dimensions: Dry Van, Reefer, Flatbed, Drop Deck" description="Semi trailer dimensions by type: inside sizes of 53 ft dry vans and reefers, flatbed lengths, widths and deck heights from the trailer makers, drop deck figures, federal length and width rules, and pallets per flatbed." schema={schema}>
+  <section class="prose">
+    <h1>Semi trailer dimensions</h1>
+    <p class="lede">A semi trailer is 102 in wide on US highways, the width federal rules set for the National Network, and its length depends on the type. A 53′ dry van is about {ftin(comp.Lin)} long, {comp.Win} in wide and {comp.Hin} in high inside (Hyundai Translead's Composite), a 53′ reefer a little smaller ({reefer.Lin} × {reefer.Win} × {reefer.Hin} in for the ThermoTech), and a flatbed has an open deck: Utility Trailer's is {ftin(uf.lengthIn)} long and {uf.widthIn} in wide, and Hyundai Translead builds its Latitude flatbed from {ftin(lat.lengthMinIn)} to {ftin(lat.lengthMaxIn)}. On a 48′ flatbed deck, <strong>{d48.chep} pallets of 48 × 40 in</strong> fit one high: two across with the 48 in side across (96 of 102 in) in rows of 40 in.</p>
+  </section>
+
+  <section class="prose">
+    <h2>Dry vans and reefers (53′)</h2>
+    <p>Inside dimensions as Hyundai Translead prints them. The full tables, with Utility Trailer and Stoughton models, outside sizes, weights and pallet counts one and two high, are on <a href="/53-foot-trailer-dimensions/">53 ft trailer dimensions</a>.</p>
+    <div class="tablebox"><table>
+      <thead><tr><th>Trailer</th><th>Type</th><th class="num">Inside length</th><th class="num">Inside width</th><th class="num">Inside height</th><th class="num">Volume (printed)</th></tr></thead>
+      <tbody>{vans.map((v) => <tr><td><a href={v.url} rel="noopener">Hyundai Translead {v.model}</a></td><td>{v.kind}</td><td class="num">{ftin(v.Lin)}<br><span class="small">{n(v.Lin * IN)} mm</span></td><td class="num">{v.Win} in<br><span class="small">{n(v.Win * IN)} mm</span></td><td class="num">{v.Hin} in<br><span class="small">{n(v.Hin * IN)} mm</span></td><td class="num">{n(v.cuft)} cu ft</td></tr>)}</tbody>
+    </table></div>
+    <p class="small">The reefer is smaller inside because of its insulated walls, roof and floor: {reefer.Win} in against {comp.Win} in wide, {reefer.Hin} in against {comp.Hin} in high. Inches as printed on each model's page (linked); millimetres converted at 1 in = 25.4 mm.</p>
+  </section>
+
+  <section class="prose" id="flatbed">
+    <h2>Flatbed trailer dimensions</h2>
+    <div class="tablebox"><table>
+      <thead><tr><th></th><th class="num">Utility Trailer flatbed</th><th class="num">Hyundai Translead Latitude</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">Length</th><td class="num">{ftin(uf.lengthIn)} overall<br><span class="small">{n(uf.lengthIn * IN)} mm</span></td><td class="num">{ftin(lat.lengthMinIn)} to {ftin(lat.lengthMaxIn)}<br><span class="small">{n(lat.lengthMinIn * IN)}–{n(lat.lengthMaxIn * IN)} mm</span></td></tr>
+        <tr><th scope="row">Width</th><td class="num">{uf.widthIn} in overall<br><span class="small">{n(uf.widthIn * IN)} mm</span></td><td class="num">{lat.widthIn} in<br><span class="small">{n(lat.widthIn * IN)} mm</span></td></tr>
+        <tr><th scope="row">Deck</th><td class="num">Straight, or with a 21 in drop: 11′ 0″ front deck and 40¼ in rear deck height</td><td class="num">Rear deck height 54 5/16 in (maximum), on a 47 in (nominal) fifth wheel</td></tr>
+        <tr><th scope="row">Ratings</th><td class="num">GVWR {n(uf.gvwrLb)} lb; mainbeam {n(uf.mainbeamLb)} lb evenly distributed (printed as payload capacity)</td><td class="num">Concentrated load {n(lat.concentrated[0].lb)} lb in {lat.concentrated[0].ft}′, {n(lat.concentrated[1].lb)} lb in {lat.concentrated[1].ft}′</td></tr>
+      </tbody>
+    </table></div>
+    <p class="small">Sources: <a href={uf.url} rel="noopener">Utility Trailer flatbed specifications</a> and <a href={lat.url} rel="noopener">Hyundai Translead Latitude flatbed</a>, read twice on {(xs as any).flatbedsChecked}. Utility's page also lists two overall heights (59⅝ in front deck height and 58 3/16 in, both on a 47 in fifth wheel) without saying which deck type each belongs to, so they are left out here.</p>
+
+    <h3 id="drop-deck">Drop deck (step deck) trailers</h3>
+    <p>A drop deck, also called a step deck, has a short upper deck over the fifth wheel and a lower main deck behind it, so taller loads stay under height limits. Utility Trailer offers its flatbed with a 21 in drop: an 11′ 0″ front deck, with the rear deck at 40¼ in. Hyundai Translead prints a rear deck height of up to 54 5/16 in for its straight-deck Latitude. Utility does not print the length of the lower deck on its page; measure the trailer for a tight load.</p>
+
+    <h3>Pallets on a flatbed deck</h3>
+    <p>Computed by the <a href="/container-loading-calculator/">load planner</a>'s engine for the deck length and width, one high, and checked by its validator. On an open deck the height is limited by the legal height on your route, not by the trailer.</p>
+    <div class="tablebox"><table>
+      <thead><tr><th>Deck</th><th class="num">48 × 40 in pallets</th><th class="num">Euro pallets 1,200 × 800 mm</th></tr></thead>
+      <tbody>{decks.map((d) => <tr><td>{d.label}</td><td class="num">{d.chep}</td><td class="num">{d.euro}</td></tr>)}</tbody>
+    </table></div>
+    <p class="small">Hand checks: 48 × 40 in pallets two across with the 48 in side across (96 of 102 in) in rows of 40 in: {uf.lengthIn} in takes 14 rows, 28 pallets, and {lat.lengthMaxIn} in takes 15 rows, 30. Euro pallets two across with the 1,200 mm side across (2,400 of 2,590.8 mm) in rows of 800 mm: {n(uf.lengthIn * IN, 1)} mm takes 18 rows, 36, and {n(lat.lengthMaxIn * IN, 1)} mm takes 20 rows, 40. The engine reaches {d48.chep} / {d48.euro} and {d53.chep} / {d53.euro}. Weight is not limited here: check your load against the trailer's ratings and your axle weights.</p>
+  </section>
+
+  <section class="prose" id="limits">
+    <h2>Federal length and width rules</h2>
+    <ul class="plain">
+      <li><strong>Width:</strong> “{law.width.quote}” (<a href={law.width.url} rel="noopener">{law.width.ref}</a>)</li>
+      <li><strong>Length:</strong> “{law.length.quote}” (<a href={law.length.url} rel="noopener">{law.length.ref}</a>). States may allow longer semitrailers, such as 53′, and the same section protects trailers that were in lawful use in a state on December 1, 1982.</li>
+    </ul>
+    <p class="small">These federal rules set what states must allow on the National Network; height, axle weights and longer lengths are set by each state. Check the route before you load.</p>
+  </section>
+
+  <section class="prose">
+    <h2>Smaller than a semi?</h2>
+    <p>For rental box trucks from 10′ to 26′, see <a href="/box-truck-dimensions/">box truck dimensions</a>; for vans, <a href="/cargo-van-dimensions/">cargo van dimensions</a>; for sea containers, <a href="/shipping-container-dimensions/">shipping container dimensions</a>.</p>
+  </section>
+
+  <section class="prose">
+    <h2>Related</h2>
+    <div class="chips">
+      <a href="/53-foot-trailer-dimensions/">53 ft trailer dimensions</a>
+      <a href="/how-many-pallets-fit-in-a-53-foot-trailer/">Pallets in a 53 ft trailer</a>
+      <a href="/container-loading-calculator/">Container loading calculator</a>
+      <a href="/box-truck-dimensions/">Box truck dimensions</a>
+      <a href="/cargo-van-dimensions/">Cargo van dimensions</a>
+      <a href="/how-we-calculate/">How we calculate</a>
+    </div>
+  </section>
+</Base>
