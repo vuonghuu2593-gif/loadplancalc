@@ -1,8 +1,9 @@
 {
   "updated": "2026-10-25",
-  "tools": "383be7332e966340414528a9089356e49444f9956c667f043552aa05d86559f2",
-  "guide": "f60678e1f7c9813f0921fda1461fc1009471ef5f5d444ef815bd1606b2fd3650",
+  "tools": "ae09569abf7e0217566fefdfbc6316de775b43eb1482cca3ba6f68d6142ded2c",
+  "guide": "df2842f0c7455dd597f5caa36e9dbc7a79c3f9d377e02c8590fb8569b2b13fc7",
   "toolPages": [
+    "/cargo-securing-calculator/",
     "/cbm-calculator/",
     "/container-loading-calculator/",
     "/cubic-feet-calculator/",

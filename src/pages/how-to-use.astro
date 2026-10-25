@@ -193,6 +193,17 @@ const schema = { '@context': 'https://schema.org', '@type': 'HowTo', name: `How 
     </ul>
   </section>
 
+  <section class="prose" id="cargo-securing-calculator">
+    <h2>Cargo securing calculator</h2>
+    <p>The <a href="/cargo-securing-calculator/">cargo securing calculator</a> works out the blocking force a load needs and whether a fence of transverse timber battens holds it, with the formulas of the IMO/ILO/UNECE CTU Code (annex 7, section 2.2.2 and appendix 4, section 1). It opens with the Code's own example (7.5 t, sea area C lengthwise, friction 0.4, six 5 × 10 cm battens with a 2.2 m free length). Results update as you type.</p>
+    <ul class="plain">
+      <li><strong>Units (kg · cm · m or lb · in):</strong> mass in kilograms or pounds, batten size in centimetres or inches, free length in metres or inches. Values are kept in kg, cm and m, so switching never changes them; the units choice is shared with the dunnage bag calculator.</li>
+      <li><strong>Cargo mass held by the battens</strong>, <strong>Transport and direction</strong> (the Code's coefficients) and <strong>Friction</strong> (the Code's friction table or your own factor, used in full as the Code does for blocking).</li>
+      <li><strong>Number of battens</strong>, <strong>thickness w</strong> (in the direction of the force), <strong>height h</strong> and <strong>free length L</strong> (the span between the supports).</li>
+      <li><strong>Results:</strong> battens of that size needed, the blocking force needed, what your battens and one batten resist, and a verdict. "How the calculator works" shows the sums; a table repeats the force and battens needed for every transport mode; another lists what one batten resists for common sizes and spans.</li>
+    </ul>
+  </section>
+
   <section class="prose" id="dunnage-bag-calculator">
     <h2>Dunnage bag calculator</h2>
     <p>The <a href="/dunnage-bag-calculator/">dunnage bag calculator</a> checks whether an air bag can hold the cargo pushing on it, with the formulas of the IMO/ILO/UNECE CTU Code (annex 7, appendix 4). Results update as you type.</p>
@@ -342,6 +353,7 @@ const schema = { '@context': 'https://schema.org', '@type': 'HowTo', name: `How 
   <section class="prose" id="whats-new">
     <h2>What's new</h2>
     <ul class="plain">
+      <li><strong>October 26, 2026:</strong> new <a href="/cargo-securing-calculator/">cargo securing calculator</a>: the blocking force a load needs and how many transverse timber battens hold it, by the CTU Code.</li>
       <li><strong>October 25, 2026:</strong> the container and trailer planner has a new <a href="#weight-distribution">Weight distribution and axle loads</a> section: the centre of gravity in all three directions checked against the CTU Code, and an optional split of the cargo weight between kingpin (or front axle) and rear axles from positions you enter.</li>
       <li><strong>October 25, 2026:</strong> new reference page <a href="/semi-trailer-dimensions/">semi trailer dimensions</a> (dry vans, reefers, flatbeds and drop decks, federal size rules, pallets per flatbed), linked from the 53 ft trailer, box truck and cargo van pages; the calculators work as before.</li>
       <li><strong>October 24, 2026:</strong> new <a href="/dunnage-bag-calculator/">dunnage bag calculator</a>: the force a load puts on an air bag and the bursting pressure the bag needs, by the CTU Code formulas for road, rail and sea.</li>

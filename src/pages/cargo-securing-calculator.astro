@@ -1,0 +1,215 @@
+---
+// Cargo securing calculator: blocking with transverse timber battens, CTU Code (IMO MSC.1/Circ.1497) annex 7,
+// appendix 4 section 1 (batten formula and worked example), section 2.2.2 (friction force, static friction for
+// blocking), chapter 5 coefficients (MODES, shared with the dunnage bag calculator) and appendix 2 friction factors.
+// Read twice on 2026-10-26 (pdftotext -layout and -raw of the IMO PDF). Math in src/scripts/battens.js.
+import ToolPage from '../layouts/ToolPage.astro';
+import { MODES } from '../scripts/dunnage.js';
+import { blocking } from '../scripts/battens.js';
+const CTU = 'https://wwwcdn.imo.org/localresources/en/OurWork/Safety/Documents/1497.pdf';
+const n = (v: number, d = 0) => v.toLocaleString('en-US', { maximumFractionDigits: d, minimumFractionDigits: d });
+const FRICTION = [
+  { v: 0.45, label: 'Sawn timber or wooden pallet on plywood or laminate floor (0.45)' },
+  { v: 0.4, label: 'Sawn timber or wooden pallet on grooved aluminium (0.4)' },
+  { v: 0.3, label: 'Sawn timber or wooden pallet on stainless steel sheet (0.3)' },
+  { v: 0.3, label: 'Sawn timber or wooden pallet on shrink film (0.3)' },
+  { v: 0.2, label: 'Plastic pallet on plywood or laminate (0.2)' },
+  { v: 0.15, label: 'Plastic pallet on grooved aluminium or stainless steel (0.15)' },
+  { v: 0.5, label: 'Cardboard on cardboard or on a wooden pallet (0.5)' },
+  { v: 0.4, label: 'Big bag on wooden pallet (0.4)' },
+  { v: 0.45, label: 'Steel crate on plywood or laminate (0.45)' },
+  { v: 0.3, label: 'Not in the table or not verified: CTU Code maximum (0.3)' },
+];
+// worked example = the CTU Code's own (appendix 4, section 1): 6 battens 5 × 10 cm, free length 2.2 m → 24 kN;
+// 7.5 t, sea area C lengthwise (cx 0.4, cz 0.2 = 1 − 0.8), µ 0.4: 0.4 × 7.5 × 9.81 = 29.4 < 0.4 × 7.5 × 0.2 × 9.81 + 24.4 = 30.2
+const seaC = MODES.find((m) => m.id === 'sea-c-l')!;
+const ex = blocking({ kg: 7500, mode: seaC, mu: 0.4, n: 6, w: 5, h: 10, L: 2.2 });
+if (Math.abs(ex.have - 24.3506) > 1e-3 || Math.abs(ex.push - 29.43) > 1e-9 || Math.abs(ex.friction - 5.886) > 1e-9 || !ex.ok) throw new Error('CTU Code example changed');
+// second hand check: 10 t, road braking (0.8 / 1.0), µ 0.45, battens 5 × 10 cm at 2.3 m: need 34.335 kN, 3.882 kN each → 9
+const road = MODES.find((m) => m.id === 'road-f')!;
+const s2 = blocking({ kg: 10000, mode: road, mu: 0.45, n: 6, w: 5, h: 10, L: 2.3 });
+if (Math.abs(s2.need - 34.335) > 1e-6 || s2.nNeeded !== 9) throw new Error('second check changed');
+const defaults = { kg: 7500, mode: 'sea-c-l', mu: 0.4, muIdx: 1, n: 6, w: 5, h: 10, L: 2.2 };
+// batten capacity table: kN per batten for common sections and free lengths (container ~2.35 m, trailer ~2.48 m)
+const sections = [[5, 10], [7.5, 10], [10, 10], [5, 15], [10, 15]];
+const lengths = [2.2, 2.35, 2.48];
+const per = (w: number, h: number, L: number) => (w * w * h) / (28 * L);
+---
+<ToolPage
+  title="Cargo Securing Calculator: Blocking With Timber Battens (CTU Code)"
+  description="Free cargo securing calculator: the blocking force your load needs and how many transverse timber battens hold it, by the IMO/ILO/UNECE CTU Code formulas for road, rail and sea, in metric and imperial."
+  h1="Cargo securing calculator"
+  name="Cargo securing calculator"
+  lede={`Work out the blocking force a load needs and whether a fence of transverse timber battens across the container or trailer holds it, with the formulas of the IMO/ILO/UNECE CTU Code. The Code's own example: six battens of 5 × 10 cm with a free length of 2.2 m resist 6 × 5² × 10 ÷ (28 × 2.2) = <strong>${n(ex.have, 1)} kN</strong>. 7.5 t of cargo in sea area C (0.4 g lengthwise, vertical factor 0.2) with a friction factor of 0.4 pushes with 0.4 × 7.5 × 9.81 = ${n(ex.push, 1)} kN, of which friction holds 0.4 × 7.5 × 0.2 × 9.81 = ${n(ex.friction, 1)} kN, so the battens must take ${n(ex.need, 1)} kN: enough.`}
+>
+  <section class="dnb" data-tool="battens" data-defaults={JSON.stringify(defaults)}>
+    <form class="panel" onsubmit="return false" aria-label="Cargo and battens">
+      <div class="dnhead">
+        <h2>Cargo and battens</h2>
+        <div class="seg" role="group" aria-label="Units" style="flex:0 0 190px">
+          <button type="button" data-units="metric" aria-pressed="true">kg · cm · m</button>
+          <button type="button" data-units="imperial" aria-pressed="false">lb · in</button>
+        </div>
+      </div>
+      <div class="dngrid">
+        <label class="full">Cargo mass held by the battens <span data-u="m">(kg)</span><input data-k="kg" inputmode="decimal" autocomplete="off"></label>
+        <label class="full">Transport and direction
+          <select data-k="mode">{MODES.map((m) => <option value={m.id}>{m.label}: {m.c} g, vertical {m.cz} g</option>)}</select></label>
+        <label class="full">Friction between the cargo and the floor
+          <select data-k="mupre">{FRICTION.map((f, i) => <option value={String(i)}>{f.label}</option>)}<option value="custom">My own friction factor</option></select></label>
+        <label>Friction factor µ<input data-k="mu" inputmode="decimal" autocomplete="off"></label>
+        <label>Number of battens<input data-k="n" inputmode="numeric" autocomplete="off"></label>
+        <label>Batten thickness w <span data-u="s">(cm)</span><span class="hint">in the direction of the force</span><input data-k="w" inputmode="decimal" autocomplete="off"></label>
+        <label>Batten height h <span data-u="s">(cm)</span><input data-k="h" inputmode="decimal" autocomplete="off"></label>
+        <label class="full">Free length L <span data-u="l">(m)</span><span class="hint">the span between the supports, about the inside width of the unit</span><input data-k="L" inputmode="decimal" autocomplete="off"></label>
+      </div>
+    </form>
+
+    <div class="result" data-result aria-live="polite">
+      <div class="grid">
+        <div><div class="k">Battens needed</div><div class="v hi" id="r-main" data-r="nn">–</div><div class="sub" data-r="nnSub"></div></div>
+        <div><div class="k">Blocking force needed</div><div class="v" data-r="need">–</div><div class="sub" data-r="needSub"></div></div>
+        <div><div class="k">Your battens resist</div><div class="v" data-r="have">–</div><div class="sub" data-r="haveSub"></div></div>
+        <div><div class="k">One batten resists</div><div class="v" data-r="per">–</div><div class="sub" data-r="perSub"></div></div>
+      </div>
+      <p class="verdict" data-r="verdict">–</p>
+    </div>
+  </section>
+
+  <section class="prose">
+    <h2>How the calculator works</h2>
+    <p>It uses annex 7 of the <a href={CTU} rel="noopener">CTU Code</a> (IMO MSC.1/Circ.1497), with g = 9.81 m/s². Masses are in tonnes, forces in kN.</p>
+    <ol class="plain">
+      <li><strong>Force from the cargo:</strong> c · m · g, with c the horizontal acceleration coefficient for the transport and direction (chapter 5).</li>
+      <li><strong>Friction:</strong> µ · cz · m · g (section 2.2.2), with cz the vertical coefficient and µ the friction factor. For blocking the Code uses the static friction factors of its appendix 2 as they are (2.2.2.1); the 75% dynamic value is for direct lashings.</li>
+      <li><strong>Blocking force needed:</strong> the difference, never less than zero. The cargo stays put when c · m · g ≤ µ · m · cz · g + F.</li>
+      <li><strong>Battens:</strong> F = n · w² · h ÷ (28 · L) kN (appendix 4, section 1), with n battens of thickness w and height h in cm and a free length L in m. The thickness counts squared, so turning a batten so its thicker side faces the cargo makes it much stronger. Battens needed = force needed ÷ force per batten, rounded up.</li>
+    </ol>
+    <p>With your current inputs:</p>
+    <div class="formula" data-r="steps" aria-live="polite">–</div>
+    <p class="small">In lb · in the inputs are converted exactly (1 lb = 0.45359237 kg, 1 in = 2.54 cm) and forces are also shown in pounds-force (1 lbf = 4.4482216 N).</p>
+    <h3>All transport modes at once</h3>
+    <p>Battens must hold in the direction with the largest force. For your cargo and battens:</p>
+    <div class="tablebox"><table>
+      <thead><tr><th>Transport and direction</th><th class="num">c / cz</th><th class="num">Blocking force needed</th><th class="num">Battens needed</th></tr></thead>
+      <tbody data-r="modes"></tbody>
+    </table></div>
+  </section>
+
+  <section class="prose">
+    <h2>What one timber batten resists</h2>
+    <div class="tablebox"><table>
+      <thead><tr><th>Batten w × h</th>{lengths.map((L) => <th class="num">Free length {L} m</th>)}</tr></thead>
+      <tbody>{sections.map(([w, h]) => <tr><td>{w} × {h} cm</td>{lengths.map((L) => <td class="num">{n(per(w, h, L), 2)} kN</td>)}</tr>)}</tbody>
+    </table></div>
+    <p class="small">Worked out with the CTU Code formula w² × h ÷ (28 × L) for one batten. 2.35 m is close to the inside width of a dry container and 2.48 m to that of a 53 ft trailer; use the free span of your own unit (see <a href="/shipping-container-dimensions/">container dimensions</a> and <a href="/semi-trailer-dimensions/">trailer dimensions</a>).</p>
+  </section>
+
+  <section class="prose">
+    <h2>Blocking with battens in practice</h2>
+    <ul class="plain">
+      <li><strong>Use the lowest friction factor</strong> in the stack, and 0.3 at most when the surfaces are not in the Code's table or cannot be verified; 0.2 on frost, ice or snow, 0.1 on oil, grease or slip sheets (appendix 2).</li>
+      <li><strong>Brace the ends against the frame.</strong> The Code allows forcing the ends into solid corrugations of the side walls, but prefers bracing them against the frame structure, such as the bottom or top rails or corner posts (section 2.3.4). The formula treats each batten as a beam fixed at both ends and loaded evenly along its length.</li>
+      <li><strong>Tall or narrow cargo can tip</strong> before it slides; battens at floor level do not stop that. The <a href="/dunnage-bag-calculator/">dunnage bag calculator</a> includes the Code's tipping check.</li>
+      <li><strong>Mass alone is not securing.</strong> Even when friction exceeds the force in the formula, the Code still asks for blocking or lashing against vibration.</li>
+    </ul>
+    <p class="small"><a href="/how-to-use/#cargo-securing-calculator">How to use this calculator</a></p>
+  </section>
+
+  <section class="prose">
+    <h2>Related</h2>
+    <div class="chips">
+      <a href="/dunnage-bag-calculator/">Dunnage bag calculator</a>
+      <a href="/container-loading-calculator/">Container loading calculator</a>
+      <a href="/shipping-container-dimensions/">Container dimensions</a>
+      <a href="/how-we-calculate/">How we calculate</a>
+    </div>
+  </section>
+</ToolPage>
+
+<script>
+  import { MODES, LB, LBF_N } from '../scripts/dunnage.js';
+  import { blocking } from '../scripts/battens.js';
+  const root = document.querySelector('[data-tool="battens"]') as HTMLElement;
+  const FR = [0.45, 0.4, 0.3, 0.3, 0.2, 0.15, 0.5, 0.4, 0.45, 0.3];
+  const CM_IN = 2.54;
+  const st = JSON.parse(root.dataset.defaults!);
+  let units = 'metric';
+  try { units = localStorage.getItem('lpc-dnb-units') || (navigator.language === 'en-US' ? 'imperial' : 'metric'); } catch { /* storage blocked */ }
+  if (units !== 'imperial') units = 'metric';
+  const $ = (k: string) => root.querySelector(`[data-k="${k}"]`) as HTMLInputElement & HTMLSelectElement;
+  const R = (k: string) => document.querySelector(`[data-r="${k}"]`) as HTMLElement;
+  const f = (v: number, d = 2) => v.toLocaleString('en-US', { maximumFractionDigits: d, minimumFractionDigits: d });
+  const num = (s: string) => { const v = parseFloat(String(s).replace(/,/g, '')); return Number.isFinite(v) && v >= 0 ? v : NaN; };
+  const imp = () => units === 'imperial';
+  function paint() {
+    $('kg').value = String(+(imp() ? st.kg / LB : st.kg).toFixed(1));
+    $('w').value = String(+(imp() ? st.w / CM_IN : st.w).toFixed(2));
+    $('h').value = String(+(imp() ? st.h / CM_IN : st.h).toFixed(2));
+    $('L').value = String(+(imp() ? st.L * 100 / CM_IN : st.L).toFixed(imp() ? 2 : 3));
+    $('n').value = String(st.n); $('mode').value = st.mode; $('mu').value = String(st.mu);
+    $('mupre').value = st.muIdx === 'custom' ? 'custom' : String(st.muIdx);
+    root.querySelectorAll('[data-u="m"]').forEach((e) => { e.textContent = imp() ? '(lb)' : '(kg)'; });
+    root.querySelectorAll('[data-u="s"]').forEach((e) => { e.textContent = imp() ? '(in)' : '(cm)'; });
+    root.querySelectorAll('[data-u="l"]').forEach((e) => { e.textContent = imp() ? '(in)' : '(m)'; });
+    root.querySelectorAll('[data-units]').forEach((b) => b.setAttribute('aria-pressed', String((b as HTMLElement).dataset.units === units)));
+  }
+  const kN = (v: number) => (imp() ? `${f(v * 1000 / LBF_N, 0)} lbf` : `${f(v)} kN`);
+  const kNo = (v: number) => (imp() ? `${f(v)} kN` : `${f(v * 1000 / LBF_N, 0)} lbf`);
+  function calc() {
+    const mode = MODES.find((m) => m.id === st.mode)!;
+    const okIn = st.kg > 0 && st.mu >= 0 && st.w > 0 && st.h > 0 && st.L > 0;
+    if (!okIn) {
+      ['nn', 'need', 'have', 'per'].forEach((k) => { R(k).textContent = '–'; }); ['nnSub', 'needSub', 'haveSub', 'perSub'].forEach((k) => { R(k).textContent = ''; });
+      R('verdict').textContent = 'Enter the cargo mass, a friction factor and the batten size and free length.'; R('steps').textContent = '–'; R('modes').innerHTML = ''; return;
+    }
+    const b = blocking({ kg: st.kg, mode, mu: st.mu, n: st.n, w: st.w, h: st.h, L: st.L });
+    R('nn').textContent = b.need > 0 ? String(b.nNeeded) : '0'; R('nnSub').textContent = b.need > 0 ? `of this size, against ${kN(b.need)}` : 'friction holds the cargo in the formula';
+    R('need').textContent = kN(b.need); R('needSub').textContent = kNo(b.need);
+    R('have').textContent = kN(b.have); R('haveSub').textContent = `${st.n} batten${st.n === 1 ? '' : 's'} · ${kNo(b.have)}`;
+    R('per').textContent = kN(b.per); R('perSub').textContent = kNo(b.per);
+    R('verdict').textContent = b.need <= 0 ? 'In this direction friction alone exceeds the force in the formula, but the CTU Code still asks for blocking or lashing against vibration.'
+      : b.ok ? `Enough: ${st.n} battens resist ${kN(b.have)} against the ${kN(b.need)} needed.` : `Not enough: ${st.n} battens resist ${kN(b.have)}, the cargo needs ${kN(b.need)}. Use ${b.nNeeded} battens of this size, thicker battens or a shorter free length.`;
+    const t = st.kg / 1000;
+    R('steps').innerHTML = [
+      `m = ${f(t, 3)} t, c = ${mode.c}, cz = ${mode.cz}, µ = ${st.mu}`,
+      `Force from the cargo: ${mode.c} × ${f(t, 3)} × 9.81 = ${f(b.push)} kN`,
+      `Friction: ${st.mu} × ${f(t, 3)} × ${mode.cz} × 9.81 = ${f(b.friction)} kN`,
+      `Blocking force needed: ${f(b.push)} − ${f(b.friction)} = <strong>${f(b.need)} kN</strong>`,
+      `One batten: ${f(st.w, 2)}² × ${f(st.h, 2)} ÷ (28 × ${f(st.L, 3)}) = ${f(b.per, 3)} kN; ${st.n} battens = ${f(b.have)} kN`,
+      b.need > 0 ? `Battens needed: ${f(b.need)} ÷ ${f(b.per, 3)} = ${f(b.need / b.per)} → <strong>${b.nNeeded}</strong>` : '',
+    ].filter(Boolean).join('<br>');
+    R('modes').innerHTML = MODES.map((m) => { const x = blocking({ kg: st.kg, mode: m, mu: st.mu, n: st.n, w: st.w, h: st.h, L: st.L }); return `<tr${m.id === st.mode ? ' class="cur"' : ''}><td>${m.label}</td><td class="num">${m.c} / ${m.cz}</td><td class="num">${kN(x.need)}</td><td class="num">${x.need > 0 ? x.nNeeded : 0}</td></tr>`; }).join('');
+  }
+  root.addEventListener('input', (e) => {
+    const t = e.target as HTMLInputElement; const k = t.dataset.k; if (!k) return;
+    const v = num(t.value);
+    if (k === 'kg') st.kg = Number.isFinite(v) ? (imp() ? v * LB : v) : 0;
+    else if (k === 'w' || k === 'h') st[k] = Number.isFinite(v) ? (imp() ? v * CM_IN : v) : 0;
+    else if (k === 'L') st.L = Number.isFinite(v) ? (imp() ? v * CM_IN / 100 : v) : 0;
+    else if (k === 'n') st.n = Number.isFinite(v) ? Math.min(200, Math.floor(v)) : 0;
+    else if (k === 'mu') { st.mu = Number.isFinite(v) ? v : -1; st.muIdx = 'custom'; $('mupre').value = 'custom'; }
+    calc();
+  });
+  root.addEventListener('change', (e) => {
+    const t = e.target as HTMLSelectElement; const k = t.dataset.k; if (!k) return;
+    if (k === 'mode') st.mode = t.value;
+    else if (k === 'mupre' && t.value !== 'custom') { st.muIdx = +t.value; st.mu = FR[+t.value]; $('mu').value = String(st.mu); }
+    calc();
+  });
+  root.querySelectorAll('[data-units]').forEach((b) => b.addEventListener('click', () => {
+    units = (b as HTMLElement).dataset.units!; try { localStorage.setItem('lpc-dnb-units', units); } catch { /* ignore */ }
+    paint(); calc();
+  }));
+  paint(); calc();
+</script>
+
+<style>
+  .dnb { display: flex; flex-direction: column; gap: 14px; }
+  .dnhead { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  .dngrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+  .dngrid .full { grid-column: 1 / -1; }
+  .dngrid .hint { font-weight: 400; font-size: 12px; color: var(--muted); }
+  .dnb .verdict { font-weight: 600; }
+  :global(tr.cur td) { font-weight: 700; }
+</style>
