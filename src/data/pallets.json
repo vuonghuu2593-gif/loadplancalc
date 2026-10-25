@@ -1,5 +1,5 @@
 {
-  "checked": "2026-10-23",
+  "checked": "2026-10-25",
   "reads": "Heights, weights, safe working loads and stacking notes read twice on 2026-10-23: curl page download converted to text, and headless Chromium page text; identical. Neither EPAL nor CHEP publishes a maximum height for a loaded pallet on these pages.",
   "pallets": [
     { "id": "epal1", "name": "EPAL Euro pallet (EPAL 1)", "publisher": "EPAL", "L": 1200, "W": 800, "printed": "Length 800 mm, width 1,200 mm", "H": 144, "weightKg": 25, "swlKg": 1500, "stackNote": "Bottom pallet max. 5,500 kg when stacking laden pallets on a solid, even surface", "boards": 11, "blocks": 9,

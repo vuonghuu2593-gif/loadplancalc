@@ -1,6 +1,6 @@
 {
  "note": "Rental moving trucks as their fleets print them on their own truck pages. Inch and pound figures as printed; mm and kg converted exactly (1 in = 25.4 mm, 1 lb = 0.45359237 kg). Every figure read twice: (1) curl download parsed as HTML text, (2) a separate headless Chromium load (Windows Chrome user agent) reading the rendered page text; both reads identical. No prices.",
- "checked": "2026-10-23",
+ "checked": "2026-10-25",
  "fleets": {
   "U-Haul": {
    "caveat": "All rental truck and trailer measurements are approximate. The equipment you receive may vary in size, based on the engineering/design specifications of multiple-production models.",

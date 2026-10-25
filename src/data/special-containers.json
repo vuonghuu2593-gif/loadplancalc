@@ -2,7 +2,7 @@
   "source": {
     "publisher": "Hapag-Lloyd",
     "note": "Hapag-Lloyd states its figures are examples; containers vary by manufacturer and series. Reference rows only: these containers are not planner presets.",
-    "checked": "2026-10-22",
+    "checked": "2026-10-25",
     "reads": "Each spec page read twice in separate headless-browser sessions (page text, and table cells read one by one); both reads gave the same figures. Load-line and booklet figures read from the PDF text (pdfplumber) and checked against the rendered page image.",
     "booklet": {
       "title": "Hapag-Lloyd Container Specification (booklet)",

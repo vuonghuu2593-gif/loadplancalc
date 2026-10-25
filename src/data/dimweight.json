@@ -1,7 +1,7 @@
 {
   "source": {
     "publisher": "USPS Domestic Mail Manual (DMM), Postal Explorer",
-    "checked": "2026-10-22",
+    "checked": "2026-10-25",
     "revision": "7-12-26",
     "note": "Read twice: curl + HTML-to-text, and a headless-browser page load (innerText); identical. Lines marked [7-12-26] in the DMM were revised for July 12, 2026. UPS and FedEx pages could not be read (Access Denied to the run), so no UPS or FedEx divisor is given."
   },

@@ -2,7 +2,7 @@
   "source": {
     "publisher": "Hapag-Lloyd",
     "note": "Hapag-Lloyd states its figures are examples; containers vary by manufacturer and series.",
-    "checked": "2026-10-18"
+    "checked": "2026-10-25"
   },
   "containers": [
     { "id": "20dv", "name": "20' Standard", "iso": "22G1", "L": 5900, "W": 2352, "H": 2395, "doorW": 2340, "doorH": 2292, "tare": 2350, "payload": 28130, "gross": 30480, "cbm": "33.2",

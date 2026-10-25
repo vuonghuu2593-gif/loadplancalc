@@ -1,6 +1,6 @@
 {
   "note": "53' trailer figures for /53-foot-trailer-dimensions/ that are not planner presets. The three Hyundai Translead planner presets (Original, HY-Cube, Composite) stay in trailers.json. Inches as printed by each maker; mm are converted on the page (1 in = 25.4 mm). Every figure read twice: (1) headless Chromium page text, (2) a separate browser session reading the spec table cell by cell (Hyundai Translead) or a curl download parsed as HTML text (Utility, Stoughton); both reads identical.",
-  "checked": "2026-10-22",
+  "checked": "2026-10-25",
   "hyundai": [
     { "id": "53ht-composite-xt", "model": "Composite XT", "kind": "dry van",
       "Lin": 630, "Win": 101.5, "Hin": 110,

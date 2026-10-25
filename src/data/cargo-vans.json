@@ -1,6 +1,6 @@
 {
  "note": "Mercedes-Benz Sprinter cargo van (2026) as Mercedes-Benz Vans USA prints it on mbvans.com/en/sprinter/cargo-van, per body: Max. Cargo Bed Length, Max Width at Floor, Cargo Width at Wheelhouse, Interior Height, Door Width-Rear, Door Opening-Rear (Height), Cargo Volume, and the Payload Capacity and Max Available GVWR of the 2500 Standard Output version (the WORKER and 2500 versions print the same cargo figures). Inches and pounds as printed; mm and kg converted exactly. Read twice on 2026-10-24: curl HTML text and headless Chromium rendered page, identical. The page prints 39 in at the wheelhouse for the 3500, 3500XD and 4500 versions. Ram ProMaster and Ford Transit spec pages returned Access Denied to both reads, so they are not included. No prices.",
- "checked": "2026-10-24",
+ "checked": "2026-10-25",
  "publisher": "Mercedes-Benz Vans USA",
  "url": "https://www.mbvans.com/en/sprinter/cargo-van",
  "wheelhouseOther": {
