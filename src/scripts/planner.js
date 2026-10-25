@@ -4,6 +4,7 @@ import { U, round, fmt } from './units.js';
 import { readBoxFile, readDelimited, rowsToItems } from './importer.js';
 import { ORIENT, ORIENT_NAMES, layersOf } from './packer.js';
 import { loadList, loadListCsv } from './loadlist.js';
+import { cog as cogOf, offsets, longVerdict, vertOk, axleSplit, US_LIMITS_LB } from './balance.js';
 import { makeCtx, placeProblem, spots as freeSpots, nudge as nudgeBox, onTop, stackFrom, asResult, orientIndex, validate } from './editor.js';
 
 const COLORS = ['#F08A24', '#3E8ED0', '#4CB782', '#D9534F', '#9B6BD3', '#E5C02E', '#2BB5B8', '#C76B98', '#8C9A3C', '#A0693B'];
@@ -67,6 +68,9 @@ export function initPlanner(root) {
   // pallet's own weight (kg, null = not entered = 0): links made before this field existed take the preset's published weight
   if (mode === 'pallet' && state.cont.palletWt === undefined) state.cont.palletWt = presets.find((x) => x.id === state.cont.preset)?.weightKg ?? null;
   if (mode === 'pallet' && state.cont.palletWt != null && !(Number.isFinite(+state.cont.palletWt) && +state.cont.palletWt >= 0)) state.cont.palletWt = null;
+  // optional axle-load inputs (mm, kg; null = not entered); links made before this existed have none
+  { const a = state.axle && typeof state.axle === 'object' ? state.axle : {}; state.axle = {};
+    for (const k of ['front', 'rear', 'frontTare', 'rearTare', 'frontLimit', 'rearLimit']) { const n = a[k]; state.axle[k] = n == null || n === '' || !Number.isFinite(+n) || (k !== 'front' && +n < 0) ? null : +n; } }
   const stepTpl = document.getElementById('step-tpl');
 
   // ---------- form <-> state ----------
@@ -88,6 +92,7 @@ export function initPlanner(root) {
     f('maxWeight').value = c.maxWeight ? showWt(c.maxWeight) : '';
     if (mode === 'pallet') f('palletWt').value = c.palletWt == null ? '' : showWt(c.palletWt);
     f('priority').checked = !!state.priority;
+    paintAxleInputs();
     const p = presets.find((x) => x.id === c.preset);
     if (!p && $('[data-specs]')) $('[data-specs]').open = true; // custom size: show the fields to type into
     paintSummaries();
@@ -667,9 +672,10 @@ export function initPlanner(root) {
       const ln = (mm) => `${fmt(u.fromMM(mm), units === 'metric' ? 1 : 2)} ${u.len}`;
       w.push(`Centre of gravity of the load: ${ln(Math.abs(cog.x - d.cont.L / 2))} off the middle along the length, ${ln(Math.abs(cog.y - d.cont.W / 2))} across the width, ${ln(cog.z)} above the pallet deck. Keep heavy boxes low and the load centred.`);
     } else if (cog && n) {
-      const off = (cog.x - d.cont.L / 2) / d.cont.L * 100;
-      w.push(`Centre of gravity of the cargo: ${fmt(u.fromMM(cog.x), units === 'metric' ? 0 : 1)} ${u.len} from the back wall (${off >= 0 ? fmt(off, 0) + '% toward the door' : fmt(-off, 0) + '% toward the back'} from the middle). Keep heavy cargo low and the load spread evenly.`);
+      const e = offsets(cog, d.cont), v = longVerdict(e.long);
+      w.push(`Centre of gravity of the cargo: ${fmt(u.fromMM(cog.x), units === 'metric' ? 0 : 1)} ${u.len} from the back wall, ${offWord(e.long, 'toward the door', 'toward the back wall')} of the middle (${v === 'ok' ? 'within' : 'over'} the CTU Code’s ${v === 'over' ? '10% limit' : '5% guide'}). Details under “Weight distribution and axle loads”.`);
     }
+    if (mode === 'container') paintBalance(d, cogOf(boxes, state.items));
     const lims = state.items.filter((it) => it.stackable !== false && ((it.maxOnTop != null && it.maxOnTop !== '') || (it.maxLoad != null && it.maxLoad !== '')));
     if (lims.length && !d.errors.length) w.push(`Stacking limits kept: ${lims.map((it) => `“${esc(it.name)}” ${[it.maxOnTop != null && it.maxOnTop !== '' ? `at most ${fmt(+it.maxOnTop)} box${+it.maxOnTop === 1 ? '' : 'es'} on top` : '', it.maxLoad != null && it.maxLoad !== '' ? `at most ${fmt(u.fromKG(+it.maxLoad), 1)} ${u.wt} on top` : ''].filter(Boolean).join(' and ')}`).join('; ')}. Boxes that would break a limit are left out or placed elsewhere.`);
     R('warn').innerHTML = w.map((x) => `<p class="warn">${x}</p>`).join('');
@@ -727,6 +733,76 @@ export function initPlanner(root) {
     paintMulti();
   }
 
+
+  // ---------- weight distribution and axle loads (balance.js; container mode) ----------
+  let lastBal = null;
+  const offWord = (share, plus, minus) => (Math.abs(share) < 0.0005 ? '0%' : `${fmt(Math.abs(share) * 100, 1)}% ${share > 0 ? plus : minus}`);
+  function paintAxleInputs() {
+    if (mode !== 'container') return;
+    const a = state.axle, u = U[units];
+    root.querySelectorAll('[data-a]').forEach((el) => {
+      const k = el.dataset.a, v = a[k];
+      if (document.activeElement === el) return;
+      el.value = v == null ? '' : k === 'front' || k === 'rear' ? String(round(u.fromMM(v), units === 'metric' ? 1 : 2)) : String(round(u.fromKG(v), 1));
+    });
+  }
+  function paintBalance(d, c) {
+    if (mode !== 'container' || !$('[data-balance]')) return;
+    lastBal = { d, c };
+    const u = U[units], dec = 1;
+    const ln = (mm) => `${fmt(u.fromMM(mm), dec)} ${u.len}`, wt = (kg) => `${fmt(u.fromKG(kg), 0)} ${u.wt}`;
+    if (!c) {
+      $('[data-balsum]').textContent = 'no cargo weight';
+      R('balTable').innerHTML = '<tr><td colspan="3">Enter box weights to see where the centre of gravity is.</td></tr>';
+      R('balNote').innerHTML = ''; R('axle').innerHTML = ''; return;
+    }
+    const e = offsets(c, d.cont), v = longVerdict(e.long), lowOk = vertOk(e.vert);
+    $('[data-balsum]').textContent = `${offWord(e.long, 'to the door', 'to the back')} off centre · ${v === 'ok' ? 'within 5%' : v === 'tolerated' ? 'over 5%' : 'over 10%'}`;
+    R('balTable').innerHTML = [
+      ['Along the length (from the back wall)', ln(c.x), offWord(e.long, 'toward the door', 'toward the back wall')],
+      ['Across the width (from the right wall, seen from the door)', ln(c.y), offWord(e.trans, 'toward the left wall', 'toward the right wall')],
+      ['Height (above the floor)', ln(c.z), `${fmt(e.vert * 100, 0)}% of the inside height`],
+    ].map((r) => `<tr><td>${r[0]}</td><td class="num">${r[1]}</td><td>${r[2]}</td></tr>`).join('');
+    const pc = `${fmt(Math.abs(e.long) * 100, 1)}%`;
+    const notes = [
+      `Lengthwise: ${pc} off the middle, ${v === 'ok' ? 'within 5%' : v === 'tolerated' ? 'over 5%: move heavy cargo toward the middle if you can' : 'over 10%: move heavy cargo toward the middle, or mark the centre of gravity and tell the carrier'}. The CTU Code’s general limit for a container lifted level is 5%; up to 10% “could be accepted” only in particular circumstances (spreaders that adjust for it).`,
+      `Crosswise: ${offWord(e.trans, 'toward the left wall', 'toward the right wall')} of the middle; the Code asks for it to be close to the half width.`,
+      `Height: ${ln(c.z)} above the floor, ${lowOk ? 'below' : 'not below'} half the inside height (${ln(d.cont.H / 2)}) as the Code asks${lowOk ? '' : ': put heavy cargo at the bottom'}.`,
+      'Trucks and trailers: the maker’s load distribution diagram sets the limits; full payload is usually allowed only with the centre of gravity close to half the load length. Each box’s weight is taken at its middle.',
+    ];
+    R('balNote').innerHTML = notes.map((x) => `<p class="small">${x}</p>`).join('');
+    // axle loads
+    const a = state.axle;
+    if (a.front == null || a.rear == null) { R('axle').innerHTML = '<p class="small">Enter both positions to split the cargo weight.</p>'; return; }
+    const sp = axleSplit(c.m, c.x, a.front, a.rear);
+    if (!sp) { R('axle').innerHTML = '<p class="warn">The rear axle group must be further from the back wall than the front support.</p>'; return; }
+    const ft = a.frontTare || 0, rt = a.rearTare || 0, tare = a.frontTare != null || a.rearTare != null;
+    const row = (name, cargo, empty, lim) => { const tot = cargo + empty; const over = lim != null && tot > lim + 1e-6;
+      return `<tr><td data-label="Support">${name}</td><td data-label="Cargo" class="num">${wt(cargo)}</td><td data-label="Empty vehicle" class="num">${tare ? wt(empty) : '–'}</td><td data-label="Total" class="num"><strong>${wt(tot)}</strong></td><td data-label="Limit">${lim == null ? '–' : over ? `<strong>over ${wt(lim)} by ${wt(tot - lim)}</strong>` : `within ${wt(lim)} (${wt(lim - tot)} left)`}</td></tr>`; };
+    const hand = `${fmt(u.fromKG(sp.rear), 0)} × (${fmt(u.fromMM(a.rear), dec)} − ${fmt(u.fromMM(a.front), dec)}) = ${fmt(u.fromKG(c.m), 0)} × (${fmt(u.fromMM(c.x), dec)} − ${fmt(u.fromMM(a.front), dec)})`;
+    R('axle').innerHTML = `<div class="tablebox"><table class="stack"><thead><tr><th scope="col">Support</th><th scope="col" class="num">Cargo</th><th scope="col" class="num">Empty vehicle</th><th scope="col" class="num">Total</th><th scope="col">Limit</th></tr></thead><tbody>`
+      + row('Front support', sp.front, ft, a.frontLimit) + row('Rear axle group', sp.rear, rt, a.rearLimit) + '</tbody></table></div>'
+      + (sp.outside ? '<p class="warn">The cargo’s centre of gravity is outside the two supports, so one of them would be lifted. Check the positions you entered.</p>' : '')
+      + `<p class="small">Moment balance about the front support: rear load × (rear − front) = cargo × (centre of gravity − front): ${hand} ${u.len}·${u.wt}. Front = cargo − rear.${tare ? '' : ' Cargo only: add the empty vehicle’s axle loads for the totals.'} US federal limits on the Interstate System (23 CFR 658.17): ${fmt(US_LIMITS_LB.single)} lb on one axle, ${fmt(US_LIMITS_LB.tandem)} lb on a tandem, ${fmt(US_LIMITS_LB.gross)} lb gross; other countries and states set their own.</p>`;
+  }
+  if (mode === 'container' && $('[data-balance]')) {
+    const box = $('[data-balance]');
+    box.addEventListener('input', (e) => {
+      const k = e.target.dataset.a; if (!k) return;
+      const raw = String(e.target.value).trim().replace(',', '.'); const n = parseFloat(raw);
+      const u = U[units];
+      if (raw === '' || !Number.isFinite(n) || (k !== 'front' && n < 0)) state.axle[k] = null;
+      else state.axle[k] = k === 'front' || k === 'rear' ? u.toMM(n) : u.toKG(n);
+      if (ed) writeEditHash(); else writeHash();
+      if (lastBal) paintBalance(lastBal.d, lastBal.c);
+    });
+    box.addEventListener('click', (e) => {
+      const bt = e.target.closest('[data-alim]'); if (!bt) return;
+      state.axle.rearLimit = U.imperial.toKG(+bt.dataset.alim); paintAxleInputs();
+      if (ed) writeEditHash(); else writeHash();
+      if (lastBal) paintBalance(lastBal.d, lastBal.c);
+    });
+  }
 
   // ---------- loading list (sections along the length, layers from the floor up; see loadlist.js) ----------
   let lastList = null, llAll = false;

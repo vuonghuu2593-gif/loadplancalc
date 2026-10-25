@@ -73,6 +73,40 @@ ok((await pg.$eval('[data-r="table"]', (e) => e.textContent)).includes('H up · 
 const pg3 = await b.newPage({ viewport: { width: 390, height: 844 } });
 await pg3.goto(pg.url()); await pg3.waitForTimeout(400); await pg3.waitForFunction(() => document.querySelector('#r-main').textContent.trim() !== '–', null, { timeout: 15000 }); await pg3.waitForTimeout(500);
 ok(await pg3.$eval('#r-main', (e) => e.textContent.trim()) === '600 of 5,000', 'share link keeps the chosen position');
+// Weight distribution and axle loads (balance.js): defaults, positions in cm, moment balance, units both ways, share link
+{
+  await pg.goto('http://localhost:4401/container-loading-calculator/'); await settle();
+  const unitsBefore = (await pg.$eval('[data-units="metric"]', (e) => e.getAttribute('aria-pressed'))) === 'true' ? 'metric' : 'imperial';
+  if (unitsBefore !== 'metric') { await pg.click('[data-units="metric"]'); await settle(); }
+  const sum = await pg.$eval('[data-balsum]', (e) => e.textContent);
+  ok(/off centre/.test(sum) && (await pg.$$('[data-r="balTable"] tr')).length === 3, 'weight distribution shown with the defaults (' + sum + ')');
+  await pg.fill('[data-a="front"]', '90'); await pg.fill('[data-a="rear"]', '1100');
+  const num = (t) => +t.replace(/[^\d.\-]/g, '');
+  const cells = async () => pg.$$eval('[data-r="axle"] tbody tr', (r) => r.map((x) => [...x.children].map((c) => c.textContent)));
+  let rows = await cells();
+  const d = num(await pg.$eval('[data-r="balTable"] tr td.num', (e) => e.textContent)); // CG along the length, cm
+  const fr = num(rows[0][1]), rr = num(rows[1][1]);
+  // hand: rear = 7,800 x (d - 90) / (1100 - 90), front = 7,800 - rear (shown rounded to 1 kg, d rounded to 0.1 cm)
+  ok(Math.abs(fr + rr - 7800) <= 1 && Math.abs(rr - 7800 * (d - 90) / 1010) <= 2, `axle split by moment balance: front ${fr} + rear ${rr} kg, CG ${d} cm`);
+  await pg.click('[data-alim="34000"]');
+  ok(await pg.inputValue('[data-a="rearLimit"]') === '15422.1' && /within 15,422 kg/.test((await cells())[1][4]), '34,000 lb tandem limit = 15,422.1 kg (' + await pg.inputValue('[data-a="rearLimit"]') + ')');
+  await pg.fill('[data-a="rearTare"]', '13000'); rows = await cells();
+  ok(/over 15,422 kg by/.test(rows[1][4]) === (rr + 13000 > 15422.14), 'empty axle load added and compared with the limit (' + rows[1][4] + ')');
+  await pg.click('[data-units="imperial"]'); await settle();
+  // 900 mm = 35.43 in, 11000 mm = 433.07 in, 15,422.14 kg = 34,000 lb
+  ok(await pg.inputValue('[data-a="front"]') === '35.43' && await pg.inputValue('[data-a="rear"]') === '433.07' && await pg.inputValue('[data-a="rearLimit"]') === '34000', 'axle inputs in inches and pounds (' + await pg.inputValue('[data-a="front"]') + ', ' + await pg.inputValue('[data-a="rear"]') + ', ' + await pg.inputValue('[data-a="rearLimit"]') + ')');
+  for (let i = 0; i < 3; i++) { await pg.click('[data-units="metric"]'); await pg.click('[data-units="imperial"]'); }
+  await pg.click('[data-units="metric"]'); await settle();
+  ok(await pg.inputValue('[data-a="front"]') === '90' && await pg.inputValue('[data-a="rear"]') === '1100' && await pg.inputValue('[data-a="rearTare"]') === '13000', 'axle inputs survive 4 unit round trips');
+  const url = pg.url(); await pg.goto('about:blank'); await pg.goto(url); await settle();
+  ok(await pg.inputValue('[data-a="front"]') === '90' && await pg.inputValue('[data-a="rearLimit"]') === '15422.1', 'share link keeps the axle inputs');
+  await pg.fill('[data-a="front"]', '-30'); rows = await cells();
+  ok(Math.abs(num(rows[1][1]) - 7800 * (d + 30) / 1130) <= 2, 'front support ahead of the back wall (−30 cm) accepted');
+  await pg.fill('[data-a="front"]', '1200');
+  ok(/must be further/.test(await pg.$eval('[data-r="axle"]', (e) => e.textContent)), 'rear ahead of the front support refused');
+  await pg.goto('http://localhost:4401/container-loading-calculator/'); await settle();
+  if (unitsBefore !== 'metric') { await pg.click('[data-units="imperial"]'); await settle(); }
+}
 // Semi-automatic steps on the defaults
 await pg.goto('http://localhost:4401/container-loading-calculator/'); await pg.evaluate(() => { history.replaceState(null, '', location.pathname); }); await pg.reload(); await settle();
 await pg.click('[data-mode="semi"]'); await settle();

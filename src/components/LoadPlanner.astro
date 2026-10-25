@@ -198,6 +198,35 @@ const presets = mode === 'container' ? (spacePresets || data.containers) : palle
       <div><div class="k">Stacking</div><div class="v" data-r="stack">–</div><div class="small sub" data-r="stackSub"></div></div>
       {mode === 'pallet' && <div><div class="k">Pallet cube</div><div class="v" data-r="cube">–</div><div class="small sub" data-r="cubeSub"></div></div>}
     </div>
+    {mode === 'container' && <details class="more balance" data-balance>
+      <summary><span class="sumk">Weight distribution and axle loads</span><span class="sumv" data-balsum></span></summary>
+      <div class="morebody">
+        <div class="tablebox"><table>
+          <thead><tr><th scope="col">Centre of gravity</th><th scope="col" class="num">Position</th><th scope="col">Off the middle</th></tr></thead>
+          <tbody data-r="balTable"></tbody>
+        </table></div>
+        <div data-r="balNote"></div>
+        <h3 class="balh">Axle loads (optional)</h3>
+        <p class="small">Split the cargo weight between the front support (a semi-trailer's kingpin, or a truck's front axle) and the middle of the rear axle group. Measure both from the inside of the back wall, the closed end behind the cab; a front support ahead of that wall is a negative number. Add the empty vehicle's own axle loads from a weigh ticket to see the totals.</p>
+        <div class="row2">
+          <label><span>Front support from back wall <span class="small" data-ul></span></span><input data-a="front" inputmode="decimal" placeholder="e.g. 90"></label>
+          <label><span>Rear axle group middle from back wall <span class="small" data-ul></span></span><input data-a="rear" inputmode="decimal"></label>
+        </div>
+        <div class="row2">
+          <label><span>Empty load on front support <span class="small" data-uw></span></span><input data-a="frontTare" inputmode="decimal" placeholder="0"></label>
+          <label><span>Empty load on rear axles <span class="small" data-uw></span></span><input data-a="rearTare" inputmode="decimal" placeholder="0"></label>
+        </div>
+        <div class="row2">
+          <label><span>Front support limit <span class="small" data-uw></span></span><input data-a="frontLimit" inputmode="decimal" placeholder="none"></label>
+          <label><span>Rear axle group limit <span class="small" data-uw></span></span><input data-a="rearLimit" inputmode="decimal" placeholder="none"></label>
+        </div>
+        <div class="unitrow noprint" role="group" aria-label="US federal limits for the rear axle group">
+          <button type="button" data-alim="34000">Rear limit: 34,000 lb tandem</button>
+          <button type="button" data-alim="20000">Rear limit: 20,000 lb single axle</button>
+        </div>
+        <div data-r="axle"></div>
+      </div>
+    </details>}
     <div class="editor noprint" data-editor>
       <div class="edoff" data-ed-off>
         <div class="edbar">

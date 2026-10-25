@@ -503,5 +503,38 @@ ok(badF === 0, `25 random "remove some, fill again" plans valid (${badF} bad)`);
   lp = layeredPallet({ ...P, maxWeight: 100 }, Bx, { stack: 'column' });
   ok(lp.per === 16, 'pallet max load 100 kg / 6 kg = 16');
 }
+// ---------- weight distribution (balance.js) ----------
+{
+  const { cog, offsets, longVerdict, vertOk, axleSplit } = await import('../src/scripts/balance.js');
+  const near = (a, b, e = 1e-6) => Math.abs(a - b) <= e;
+  // CTU Code annex 7 appendix 4 section 3 example: 3.5, 4.2, 3.7, 2.2, 4.9 t at 0.7, 1.4, 3.0, 3.8, 5.1 m -> 52.78 / 18.5 = 2.853 m
+  const ex = [[3.5, 0.7], [4.2, 1.4], [3.7, 3.0], [2.2, 3.8], [4.9, 5.1]];
+  const items = ex.map(([t]) => ({ weight: t * 1000 }));
+  const bx = ex.map(([, d], k) => ({ k, x: d * 1000 - 50, dx: 100, y: 1126, dy: 100, z: 0, dz: 400 }));
+  let c = cog(bx, items);
+  ok(near(c.m, 18500) && near(c.x, 52780 / 18.5, 1e-6), `CTU Code example: CG ${(c.x / 1000).toFixed(3)} m from the front (52.78 / 18.5 = 2.853)`);
+  // symmetric: four 500 kg boxes in the corners of a 20' (5898 x 2352 x 2393) -> CG at the middle, 0% off
+  const C20 = { L: 5898, W: 2352, H: 2393 };
+  const sym = [[0, 0], [5898 - 1000, 0], [0, 2352 - 800], [5898 - 1000, 2352 - 800]].map(([x, y]) => ({ k: 0, x, y, z: 0, dx: 1000, dy: 800, dz: 600 }));
+  c = cog(sym, [{ weight: 500 }]); let e = offsets(c, C20);
+  ok(near(c.x, 2949) && near(c.y, 1176) && near(c.z, 300) && near(e.long, 0) && near(e.trans, 0) && longVerdict(e.long) === 'ok' && vertOk(e.vert), 'symmetric corners: CG = middle (2949, 1176), 300 mm high');
+  // one-sided: 1000 kg centred 500 mm from the back wall + 1000 kg at mid-length -> x = (500 + 2949) / 2 = 1724.5,
+  // (1724.5 - 2949) / 5898 = -20.76% -> over 10%; a box twice as heavy on one side across: y = (2 x 400 + 1 x 1176)/3
+  c = cog([{ k: 0, x: 0, dx: 1000, y: 776, dy: 800, z: 0, dz: 600 }, { k: 0, x: 2449, dx: 1000, y: 776, dy: 800, z: 0, dz: 600 }], [{ weight: 1000 }]); e = offsets(c, C20);
+  ok(near(c.x, 1724.5) && near(e.long, (1724.5 - 2949) / 5898) && longVerdict(e.long) === 'over', `one-sided: CG 1724.5 mm, ${(e.long * 100).toFixed(2)}% -> over 10%`);
+  c = cog([{ k: 0, x: 0, dx: 1000, y: 0, dy: 800, z: 0, dz: 600 }, { k: 1, x: 0, dx: 1000, y: 776, dy: 800, z: 0, dz: 600 }], [{ weight: 2000 }, { weight: 1000 }]);
+  ok(near(c.y, (2 * 400 + 1176) / 3), `heavier box on the right: y = (2 x 400 + 1176) / 3 = ${c.y.toFixed(1)} mm`);
+  ok(longVerdict(0.05) === 'ok' && longVerdict(-0.0501) === 'tolerated' && longVerdict(0.1) === 'tolerated' && longVerdict(0.1001) === 'over', 'eccentricity bands: 5% ok, 10% tolerated, above 10% over');
+  ok(vertOk(0.49) && !vertOk(0.5), 'vertical: below half the height');
+  ok(cog([], []) === null && cog([{ k: 0, x: 0, dx: 1, y: 0, dy: 1, z: 0, dz: 1 }], [{ weight: 0 }]) === null, 'no weight: no CG');
+  // axle split by moment balance: 20,000 kg at 6000 mm, kingpin 900, rear axles 11000:
+  // rear = 20000 x 5100 / 10100 = 10,099.01 kg, front = 9,900.99 kg
+  let sp = axleSplit(20000, 6000, 900, 11000);
+  ok(near(sp.rear, 20000 * 5100 / 10100) && near(sp.front + sp.rear, 20000) && near(sp.rear * (11000 - 900), 20000 * (6000 - 900), 1e-6) && !sp.outside, `axle split: rear ${sp.rear.toFixed(2)} kg, front ${sp.front.toFixed(2)} kg, moments balance`);
+  sp = axleSplit(1000, 500, -300, 2700); // front support ahead of the back wall: rear = 1000 x 800 / 3000
+  ok(near(sp.rear, 800 / 3) && near(sp.front, 1000 - 800 / 3), 'negative front position: rear 266.67 kg');
+  ok(axleSplit(1000, 500, 900, 900) === null && axleSplit(1000, 500, 900, 100) === null, 'rear not behind front: no split');
+  ok(axleSplit(1000, 12000, 900, 11000).outside && axleSplit(1000, 12000, 900, 11000).front < 0, 'CG behind the rear axles: flagged, front load negative');
+}
 console.log(fails ? `${fails} failing` : 'all engine tests pass');
 process.exit(fails ? 1 : 0);
