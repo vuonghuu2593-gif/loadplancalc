@@ -4,7 +4,7 @@ import data from '../data/containers.json';
 import sp from '../data/special-containers.json';
 import tdata from '../data/trailers.json';
 const n = (v: number, d = 0) => v.toLocaleString('en-US', { maximumFractionDigits: d });
-const ftin = (mm: number) => { const tin = mm / 25.4; const ft = Math.floor(tin / 12); const inch = tin - ft * 12; return `${ft}′ ${n(inch, 1)}″`; };
+const ftin = (mm: number) => { const tin = Math.round(mm / 25.4 * 10) / 10; const ft = Math.floor(tin / 12 + 1e-9); const inch = tin - ft * 12; return `${ft}′ ${n(inch, 1)}″`; };
 const cbm = (c: any) => (c.L * c.W * c.H) / 1e9;
 const cuft = (c: any) => (c.L * c.W * c.H) / (304.8 ** 3);
 const lb = (kg: number) => kg / 0.45359237;
@@ -16,6 +16,8 @@ const vgmCargo = 18000, vgmChecked = '2026-10-24';
 if (s20.tare !== 2350 || s20.gross !== 30480 || s40.gross !== 32500 || vgmCargo + s20.tare !== 20350) throw new Error('weight section example changed');
 const tr = tdata.trailers.find((t) => t.id === '53ht-composite')!;
 const rf20 = sp.reefers[0], rf40 = sp.reefers[1], ot40 = sp.opentops[1];
+const fr20 = sp.flatracks[0], fr40 = sp.flatracks[1];
+if (fr20.gross - fr20.tare !== fr20.payload || fr40.gross - fr40.tare !== fr40.payload) throw new Error('flat rack weights do not add up');
 const url = new URL('/shipping-container-dimensions/', 'https://loadplancalc.com').href;
 const schema = { '@context': 'https://schema.org', '@type': 'Article', headline: 'Shipping container dimensions', dateModified: data.source.checked, mainEntityOfPage: url };
 ---
@@ -68,7 +70,7 @@ const schema = { '@context': 'https://schema.org', '@type': 'Article', headline:
   </section>
 
   <section class="prose" id="reefer-open-top">
-    <h2>Reefer and open top container dimensions</h2>
+    <h2>Reefer, open top and flat rack container dimensions</h2>
     <p>A refrigerated (reefer) container is smaller inside than a dry container of the same length. Hapag-Lloyd lists its 20' reefer at {n(rf20.L)} × {n(rf20.W)} × {n(rf20.H)} mm ({ftin(rf20.L)} × {ftin(rf20.W)} × {ftin(rf20.H)}) and its 40' high cube reefer at {n(rf40.L)} × {n(rf40.W)} × {n(rf40.H)} mm ({ftin(rf40.L)} × {ftin(rf40.W)} × {ftin(rf40.H)}). An open top is closed with a removable tarpaulin instead of a fixed roof; Hapag-Lloyd describes it as designed for over-height cargo, heavy loads and loading from the top, for example by crane.</p>
     <div class="tablebox">
       <table>
@@ -114,7 +116,31 @@ const schema = { '@context': 'https://schema.org', '@type': 'Article', headline:
       <li><strong>Open top height.</strong> Hapag-Lloyd gives the 40' open top {n(ot40.Hnobows)} mm ({ftin(ot40.Hnobows)}) of inside height with no roof bars, against the {n(ot40.H)} mm in the table.</li>
       <li><strong>Open top door.</strong> The door height is measured up to the door header; the booklet notes that the header can be swung out on all Hapag-Lloyd open tops, which frees more height at the door.</li>
     </ul>
-    <p class="small">Source: Hapag-Lloyd container specification pages for the <a href={rf20.url} rel="noopener">20' reefer</a>, <a href={rf40.url} rel="noopener">40' reefer high cube</a>, <a href={sp.opentops[0].url} rel="noopener">20' open top</a> and <a href={ot40.url} rel="noopener">40' open top</a>, and the <a href={sp.source.booklet.url} rel="noopener">Hapag-Lloyd container specification booklet</a> (reefer pages 41 and 43; open top pages 24–31), checked {sp.source.checked}. These containers are reference rows only; the <a href="/container-loading-calculator/">container loading calculator</a> plans dry containers.</p>
+    <h3 id="flat-rack">Flat rack container dimensions</h3>
+    <p>Flat racks have no side walls and no roof, so cargo can be loaded from the sides or from above. Hapag-Lloyd lists its 20' flatrack at {n(fr20.L)} mm long ({ftin(fr20.L)}) and {n(fr20.Wfloor)} mm wide at the floor, with {n(fr20.payload)} kg of max payload; its 40' flatrack high cube (listed on one page with its 40' platform) is {n(fr40.L)} mm long ({ftin(fr40.L)}) and {n(fr40.Wfloor)} mm wide at the floor, with {n(fr40.payload)} kg of payload — far more than a dry container of the same length.</p>
+    <div class="tablebox">
+      <table>
+        <thead><tr><th>Flat rack</th><th class="num">Length min.</th><th class="num">Width at floor</th><th class="num">Width min.</th><th class="num">Height</th><th class="num">Height bottom</th></tr></thead>
+        <tbody>
+          {sp.flatracks.map((c) => <tr><td><a href={c.url} rel="noopener">{c.name}</a><br><span class="small">ISO {c.iso}</span></td>
+            <td class="num">{n(c.L)} mm<br><span class="small">{ftin(c.L)}</span></td><td class="num">{n(c.Wfloor)} mm<br><span class="small">{ftin(c.Wfloor)}</span></td><td class="num">{n(c.Wmin)} mm<br><span class="small">{ftin(c.Wmin)}</span></td>
+            <td class="num">{n(c.H)} mm<br><span class="small">{ftin(c.H)}</span></td><td class="num">{n(c.Hbottom)} mm<br><span class="small">{ftin(c.Hbottom)}</span></td></tr>)}
+        </tbody>
+      </table>
+    </div>
+    <div class="tablebox">
+      <table>
+        <thead><tr><th>Flat rack</th><th class="num">Tare</th><th class="num">Max payload</th><th class="num">Max gross</th></tr></thead>
+        <tbody>
+          {sp.flatracks.map((c) => <tr><td>{c.name}</td>
+            <td class="num">{n(c.tare)} kg<br><span class="small">{n(lb(c.tare))} lb</span></td>
+            <td class="num">{n(c.payload)} kg<br><span class="small">{n(lb(c.payload))} lb</span></td>
+            <td class="num">{n(c.gross)} kg<br><span class="small">{n(lb(c.gross))} lb</span></td></tr>)}
+        </tbody>
+      </table>
+    </div>
+    <p class="small">Column names as Hapag-Lloyd prints them ("Length Min.", "Width Floor", "Width Min.", "Height", "Height Bottom"); millimetres and kilograms from each flat rack's page (linked), feet and pounds converted here (1 in = 25.4 mm, 1 lb = 0.45359237 kg). Hapag-Lloyd's own pound figures are rounded differently (for example {n(fr40.printed.lb.tare)} lb for the 40' tare of {n(fr40.tare)} kg); this table converts the kilograms. Cargo that sticks out beyond the sides or above the end walls is out of gauge: Hapag-Lloyd asks shippers with special equipment requirements to contact its customer service before booking.</p>
+    <p class="small">Source: Hapag-Lloyd container specification pages for the <a href={rf20.url} rel="noopener">20' reefer</a>, <a href={rf40.url} rel="noopener">40' reefer high cube</a>, <a href={sp.opentops[0].url} rel="noopener">20' open top</a>, <a href={ot40.url} rel="noopener">40' open top</a>, <a href={fr20.url} rel="noopener">20' flatrack</a> and <a href={fr40.url} rel="noopener">40' flatrack high cube</a> (flat racks checked {sp.source.flatracksChecked}), and the <a href={sp.source.booklet.url} rel="noopener">Hapag-Lloyd container specification booklet</a> (reefer pages 41 and 43; open top pages 24–31), checked {sp.source.checked}. These containers are reference rows only; the <a href="/container-loading-calculator/">container loading calculator</a> plans dry containers.</p>
   </section>
 
   <section class="prose">

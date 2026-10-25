@@ -53,6 +53,7 @@ import xs from '../data/trailer-specs.json';
       <tbody>
         {data.containers.map((c) => <tr><td>{c.name}: inside size, door, tare, payload, gross</td><td><a href={c.url} rel="noopener">Hapag-Lloyd</a></td><td>{data.source.checked}</td></tr>)}
         {[...sp.reefers, ...sp.opentops].map((c) => <tr><td>{c.name}: inside size, door{c.roofL ? ', roof opening' : ''}, tare, payload, gross, capacity</td><td><a href={c.url} rel="noopener">Hapag-Lloyd</a></td><td>{sp.source.checked}</td></tr>)}
+        {sp.flatracks.map((c) => <tr><td>{c.name}: length min., width at floor and min., height, height bottom, tare, payload, gross</td><td><a href={c.url} rel="noopener">Hapag-Lloyd</a></td><td>{sp.source.flatracksChecked}</td></tr>)}
         <tr><td>Verified gross mass of a packed container (SOLAS VI/2): shipper's duty, condition for loading, Method 1 and Method 2</td><td><a href="https://www.imo.org/en/OurWork/Safety/Pages/Verification-of-the-gross-mass.aspx" rel="noopener">International Maritime Organization (IMO)</a></td><td>2026-10-24</td></tr>
         <tr><td>Reefer inside height and load-line (maximum stowage) height; open top door header</td><td><a href={sp.source.booklet.url} rel="noopener">Hapag-Lloyd container specification booklet</a></td><td>{sp.source.checked}</td></tr>
         {pallets.pallets.map((x) => <tr><td>{x.name}: footprint, height, weight, safe working load, stacking limit{x.emptyStack ? ', empty pallets per trailer stack' : ''}</td><td><a href={x.url} rel="noopener">{x.publisher}</a></td><td>{pallets.checked}</td></tr>)}
