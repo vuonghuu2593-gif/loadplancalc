@@ -47,6 +47,7 @@ const q = dw.quotes;
       <label class="full">Rule
         <select data-f="rule">
           {dw.rules.map((r) => <option value={r.id}>{r.label}</option>)}
+          <option value="air">Air cargo: 6,000 cm³ per kg (IATA standard)</option>
           <option value="custom">Your carrier's divisor (enter it)</option>
         </select>
       </label>
@@ -97,6 +98,7 @@ const q = dw.quotes;
       <li><strong>Only above 1,728 in³</strong> (1 cubic foot): divide by 139 and round up to the next whole pound. That is the dimensional weight. At 1,728 in³ or less there is no dimensional weight.</li>
       <li><strong>Billable weight</strong> = the greater of the actual weight and the dimensional weight. If the dimensional weight is over 70 lb, the customer pays the 70-pound price.</li>
     </ol>
+    <p>With <strong>Air cargo</strong>, the volumetric weight is length × width × height in centimetres ÷ 6,000, and you pay for the greater of the actual and the volumetric weight. Maersk calls the 6,000 divisor "an industry standard, set by the International Air Transport Association (IATA)" and works an example: a 100 × 60 × 30 cm shipment weighing 50 kg is (100 × 60 × 30) ÷ 6,000 = 30 kg by volume, so it is charged at its 50 kg actual weight; it also notes that some carriers use 5,000 instead (<a href="https://www.maersk.com/logistics-explained/transportation-and-freight/2025/03/10/air-cargo-chargeable-weight" rel="noopener">Maersk, "Air cargo chargeable weight"</a>). A 120 × 80 × 100 cm pallet of 100 kg is 960,000 ÷ 6,000 = 160 kg by volume, so it is charged as 160 kg. Sizes are not rounded here; airlines round the chargeable weight in their own steps.</p>
     <p>With <strong>Your carrier's divisor</strong>, the sizes are not rounded: dimensional weight = length × width × height ÷ your divisor, in in³ per lb or cm³ per kg, and the billable weight is the greater of the two.</p>
     <p>With your current inputs:</p>
     <div class="formula" data-r="steps" aria-live="polite">–</div>

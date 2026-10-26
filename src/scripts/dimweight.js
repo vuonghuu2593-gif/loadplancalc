@@ -6,6 +6,9 @@
 import { fmt, round, MM_PER_IN, KG_PER_LB } from './units.js';
 
 export const IN3_CM3 = 2.54 ** 3; // 16.387064 cm³ in one cubic inch
+// Air cargo volumetric weight: L × W × H in cm ÷ 6,000 ("an industry standard, set by the International Air Transport
+// Association (IATA)", Maersk, "Air cargo chargeable weight", read twice 2026-10-26); billed on the greater weight.
+export const AIR_CM3_PER_KG = 6000;
 // in³ per lb → cm³ per kg
 export const toCm3PerKg = (d) => (d * IN3_CM3) / KG_PER_LB;
 export const fromCm3PerKg = (d) => (d * KG_PER_LB) / IN3_CM3;
@@ -75,14 +78,16 @@ export function initDim(root) {
     root.querySelectorAll('[data-uw]').forEach((e) => { e.textContent = units === 'metric' ? '(kg)' : '(lb)'; });
     root.querySelectorAll('[data-units]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.units === units)));
     root.querySelectorAll('[data-shape]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.shape === st.shape)));
-    const custom = st.rule === 'custom';
+    const custom = st.rule === 'custom', air = st.rule === 'air';
     $('[data-custom]').hidden = !custom;
-    $('[data-shapebox]').hidden = custom;
+    $('[data-shapebox]').hidden = custom || air;
   }
 
   function calc() {
-    const rule = rules.find((r) => r.id === st.rule) || null;
-    const c = dimCalc({ l: st.l, w: st.w, h: st.h, kg: st.kg, qty: st.qty }, rule, st.shape, st.divisor, st.dunit);
+    const air = st.rule === 'air';
+    const rule = air ? null : rules.find((r) => r.id === st.rule) || null;
+    const c = air ? dimCalc({ l: st.l, w: st.w, h: st.h, kg: st.kg, qty: st.qty }, null, 'rect', fromCm3PerKg(AIR_CM3_PER_KG), 'cm3kg')
+      : dimCalc({ l: st.l, w: st.w, h: st.h, kg: st.kg, qty: st.qty }, rule, st.shape, st.divisor, st.dunit);
     const warn = [];
     if (!c) {
       R('main').textContent = '–'; R('dim').textContent = '–';
@@ -125,7 +130,7 @@ export function initDim(root) {
       R('dim').textContent = `${fmt(c.dim, 2)} ${wu}`;
       R('dimsub').textContent = `rounded up: ${fmt(roundUp(c.dim))} ${wu}`;
       R('why').textContent = c.byDim ? `The dimensional weight is higher than the ${fmt(c.actual, 2)} ${wu} the package weighs.` : `The actual weight, ${fmt(c.actual, 2)} ${wu}, is higher than the dimensional weight.`;
-      R('price').textContent = 'Sizes are not rounded here. Carriers have their own rules for rounding sizes and weights, and some apply dimensional weight only above a size: check your carrier\'s service guide.';
+      R('price').textContent = air ? 'Air cargo chargeable weight: the greater of the actual weight and L × W × H in cm ÷ 6,000 (the IATA standard divisor). Some carriers use 5,000 instead, and each airline or forwarder rounds the chargeable weight in its own steps: check your quote.' : 'Sizes are not rounded here. Carriers have their own rules for rounding sizes and weights, and some apply dimensional weight only above a size: check your carrier\'s service guide.';
       R('total').textContent = q > 1 ? `${fmt(q)} packages: ${fmt(c.bill * q, 2)} ${wu} billable in total.` : '';
       R('steps').innerHTML = `${c.sides.map((x) => fmt(x, 2)).join(' × ')} ${lu} = ${fmt(c.vol, 2)} ${vu}`
         + `<br>${fmt(c.vol, 2)} ÷ ${fmt(c.divisor, 2)} ${vu} per ${wu} = ${fmt(c.dim, 2)} ${wu}`
