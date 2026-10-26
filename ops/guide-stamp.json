@@ -1,11 +1,12 @@
 {
   "updated": "2026-10-26",
-  "tools": "9acf1381a41667614ef570b1bd1c6fdf7147249584cf07779f939a0883289949",
-  "guide": "694dcd219c4ea6f01dc3888851804d43a78489308ca29ca04930031bc43cff59",
+  "tools": "43427c5bd13a7bb077532ba5f882b1a24dae19d3c269ecc73c157e3d4d030db0",
+  "guide": "a52db5e03c92cc272c760549e3954621dc3ec5b6658110b15be79bb91c768691",
   "toolPages": [
     "/cargo-securing-calculator/",
     "/cbm-calculator/",
     "/container-loading-calculator/",
+    "/container-shipping-cost-calculator/",
     "/cubic-feet-calculator/",
     "/dimensional-weight-calculator/",
     "/dunnage-bag-calculator/",

@@ -1,0 +1,196 @@
+---
+// Container shipping cost calculator. No built-in prices: every rate and charge is typed by the user from their own
+// quote. Containers needed come from the packing engine (pack-worker.js, kind "many": packMany + validate on every
+// unit), with Hapag-Lloyd's inside sizes, doors and payloads from containers.json (already sourced).
+import ToolPage from '../layouts/ToolPage.astro';
+import data from '../data/containers.json';
+import { packMany, validate } from '../scripts/packer.js';
+const n = (v: number, d = 0) => v.toLocaleString('en-US', { maximumFractionDigits: d, minimumFractionDigits: d });
+const hc = data.containers.find((c) => c.id === '40hc')!;
+// worked example, computed with the engine at build time: 1,000 cartons 60 × 40 × 40 cm, 20 kg, any side down
+const C = { L: hc.L, W: hc.W, H: hc.H, maxWeight: hc.payload, doorW: hc.doorW, doorH: hc.doorH };
+const box = { l: 600, w: 400, h: 400, weight: 20, rotation: 'any', stackable: true };
+const ex = packMany(C, [{ ...box, qty: 1000 }], { timeMs: 300, stack: 'column' }, 50);
+const counts = ex.runs.map((r) => r.totals.n);
+if (ex.runs.some((r) => validate(r).length) || ex.left[0] !== 0 || counts.length !== 2 || counts[0] + counts[1] !== 1000) throw new Error('worked example changed');
+const containers = data.containers.map((c) => ({ id: c.id, name: c.name, L: c.L, W: c.W, H: c.H, doorW: c.doorW, doorH: c.doorH, payload: c.payload }));
+const defaults = { l: 600, w: 400, h: 400, kg: 20, qty: 1000, rot: 'any', cont: '40hc', cur: 'USD', rate: null, perCont: [null, null, null], perShip: null };
+---
+<ToolPage
+  title="Container Shipping Cost Calculator (Your Rates, Engine Count)"
+  description="Work out what a container shipment costs from your own freight quote: the packing engine counts the containers your cartons need, then your rate, per-container charges and per-shipment fees give the total, per carton, per m³ and per kg. No built-in prices."
+  h1="Container shipping cost calculator"
+  name="Container shipping cost calculator"
+  lede={`Enter your cartons and the rates from your own quote. The calculator first works out how many containers the cartons need with the same packing engine as the container loading calculator, then adds up the cost. Example: 1,000 cartons of 60 × 40 × 40 cm at 20 kg need <strong>${counts.length} × 40' High Cube</strong> (${n(counts[0])} + ${n(counts[1])} cartons), so the cost is ${counts.length} × (your rate + per-container charges) + per-shipment charges, and ÷ 1,000 for the cost per carton. It has no prices of its own.`}
+>
+  <section class="csc" data-tool="shipcost" data-containers={JSON.stringify(containers)} data-defaults={JSON.stringify(defaults)}>
+    <form class="panel" onsubmit="return false" aria-label="Cartons and rates">
+      <div class="dnhead">
+        <h2>Cartons</h2>
+        <div class="seg" role="group" aria-label="Units" style="flex:0 0 160px">
+          <button type="button" data-units="metric" aria-pressed="true">cm · kg</button>
+          <button type="button" data-units="imperial" aria-pressed="false">in · lb</button>
+        </div>
+      </div>
+      <div class="dngrid">
+        <label>Length <span data-u="l">(cm)</span><input data-k="l" inputmode="decimal" autocomplete="off"></label>
+        <label>Width <span data-u="l">(cm)</span><input data-k="w" inputmode="decimal" autocomplete="off"></label>
+        <label>Height <span data-u="l">(cm)</span><input data-k="h" inputmode="decimal" autocomplete="off"></label>
+        <label>Weight per carton <span data-u="m">(kg)</span><input data-k="kg" inputmode="decimal" autocomplete="off"></label>
+        <label>Number of cartons<input data-k="qty" inputmode="numeric" autocomplete="off"></label>
+        <label>Orientation
+          <select data-k="rot"><option value="any">Any side down</option><option value="upright">This side up</option></select></label>
+        <label class="full">Container
+          <select data-k="cont">{containers.map((c) => <option value={c.id}>{c.name}</option>)}</select></label>
+      </div>
+      <h2>Your rates</h2>
+      <div class="dngrid">
+        <label>Currency<span class="hint">as on your quote</span><input data-k="cur" autocomplete="off"></label>
+        <label>Freight rate per container<input data-k="rate" inputmode="decimal" autocomplete="off" placeholder="from your quote"></label>
+        <label>Per-container charge 1<span class="hint">e.g. fuel surcharge</span><input data-k="pc0" inputmode="decimal" autocomplete="off" placeholder="optional"></label>
+        <label>Per-container charge 2<span class="hint">e.g. terminal handling</span><input data-k="pc1" inputmode="decimal" autocomplete="off" placeholder="optional"></label>
+        <label>Per-container charge 3<input data-k="pc2" inputmode="decimal" autocomplete="off" placeholder="optional"></label>
+        <label>Per-shipment charges<span class="hint">e.g. documents, customs</span><input data-k="ps" inputmode="decimal" autocomplete="off" placeholder="optional"></label>
+      </div>
+    </form>
+
+    <div class="result" data-result aria-live="polite">
+      <div class="grid">
+        <div><div class="k">Containers needed</div><div class="v hi" id="r-main" data-r="units">–</div><div class="sub" data-r="unitsSub"></div></div>
+        <div><div class="k">Total cost</div><div class="v" data-r="total">–</div><div class="sub" data-r="totalSub"></div></div>
+        <div><div class="k">Cost per carton</div><div class="v" data-r="perCarton">–</div><div class="sub" data-r="perCartonSub"></div></div>
+        <div><div class="k">Cost per m³ / per kg</div><div class="v" data-r="perM3">–</div><div class="sub" data-r="perKg"></div></div>
+      </div>
+      <p class="verdict" data-r="verdict">–</p>
+    </div>
+  </section>
+
+  <section class="prose">
+    <h2>How the calculator works</h2>
+    <ol class="plain">
+      <li><strong>Containers needed:</strong> the packing engine fills one container after another with your cartons, never over the container's payload and checking every plan with its independent validator, until all cartons are loaded (up to 50 containers). Inside sizes, doors and payloads are Hapag-Lloyd's, as on <a href="/shipping-container-dimensions/">shipping container dimensions</a>.</li>
+      <li><strong>Total cost</strong> = containers × (freight rate + per-container charges) + per-shipment charges.</li>
+      <li><strong>Per carton</strong> = total ÷ cartons; <strong>per m³</strong> = total ÷ the cartons' own volume; <strong>per kg</strong> = total ÷ the cartons' weight.</li>
+    </ol>
+    <div class="formula" data-r="steps">–</div>
+    <p class="small">The count is for one carton size. For mixed cartons, a 3D plan and the loading order, use the <a href="/container-loading-calculator/">container loading calculator</a>; it shows the same count for every container size side by side.</p>
+  </section>
+
+  <section class="prose">
+    <h2>Reading a container freight quote</h2>
+    <ul class="plain">
+      <li><strong>Per container or per shipment:</strong> quotes list some charges for each container and others once per booking. Put each in the matching box so a second container adds only what it should.</li>
+      <li><strong>Same currency:</strong> enter every amount in the currency of the quote; the calculator does not convert currencies.</li>
+      <li><strong>Weight still counts:</strong> a container can be full by weight before it is full by volume. The engine stops at the payload, and the verdict says when weight is the limit.</li>
+      <li><strong>What is not here:</strong> no prices, duties, taxes, insurance or inland trucking unless you add them as charges.</li>
+    </ul>
+    <p class="small"><a href="/how-to-use/#container-shipping-cost-calculator">How to use this calculator</a></p>
+  </section>
+
+  <section class="prose">
+    <h2>Related</h2>
+    <div class="chips">
+      <a href="/container-loading-calculator/">Container loading calculator</a>
+      <a href="/cbm-calculator/">CBM calculator</a>
+      <a href="/shipping-container-dimensions/">Container dimensions</a>
+      <a href="/dimensional-weight-calculator/">Dimensional weight calculator</a>
+    </div>
+  </section>
+</ToolPage>
+
+<script>
+  const LB = 0.45359237, IN = 2.54;
+  const root = document.querySelector('[data-tool="shipcost"]') as HTMLElement;
+  const CONTS = JSON.parse(root.dataset.containers!);
+  const st = JSON.parse(root.dataset.defaults!);
+  let units = 'metric';
+  try { units = localStorage.getItem('lpc-units') || (navigator.language === 'en-US' ? 'imperial' : 'metric'); } catch { /* storage blocked */ }
+  if (units !== 'imperial') units = 'metric';
+  const $ = (k: string) => root.querySelector(`[data-k="${k}"]`) as HTMLInputElement & HTMLSelectElement;
+  const R = (k: string) => document.querySelector(`[data-r="${k}"]`) as HTMLElement;
+  const f = (v: number, d = 2) => v.toLocaleString('en-US', { maximumFractionDigits: d, minimumFractionDigits: d });
+  const num = (s: string) => { const v = parseFloat(String(s).replace(/,/g, '')); return Number.isFinite(v) && v >= 0 ? v : NaN; };
+  const imp = () => units === 'imperial';
+  const worker = new Worker(new URL('../scripts/pack-worker.js', import.meta.url), { type: 'module' });
+  let reqId = 0, eng: any = null, timer = 0;
+  function paint() {
+    for (const k of ['l', 'w', 'h']) $(k).value = String(+(imp() ? st[k] / 10 / IN : st[k] / 10).toFixed(2));
+    $('kg').value = String(+(imp() ? st.kg / LB : st.kg).toFixed(2));
+    $('qty').value = String(st.qty); $('rot').value = st.rot; $('cont').value = st.cont; $('cur').value = st.cur;
+    $('rate').value = st.rate ?? ''; ['pc0', 'pc1', 'pc2'].forEach((k, i) => { $(k).value = st.perCont[i] ?? ''; }); $('ps').value = st.perShip ?? '';
+    root.querySelectorAll('[data-u="l"]').forEach((e) => { e.textContent = imp() ? '(in)' : '(cm)'; });
+    root.querySelectorAll('[data-u="m"]').forEach((e) => { e.textContent = imp() ? '(lb)' : '(kg)'; });
+    root.querySelectorAll('[data-units]').forEach((b) => b.setAttribute('aria-pressed', String((b as HTMLElement).dataset.units === units)));
+  }
+  function runEngine() {
+    const c = CONTS.find((x: any) => x.id === st.cont);
+    if (!(st.l > 0 && st.w > 0 && st.h > 0 && st.qty >= 1)) { eng = null; show(); return; }
+    reqId++; R('units').textContent = '…';
+    worker.postMessage({ id: reqId, kind: 'many', key: 'cost', container: { L: c.L, W: c.W, H: c.H, maxWeight: c.payload, doorW: c.doorW, doorH: c.doorH },
+      items: [{ l: st.l, w: st.w, h: st.h, weight: st.kg, qty: Math.min(st.qty, 200000), rotation: st.rot, stackable: true }], opts: { timeMs: 300, stack: 'column', max: 50 } });
+  }
+  worker.onmessage = (e) => { if (e.data.id !== reqId) return; eng = e.data; show(); };
+  function show() {
+    const cur = (st.cur || '').trim(), money = (v: number) => `${f(v)}${cur ? ' ' + cur : ''}`;
+    if (!eng) { R('units').textContent = '–'; R('unitsSub').textContent = ''; ['total', 'totalSub', 'perCarton', 'perCartonSub', 'perM3', 'perKg'].forEach((k) => { R(k).textContent = ''; }); R('verdict').textContent = 'Enter the carton size and how many.'; R('steps').textContent = '–'; return; }
+    const c = CONTS.find((x: any) => x.id === st.cont);
+    const done = eng.left === 0, units = eng.units;
+    R('units').textContent = done ? `${units} × ${c.name}` : `over 50`;
+    R('unitsSub').textContent = done ? (units > 1 ? `${eng.counts.map((x: number) => x.toLocaleString('en-US')).join(' + ')} cartons` : `${eng.first.toLocaleString('en-US')} cartons`) : '';
+    const heavy = eng.counts.length && st.kg > 0 && eng.wt >= c.payload * 0.98;
+    const pc = st.perCont.reduce((a: number, v: number | null) => a + (v || 0), 0);
+    const haveRate = st.rate != null && st.rate > 0;
+    const m3 = st.l * st.w * st.h / 1e9 * st.qty, kgAll = st.kg * st.qty;
+    if (!done) {
+      ['total', 'totalSub', 'perCarton', 'perCartonSub', 'perM3', 'perKg'].forEach((k) => { R(k).textContent = ''; });
+      R('verdict').textContent = eng.bad ? 'The engine could not make a valid plan for these cartons.' : 'This load needs more than 50 containers; split it into smaller bookings.';
+      R('steps').textContent = '–'; return;
+    }
+    if (!haveRate) {
+      ['total', 'perCarton', 'perM3'].forEach((k) => { R(k).textContent = '–'; }); ['totalSub', 'perCartonSub', 'perKg'].forEach((k) => { R(k).textContent = ''; });
+      R('totalSub').textContent = 'enter your freight rate';
+    } else {
+      const total = units * (st.rate + pc) + (st.perShip || 0);
+      R('total').textContent = money(total); R('totalSub').textContent = `${units} × (${f(st.rate)} + ${f(pc)}) + ${f(st.perShip || 0)}`;
+      R('perCarton').textContent = money(total / st.qty); R('perCartonSub').textContent = `${st.qty.toLocaleString('en-US')} cartons`;
+      R('perM3').textContent = `${money(total / m3)} per m³`; R('perKg').textContent = kgAll > 0 ? `${money(total / kgAll)} per kg` : 'enter a carton weight';
+    }
+    R('verdict').textContent = `${units} container${units === 1 ? '' : 's'} needed${heavy ? '; the payload is the limit, not the space' : ''}. The first one is ${f(eng.vol * 100, 1)}% full by volume.${haveRate ? '' : ' Enter the freight rate from your quote to see the cost.'}`;
+    R('steps').innerHTML = [
+      `Cartons: ${st.qty.toLocaleString('en-US')} × ${f(st.l / 10, 1)} × ${f(st.w / 10, 1)} × ${f(st.h / 10, 1)} cm = ${f(m3, 2)} m³, ${f(kgAll, 0)} kg`,
+      `Engine: ${eng.counts.map((x: number) => x.toLocaleString('en-US')).join(' + ')} cartons → ${units} × ${c.name}`,
+      haveRate ? `Total: ${units} × (${f(st.rate)} + ${f(pc)}) + ${f(st.perShip || 0)} = ${f(units * (st.rate + pc) + (st.perShip || 0))}` : 'Total: enter the freight rate',
+    ].join('<br>');
+  }
+  const schedule = () => { clearTimeout(timer); timer = window.setTimeout(runEngine, 250); };
+  root.addEventListener('input', (e) => {
+    const t = e.target as HTMLInputElement; const k = t.dataset.k; if (!k) return;
+    const v = num(t.value);
+    if (k === 'l' || k === 'w' || k === 'h') { st[k] = Number.isFinite(v) ? (imp() ? v * IN * 10 : v * 10) : 0; schedule(); return; }
+    if (k === 'kg') { st.kg = Number.isFinite(v) ? (imp() ? v * LB : v) : 0; schedule(); return; }
+    if (k === 'qty') { st.qty = Number.isFinite(v) ? Math.floor(v) : 0; schedule(); return; }
+    if (k === 'cur') st.cur = t.value;
+    else if (k === 'rate') st.rate = t.value.trim() === '' ? null : (Number.isFinite(v) ? v : null);
+    else if (k === 'ps') st.perShip = t.value.trim() === '' ? null : (Number.isFinite(v) ? v : null);
+    else if (/^pc\d$/.test(k)) st.perCont[+k.slice(2)] = t.value.trim() === '' ? null : (Number.isFinite(v) ? v : null);
+    show();
+  });
+  root.addEventListener('change', (e) => {
+    const t = e.target as HTMLSelectElement; const k = t.dataset.k; if (!k) return;
+    if (k === 'rot') { st.rot = t.value; schedule(); } else if (k === 'cont') { st.cont = t.value; schedule(); }
+  });
+  root.querySelectorAll('[data-units]').forEach((b) => b.addEventListener('click', () => {
+    units = (b as HTMLElement).dataset.units!; try { localStorage.setItem('lpc-units', units); } catch { /* ignore */ }
+    paint(); show();
+  }));
+  paint(); runEngine();
+</script>
+
+<style>
+  .csc { display: flex; flex-direction: column; gap: 14px; }
+  .dnhead { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  .dngrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+  .dngrid .full { grid-column: 1 / -1; }
+  .dngrid .hint { font-weight: 400; font-size: 12px; color: var(--muted); display: block; }
+  .csc .verdict { font-weight: 600; }
+</style>

@@ -193,6 +193,17 @@ const schema = { '@context': 'https://schema.org', '@type': 'HowTo', name: `How 
     </ul>
   </section>
 
+  <section class="prose" id="container-shipping-cost-calculator">
+    <h2>Container shipping cost calculator</h2>
+    <p>The <a href="/container-shipping-cost-calculator/">container shipping cost calculator</a> counts the containers your cartons need with the packing engine and adds up the cost from the rates you type. It has no prices of its own.</p>
+    <ul class="plain">
+      <li><strong>Units (cm · kg or in · lb):</strong> carton size and weight; the choice is shared with the planners.</li>
+      <li><strong>Cartons:</strong> length, width, height, weight per carton, number of cartons and orientation (any side down, or this side up), and the <strong>container</strong> size (20', 40', 40' High Cube, 45' High Cube).</li>
+      <li><strong>Your rates:</strong> the currency as on your quote (text only, nothing is converted), the freight rate per container, up to three per-container charges and the per-shipment charges. Empty boxes count as zero; without a freight rate the cost boxes stay empty.</li>
+      <li><strong>Results:</strong> containers needed (and cartons in each), total cost, cost per carton, per m³ of cargo and per kg, and a line saying how full the first container is and whether the payload is the limit. The count updates a moment after you stop typing; the costs update at once. Loads needing more than 50 containers are not counted.</li>
+    </ul>
+  </section>
+
   <section class="prose" id="cargo-securing-calculator">
     <h2>Cargo securing calculator</h2>
     <p>The <a href="/cargo-securing-calculator/">cargo securing calculator</a> works out the blocking force a load needs and whether a fence of transverse timber battens holds it, with the formulas of the IMO/ILO/UNECE CTU Code (annex 7, section 2.2.2 and appendix 4, section 1). It opens with the Code's own example (7.5 t, sea area C lengthwise, friction 0.4, six 5 × 10 cm battens with a 2.2 m free length). Results update as you type.</p>
@@ -353,6 +364,7 @@ const schema = { '@context': 'https://schema.org', '@type': 'HowTo', name: `How 
   <section class="prose" id="whats-new">
     <h2>What's new</h2>
     <ul class="plain">
+      <li><strong>October 26, 2026:</strong> new <a href="/container-shipping-cost-calculator/">container shipping cost calculator</a>: containers needed from the engine, then the cost from your own rates.</li>
       <li><strong>October 26, 2026:</strong> the <a href="/dimensional-weight-calculator/">dimensional weight calculator</a> has an <strong>Air cargo</strong> rule: volumetric weight = L × W × H in cm ÷ 6,000 and the chargeable weight.</li>
       <li><strong>October 26, 2026:</strong> new <a href="/cargo-securing-calculator/">cargo securing calculator</a>: the blocking force a load needs and how many transverse timber battens hold it, by the CTU Code.</li>
       <li><strong>October 25, 2026:</strong> the container and trailer planner has a new <a href="#weight-distribution">Weight distribution and axle loads</a> section: the centre of gravity in all three directions checked against the CTU Code, and an optional split of the cargo weight between kingpin (or front axle) and rear axles from positions you enter.</li>
