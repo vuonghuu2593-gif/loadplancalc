@@ -62,6 +62,12 @@ const common = [
 const cube12 = common.find((c) => c.label === '12 × 12 × 12 in')!;
 if (cube12.us.n !== 60 || cube12.us.lay.ti !== 12 || cube12.us.lay.hi !== 5) throw new Error(`12 in cube on CHEP changed: ${cube12.us.n}`);
 for (const c of common) for (const [p, r] of [[euro, c.eu], [chep, c.us]] as const) if (r.kg >= p.maxWeight) throw new Error(`${c.label} on ${p.id} reaches the safe working load: update the note`);
+// same cartons at a 60 in (1,524 mm) height limit including the pallet, a common example limit for pallets on trucks (user-set, not a standard)
+const H60 = 60 * MM_PER_IN;
+const common60 = common.map((c) => ({ ...c, eu60: perPallet(euro, c, H60), us60: perPallet(chep, c, H60) }));
+// hand-checked: 12 in cubes on 48 × 40 in: (1,524 − 141) ÷ 304.8 = 4.54 → 4 layers × 12 = 48; 24 × 18 × 18 in: 4 per layer, (1,524 − 141) ÷ 457.2 = 3.02 → 3 layers = 12
+const c60a = common60.find((c) => c.label === '12 × 12 × 12 in')!, c60b = common60.find((c) => c.label === '24 × 18 × 18 in')!;
+if (c60a.us60.n !== 48 || c60a.us60.lay.ti !== 12 || c60a.us60.lay.hi !== 4 || c60b.us60.n !== 12 || c60b.us60.lay.ti !== 4 || c60b.us60.lay.hi !== 3) throw new Error(`60 in table hand checks changed: ${c60a.us60.n}, ${c60b.us60.n}`);
 const cubeOf = (p: typeof euro, r: { top: number }) => (p.L * p.W * (p.H + r.top)) / 1e9;
 const FT3 = 0.3048 ** 3;
 const swl = (p: typeof euro) => (p.id === 'chep4840' ? `${n(2800)} lb (${n(p.maxWeight)} kg)` : `${n(p.maxWeight)} kg (${n(p.maxWeight / KG_PER_LB)} lb)`);
@@ -136,6 +142,17 @@ const swl = (p: typeof euro) => (p.id === 'chep4840' ? `${n(2800)} lb (${n(p.max
       </table>
     </div>
     <p class="small">Ti × Hi = cartons per pallet; the second line is the pallet cube of that full pallet (footprint × pallet height + load height). Carton weights used for the weight check: 10, 8 and 4 kg for the metric cartons, 20, 20, 30 and 30 lb for the inch cartons; none of these pallets reaches its safe working load. Pallet sizes and heights from EPAL and CHEP (linked in the table above). For your own carton, enter it in the calculator above.</p>
+    <h3>Ti-Hi at a 60 in height limit</h3>
+    <p>The same cartons with the loaded pallet limited to 60 in ({n(H60)} mm) including the pallet, a common example limit for pallets going on trucks. It is a setting you choose, not a standard: your carrier or warehouse sets the real limit. Interlocked stacking can hold fewer cartons per pallet (the example above: 45 instead of 48); switch it on in the calculator for your own carton.</p>
+    <div class="tablebox">
+      <table>
+        <thead><tr><th>Carton</th><th class="num">{euro.name.replace(' (EPAL 1)', '')}<br><span class="small">Ti × Hi = cartons</span></th><th class="num">CHEP 48 × 40 in<br><span class="small">Ti × Hi = cartons</span></th></tr></thead>
+        <tbody>
+          {common60.map((c) => <tr><td>{c.label}</td><td class="num">{tihi(c.eu60)}</td><td class="num">{tihi(c.us60)}</td></tr>)}
+        </tbody>
+      </table>
+    </div>
+    <p class="small">Column stacks, cartons kept this side up, no overhang; weights as above, each count checked against the pallet's safe working load and by the independent validator when the page is built. Example check: 12 in cubes on a 48 × 40 in pallet make 4 × 3 = 12 per layer, and (1,524 − 141) ÷ 304.8 = 4.5 gives 4 layers, so 12 × 4 = 48.</p>
   </section>
 
   <section class="prose">
