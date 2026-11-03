@@ -783,7 +783,7 @@ ok(errs.length === 0, 'no JS errors ' + errs.join(' | '));
   await pl.click('[data-units="metric"]'); await settleL();
   ok(await pl.inputValue('.boxcard [data-b="maxLoad"]') === '30', 'back to 30 kg');
   const link = pl.url();
-  const pl2 = await b.newPage({ viewport: { width: 390, height: 844 } }); pl2.on('pageerror', (e) => e4.push(e.message));
+  const pl2 = await b.newPage({ viewport: { width: 390, height: 844 }, locale: 'en-GB' }); pl2.on('pageerror', (e) => e4.push(e.message));
   await pl2.goto(link); await pl2.waitForTimeout(500); await pl2.waitForFunction(() => !document.querySelector('[data-result]').classList.contains('busy') && document.querySelector('#r-main').textContent !== '–', null, { timeout: 20000 });
   ok(await pl2.$eval('#r-main', (e) => e.textContent.trim()) === '330 of 5,000' && await pl2.inputValue('.boxcard [data-b="maxLoad"]') === '30', 'share link keeps the limit');
   await pl2.close();
