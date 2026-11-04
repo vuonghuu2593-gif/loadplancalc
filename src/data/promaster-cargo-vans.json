@@ -1,0 +1,148 @@
+{
+ "note": "2026 Ram ProMaster cargo van as Ram prints it on ramtrucks.com/ram-promaster/specs.html (one URL per version): Cargo length, Minimum cargo width, Maximum cargo width, Cargo height, Interior cargo volume, Payload and GVWR. Read twice on 2026-11-04 for all 11 cargo van versions: rendered page text in headless Chromium (one fresh session per version URL) and, in a second browser run, the page's own configuration-compare JSON; identical. Cargo dimensions depend only on wheelbase and roof; payload and GVWR differ by 1500/2500/3500. Ram prints no rear door opening, so there are no planner presets and no door check. The 3500 Super High Roof 159 in WB EXT is left out: Ram prints no cargo height for it in either read, and its printed volume (463 cu ft) equals the high roof EXT's. Inches and pounds as printed; mm and kg converted exactly. No prices.",
+ "checked": "2026-11-04",
+ "publisher": "Ram (Stellantis)",
+ "url": "https://www.ramtrucks.com/ram-promaster/specs.html",
+ "vans": [
+  {
+   "id": "pm-118-low",
+   "short": "118″ wheelbase, low roof",
+   "wheelbaseIn": 118,
+   "extended": false,
+   "Lin": 105.1,
+   "minWin": 55.8,
+   "maxWin": 75.6,
+   "Hin": 65.4,
+   "cuftPrinted": "259",
+   "series": {
+    "1500": {
+     "payloadLb": 4160,
+     "gvwrLb": 8550,
+     "payloadKg": 1886.9442592
+    }
+   },
+   "L": 2669.54,
+   "W": 1417.32,
+   "maxW": 1920.24,
+   "H": 1661.16,
+   "url": "https://www.ramtrucks.com/ram-promaster/specs.1500-cargo-van-low-roof-118-wb.html"
+  },
+  {
+   "id": "pm-136-low",
+   "short": "136″ wheelbase, low roof",
+   "wheelbaseIn": 136,
+   "extended": false,
+   "Lin": 122.8,
+   "minWin": 55.8,
+   "maxWin": 75.6,
+   "Hin": 65.4,
+   "cuftPrinted": "304",
+   "series": {
+    "1500": {
+     "payloadLb": 4060,
+     "gvwrLb": 8550,
+     "payloadKg": 1841.5850222000001
+    },
+    "2500": {
+     "payloadLb": 4400,
+     "gvwrLb": 8900,
+     "payloadKg": 1995.806428
+    },
+    "3500": {
+     "payloadLb": 4820,
+     "gvwrLb": 9350,
+     "payloadKg": 2186.3152234
+    }
+   },
+   "L": 3119.12,
+   "W": 1417.32,
+   "maxW": 1920.24,
+   "H": 1661.16,
+   "url": "https://www.ramtrucks.com/ram-promaster/specs.3500-cargo-van-low-roof-136-wb.html"
+  },
+  {
+   "id": "pm-136-high",
+   "short": "136″ wheelbase, high roof",
+   "wheelbaseIn": 136,
+   "extended": false,
+   "Lin": 122.8,
+   "minWin": 55.8,
+   "maxWin": 75.6,
+   "Hin": 76,
+   "cuftPrinted": "353",
+   "series": {
+    "1500": {
+     "payloadLb": 3800,
+     "gvwrLb": 8550,
+     "payloadKg": 1723.651006
+    },
+    "2500": {
+     "payloadLb": 4150,
+     "gvwrLb": 8900,
+     "payloadKg": 1882.4083355
+    },
+    "3500": {
+     "payloadLb": 4560,
+     "gvwrLb": 9350,
+     "payloadKg": 2068.3812072
+    }
+   },
+   "L": 3119.12,
+   "W": 1417.32,
+   "maxW": 1920.24,
+   "H": 1930.4,
+   "url": "https://www.ramtrucks.com/ram-promaster/specs.3500-cargo-van-high-roof-136-wb.html"
+  },
+  {
+   "id": "pm-159-high",
+   "short": "159″ wheelbase, high roof",
+   "wheelbaseIn": 159,
+   "extended": false,
+   "Lin": 145.9,
+   "minWin": 55.8,
+   "maxWin": 75.6,
+   "Hin": 76,
+   "cuftPrinted": "420",
+   "series": {
+    "2500": {
+     "payloadLb": 4000,
+     "gvwrLb": 8900,
+     "payloadKg": 1814.36948
+    },
+    "3500": {
+     "payloadLb": 4430,
+     "gvwrLb": 9350,
+     "payloadKg": 2009.4141991000001
+    }
+   },
+   "L": 3705.86,
+   "W": 1417.32,
+   "maxW": 1920.24,
+   "H": 1930.4,
+   "url": "https://www.ramtrucks.com/ram-promaster/specs.3500-cargo-van-high-roof-159-wb.html"
+  },
+  {
+   "id": "pm-159-ext-high",
+   "short": "159″ wheelbase EXT, high roof",
+   "wheelbaseIn": 159,
+   "extended": true,
+   "Lin": 160.2,
+   "minWin": 55.8,
+   "maxWin": 75.6,
+   "Hin": 76,
+   "cuftPrinted": "463",
+   "series": {
+    "3500": {
+     "payloadLb": 4320,
+     "gvwrLb": 9350,
+     "payloadKg": 1959.5190384
+    }
+   },
+   "L": 4069.08,
+   "W": 1417.32,
+   "maxW": 1920.24,
+   "H": 1930.4,
+   "url": "https://www.ramtrucks.com/ram-promaster/specs.3500-cargo-van-high-roof-159-wb-ext.html"
+  }
+ ]
+}
