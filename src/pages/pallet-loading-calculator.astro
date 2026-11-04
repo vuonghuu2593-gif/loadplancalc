@@ -2,7 +2,7 @@
 import ToolPage from '../layouts/ToolPage.astro';
 import LoadPlanner from '../components/LoadPlanner.astro';
 import data from '../data/pallets.json';
-import { palletPack, stackPack, validate } from '../scripts/packer.js';
+import { palletPack, stackPack, validate, layeredPallet, layeredPlan } from '../scripts/packer.js';
 const KG_PER_LB = 0.45359237, MM_PER_IN = 25.4;
 const n = (v: number, d = 0) => v.toLocaleString('en-US', { maximumFractionDigits: d, minimumFractionDigits: 0 });
 const inch = (mm: number, d = 1) => n(mm / MM_PER_IN, d);
@@ -62,6 +62,32 @@ const common = [
 const cube12 = common.find((c) => c.label === '12 × 12 × 12 in')!;
 if (cube12.us.n !== 60 || cube12.us.lay.ti !== 12 || cube12.us.lay.hi !== 5) throw new Error(`12 in cube on CHEP changed: ${cube12.us.n}`);
 for (const c of common) for (const [p, r] of [[euro, c.eu], [chep, c.us]] as const) if (r.kg >= p.maxWeight) throw new Error(`${c.label} on ${p.id} reaches the safe working load: update the note`);
+// Ti-Hi chart: warehouse-style even layers (every layer the same pattern, or two alternating patterns when
+// interlocked), from layeredPallet; each full pallet is rebuilt with layeredPlan and must pass validate().
+const US_H = 60 * MM_PER_IN; // example loaded height for the 48 × 40 in pallet, pallet included (user-set, not a standard)
+function tiHi(p: typeof euro, maxH: number, box: { l: number; w: number; h: number; weight: number }) {
+  const C = { L: p.L, W: p.W, H: maxH - p.H, maxWeight: p.maxWeight, minSupport: 0.8 };
+  const b = { ...box, rotation: 'upright', stackable: true };
+  const out: any = {};
+  for (const st of ['column', 'interlock']) {
+    const lp: any = layeredPallet(C, b, { stack: st });
+    if (!lp) throw new Error(`Ti-Hi chart: no layer for ${box.l} on ${p.id}`);
+    const errs = validate(layeredPlan(C, b, lp, lp.per));
+    if (errs.length || lp.per !== (lp.inter ? Math.ceil(lp.hi / 2) * lp.A.length + Math.floor(lp.hi / 2) * lp.B.length : lp.A.length * lp.hi)) throw new Error(`Ti-Hi chart plan failed its check: ${p.id} ${errs.join(', ')}`);
+    out[st] = lp;
+  }
+  return out;
+}
+const tiUS = [[12, 10, 8], [12, 12, 8], [12, 12, 12], [14, 10, 10], [16, 12, 12], [18, 12, 12], [16, 16, 16], [18, 18, 18], [20, 20, 20], [24, 18, 18]]
+  .map(([l, w, h]) => ({ label: `${l} × ${w} × ${h} in`, ...tiHi(chep, US_H, { l: l * MM_PER_IN, w: w * MM_PER_IN, h: h * MM_PER_IN, weight: 20 * KG_PER_LB }) }));
+const tiEU = [[600, 400, 400, 10], [600, 400, 300, 10], [400, 300, 300, 8], [400, 300, 250, 8], [400, 300, 200, 8], [300, 200, 200, 4], [300, 200, 150, 4]]
+  .map(([l, w, h, kg]) => ({ label: `${l} × ${w} × ${h} mm`, ...tiHi(euro, EX_H, { l, w, h, weight: kg }) }));
+// hand-checked: 12 in cube on 48 × 40 in at 60 in: 4 × 3 = 12 per layer, (1,524 − 141) ÷ 304.8 = 4.54 → 4 layers = 48;
+// 16 × 12 in: 40 in = 16 + 12 + 12, so 4 + 3 + 3 = 10 per layer (10 × 192 in² = the full 1,920 in²), 4 layers = 40
+const t12 = tiUS.find((r) => r.label === '12 × 12 × 12 in')!, t16 = tiUS.find((r) => r.label === '16 × 12 × 12 in')!;
+if (t12.column.per !== 48 || t12.column.A.length !== 12 || t16.column.per !== 40 || t16.column.A.length !== 10 || t16.column.hi !== 4) throw new Error('Ti-Hi chart hand-checked rows changed');
+for (const r of [...tiUS, ...tiEU]) if (r.column.per !== r.column.A.length * r.column.hi) throw new Error(`Ti-Hi chart: ${r.label} is weight-limited, update the note`);
+const ilCell = (lp: any, col: any) => (lp.inter ? `${lp.A.length === lp.B.length ? lp.A.length : `${lp.A.length} / ${lp.B.length}`} × ${lp.hi} = ${n(lp.per)}` : 'same as column') + (lp.inter && lp.per < col.per ? ` (${col.per - lp.per} fewer)` : '');
 const cubeOf = (p: typeof euro, r: { top: number }) => (p.L * p.W * (p.H + r.top)) / 1e9;
 const FT3 = 0.3048 ** 3;
 const swl = (p: typeof euro) => (p.id === 'chep4840' ? `${n(2800)} lb (${n(p.maxWeight)} kg)` : `${n(p.maxWeight)} kg (${n(p.maxWeight / KG_PER_LB)} lb)`);
@@ -136,6 +162,26 @@ const swl = (p: typeof euro) => (p.id === 'chep4840' ? `${n(2800)} lb (${n(p.max
       </table>
     </div>
     <p class="small">Ti × Hi = cartons per pallet; the second line is the pallet cube of that full pallet (footprint × pallet height + load height). Carton weights used for the weight check: 10, 8 and 4 kg for the metric cartons, 20, 20, 30 and 30 lb for the inch cartons; none of these pallets reaches its safe working load. Pallet sizes and heights from EPAL and CHEP (linked in the table above). For your own carton, enter it in the calculator above.</p>
+  </section>
+
+  <section class="prose" id="ti-hi">
+    <h2>Ti-Hi chart for common carton sizes</h2>
+    <p>Ti is the number of cases in one layer (tier), Hi the number of layers (high); cases per pallet = Ti × Hi. A warehouse Ti-Hi repeats the same layer all the way up. The chart below is built that way with the planner's layered-pallet engine: cartons kept this side up, no overhang, every pallet rebuilt and checked by the planner's independent validator. <strong>Interlocked</strong> alternates two layer patterns so the joints do not line up, with every carton on at least 80% of its base; it shows the count when the cartons allow such a pair of layers, and "same as column" when they do not. The carton sizes are examples; enter your own in the calculator above.</p>
+    <h3>48 × 40 in pallet (CHEP block pallet), {inch(US_H, 0)} in high including the pallet</h3>
+    <div class="tablebox">
+      <table>
+        <thead><tr><th>Carton (L × W × H)</th><th class="num">Ti</th><th class="num">Hi</th><th class="num">Cases per pallet</th><th class="num">Interlocked</th></tr></thead>
+        <tbody>{tiUS.map((r) => <tr><td>{r.label}</td><td class="num">{r.column.A.length}</td><td class="num">{r.column.hi}</td><td class="num">{n(r.column.per)}</td><td class="num">{ilCell(r.interlock, r.column)}</td></tr>)}</tbody>
+      </table>
+    </div>
+    <h3>1200 × 800 mm Euro pallet (EPAL 1), {n(EX_H)} mm high including the pallet</h3>
+    <div class="tablebox">
+      <table>
+        <thead><tr><th>Carton (L × W × H)</th><th class="num">Ti</th><th class="num">Hi</th><th class="num">Cases per pallet</th><th class="num">Interlocked</th></tr></thead>
+        <tbody>{tiEU.map((r) => <tr><td>{r.label}</td><td class="num">{r.column.A.length}</td><td class="num">{r.column.hi}</td><td class="num">{n(r.column.per)}</td><td class="num">{ilCell(r.interlock, r.column)}</td></tr>)}</tbody>
+      </table>
+    </div>
+    <p class="small">Hi = (height limit − pallet height) ÷ carton height, rounded down: for 12 in cartons on the {chep.H} mm CHEP pallet, ({n(US_H, 1)} − {chep.H}) ÷ 304.8 = {n((US_H - chep.H) / 304.8, 2)} → 4 layers. A 16 × 12 in carton gives Ti 10 because the 40 in side takes one row turned the other way (16 + 12 + 12 = 40 in). Carton weights used for the weight check: 20 lb for the inch cartons; 10, 8 and 4 kg for the 600 × 400, 400 × 300 and 300 × 200 mm cartons; no pallet here reaches its safe working load. The {inch(US_H, 0)} in and {n(EX_H)} mm heights are examples, not standards: use the limit of your racking, trailer or customer. Pallet sizes from CHEP and EPAL (linked in the first table).</p>
   </section>
 
   <section class="prose">
