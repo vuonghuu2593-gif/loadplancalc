@@ -60,6 +60,18 @@ ok(!(await S('warn')).includes('failed its own check') && +(await main()).split(
 await pg.click('[data-stack="column"]'); await settle();
 ok(await S('stack') === 'Column stacks' && await pg.isHidden('[data-supportrow]'), 'column stacks chosen, support choice hidden');
 ok(await main() === '275 of 5,000', '20ft standard -> 275 (' + await main() + ')');
+// 45' High Cube preset (Hapag-Lloyd 45-standard-high-cube page, re-read 2026-11-04): the container list offers the four
+// Hapag-Lloyd dry boxes first, and picking the 45' fills inside size, payload and door in cm / kg.
+ok(await pg.$$eval('[data-f="preset"] option', (o) => o.slice(0, 4).map((e) => e.value).join()) === '20dv,40dv,40hc,45hc', 'container presets start with the Hapag-Lloyd 20dv, 40dv, 40hc, 45hc');
+await pg.selectOption('[data-f="preset"]', '45hc'); await settle();
+{ const F = (k) => pg.inputValue(`[data-f="${k}"]`);
+  ok(await F('L') === '1355.6' && await F('W') === '235.2' && await F('H') === '270' && await F('maxWeight') === '27700' && await F('doorW') === '234' && await F('doorH') === '259.7',
+    `45' HC fields 1355.6 x 235.2 x 270 cm, 27,700 kg, door 234 x 259.7 (${[await F('L'), await F('W'), await F('H'), await F('maxWeight'), await F('doorW'), await F('doorH')].join(' / ')})`); }
+// hand count, one orientation only: 13,556 / 600 = 22, 2,352 / 400 = 5, 2,700 / 400 = 6 -> 660; volume bound 13.556 x 2.352 x 2.7 / 0.096 = 896
+{ const n45 = +(await main()).split(' ')[0].replace(/,/g, '');
+  ok(n45 >= 660 && n45 <= 896 && !(await S('warn')).includes('failed its own check'), `45' HC column stacks: ${n45} (>= 660 by hand, <= 896 by volume), plan passes its check`); }
+await pg.selectOption('[data-f="preset"]', '20dv'); await settle();
+ok(await main() === '275 of 5,000', 'back to 20ft standard -> 275 (' + await main() + ')');
 // Orientation chosen by hand: only "height up, length along" -> 20 x 5 x 6 = 600 in 40' HC
 await pg.selectOption('[data-f="preset"]', '40hc'); await settle();
 await pg.selectOption('.boxcard [data-b="rotation"]', 'custom'); await settle();

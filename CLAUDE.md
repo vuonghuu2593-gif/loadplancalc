@@ -52,7 +52,7 @@ to `main` without asking. Because nobody reviews before publishing, the checks b
 - Text, source or data-only edits that do not change how a tool is used need no guide change.
 
 ## Before every push (the site test includes the guide check)
-`npm run build` → `node scripts/test-packer.mjs` → `npm i --no-save playwright@1.56.1 && node scripts/test-site.mjs`
+`npm run build` → `node scripts/test-packer.mjs` → `npm i --no-save playwright@1.63.0 && node scripts/test-site.mjs`
 (every sitemap page at 390 px: no JS errors, no overflow, one H1, no NaN/undefined, planner shows a result) →
 `node scripts/test-planner.mjs` (unit round trips, share link, preset counts). All must pass. For a new calculator,
 also check its numbers against a hand calculation for its defaults and one other case, and switch units both ways.
