@@ -1015,5 +1015,49 @@ ok(errs.length === 0, 'no JS errors ' + errs.join(' | '));
   ok(e13.length === 0, 'pallet cube: no JS errors ' + e13.join(' | '));
   await pc.close();
 }
+// Reefer and open top presets (Hapag-Lloyd, special-containers.json): fields, notes, load-line height, comparison groups.
+{
+  const pr = await b.newPage({ viewport: { width: 390, height: 844 }, locale: 'en-GB' });
+  const e14 = []; pr.on('pageerror', (e) => e14.push(e.message));
+  const M = () => pr.$eval('#r-main', (e) => e.textContent.trim());
+  const st = async () => { await pr.waitForTimeout(350); await pr.waitForFunction(() => !document.querySelector('[data-result]').classList.contains('busy'), null, { timeout: 15000 }); };
+  const F = (k) => pr.inputValue(`[data-f="${k}"]`);
+  await pr.goto('http://localhost:4401/container-loading-calculator/'); await st();
+  const opts = await pr.$$eval('[data-f="preset"] option', (o) => o.map((e) => e.value));
+  ok(['20rf', '40rh', '20ot', '40ot'].every((id) => opts.includes(id)), 'container list offers 20rf, 40rh, 20ot, 40ot (' + opts.slice(0, 9).join() + ')');
+  await pr.selectOption('[data-f="preset"]', '20rf'); await st();
+  ok(await F('L') === '545' && await F('W') === '228' && await F('H') === '215.9' && await F('maxWeight') === '29140' && await F('doorW') === '229' && await F('doorH') === '226.4',
+    `20' Reefer fields 545 x 228 x 215.9 cm (load line), 29,140 kg, door 229 x 226.4 (${[await F('L'), await F('W'), await F('H'), await F('maxWeight'), await F('doorW'), await F('doorH')].join(' / ')})`);
+  ok((await pr.$eval('[data-f="srcnote"]', (e) => e.textContent)).includes('red load line (2,159 mm; inside height 2,259 mm)'), '20\' Reefer note names the load-line height');
+  // one carton type 600 x 400 x 540 mm upright, column stacks: by hand 2,159 / 540 = 3 layers (the inside height 2,259 would allow 4);
+  // floor 5,450 / 600 = 9 x 2,280 / 400 = 5 = 45 a layer -> >= 135; floor-area bound 5.45 x 2.28 / 0.24 = 51 a layer -> <= 153
+  await pr.click('.boxcard:nth-child(2) [data-del]');
+  await pr.fill('.boxcard [data-b="h"]', '54'); await pr.fill('.boxcard [data-b="qty"]', '5000');
+  await pr.selectOption('.boxcard [data-b="rotation"]', 'upright'); await pr.click('[data-stack="column"]'); await st();
+  { const n = +(await M()).split(' ')[0].replace(/,/g, '');
+    ok(n >= 135 && n <= 153 && !(await pr.$eval('[data-r="warn"]', (e) => e.textContent)).includes('failed its own check'), `20' Reefer, 60 x 40 x 54 cm upright: ${n} (>= 135 by hand, <= 153 = 3 layers under the load line), plan passes its check`); }
+  // the size comparison of a reefer lists the reefers and the ungrouped sizes, never the open tops
+  await pr.waitForFunction(() => !document.querySelector('[data-fittable]').textContent.includes('…'), null, { timeout: 60000 }).catch(() => {});
+  { const t = await pr.$eval('[data-fittable]', (e) => e.textContent);
+    ok(t.includes("40' Reefer High Cube") && !t.includes('Open Top'), 'reefer selected: comparison has the 40\' reefer, no open tops'); }
+  await pr.selectOption('[data-f="preset"]', '40hc'); await st();
+  await pr.waitForFunction(() => !document.querySelector('[data-fittable]').textContent.includes('…'), null, { timeout: 60000 }).catch(() => {});
+  { const t = await pr.$eval('[data-fittable]', (e) => e.textContent);
+    ok(!t.includes('Reefer') && !t.includes('Open Top'), 'dry 40\' HC selected: comparison has no reefer or open top'); }
+  await pr.selectOption('[data-f="preset"]', '40ot'); await st();
+  ok(await F('L') === '1202.9' && await F('W') === '235' && await F('H') === '234.4' && await F('maxWeight') === '28450' && await F('doorW') === '234' && await F('doorH') === '227.6',
+    `40' Open Top fields 1202.9 x 235 x 234.4 cm, 28,450 kg, door 234 x 227.6 (${[await F('L'), await F('W'), await F('H'), await F('maxWeight'), await F('doorW'), await F('doorH')].join(' / ')})`);
+  ok((await pr.$eval('[data-f="srcnote"]', (e) => e.textContent)).includes('2,420 mm without them'), '40\' Open Top note gives the height without roof bows');
+  // unit round trip on a special preset: no drift
+  for (let i = 0; i < 3; i++) { await pr.click('[data-units="imperial"]'); await pr.click('[data-units="metric"]'); }
+  await st();
+  ok(await F('L') === '1202.9' && await F('H') === '234.4' && await pr.$eval('[data-f="preset"]', (e) => e.value) === '40ot', '40\' Open Top: 3 unit round trips, no drift, preset kept');
+  const share = pr.url(); const n0 = await M();
+  const pr2 = await b.newPage({ viewport: { width: 390, height: 844 } });
+  await pr2.goto(share); await pr2.waitForTimeout(400); await pr2.waitForFunction(() => document.querySelector('#r-main').textContent.trim() !== '–', null, { timeout: 15000 }); await pr2.waitForTimeout(500);
+  ok(await pr2.$eval('#r-main', (e) => e.textContent.trim()) === n0 && await pr2.$eval('[data-f="preset"]', (e) => e.value) === '40ot', 'open top share link reproduces ' + n0);
+  ok(e14.length === 0, 'special presets: no JS errors ' + e14.join(' | '));
+  await pr2.close(); await pr.close();
+}
 await b.close(); srv.close();
 console.log(fails ? fails + ' failing' : 'planner checks pass'); process.exit(fails ? 1 : 0);

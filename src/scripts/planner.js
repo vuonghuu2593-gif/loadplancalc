@@ -431,7 +431,10 @@ export function initPlanner(root) {
   const multiOn = () => mode === 'container' && !(state.mode === 'semi' && state.fillRest === false);
   const qtyOf = () => state.items.map((it) => Math.max(0, it.qty || 0));
   const leftBefore = (i) => { const q = qtyOf(); for (const p of plans.slice(0, i)) for (const b of p.boxes) q[b.k]--; return q.map((x) => Math.max(0, x)); };
-  const nounOf = (id) => { const p = presets.find((x) => x.id === id); const t = p ? p.name : ''; return /truck/i.test(t) ? 'truck' : /trailer|dry van|reefer/i.test(t) ? 'trailer' : 'container'; };
+  const groupOf = (id) => presets.find((x) => x.id === id)?.group || '';
+  // reefer / open top presets are only compared with their own kind (and the ungrouped sizes) when one of them is selected
+  const cmpList = () => { const g = groupOf(state.cont.preset); return presets.filter((p) => !p.group || p.group === g); };
+  const nounOf = (id) => { const p = presets.find((x) => x.id === id); if (p && p.kind) return p.kind; const t = p ? p.name : ''; return /truck/i.test(t) ? 'truck' : /trailer|dry van|reefer/i.test(t) ? 'trailer' : 'container'; };
   const unitName = () => presets.find((x) => x.id === state.cont.preset)?.name || 'this size';
   function nextPart() {
     const left = leftBefore(plans.length);
@@ -487,9 +490,9 @@ export function initPlanner(root) {
   function compare() {
     if (!cmpWorker) return;
     const items = engineItems(); const ms = engineInput().container.minSupport;
-    const key = JSON.stringify([items, state.stack, ms, !!state.priority]);
+    const key = JSON.stringify([items, state.stack, ms, !!state.priority, groupOf(state.cont.preset)]);
     if (key === cmpKey) { paintFit(); return; }
-    cmpKey = key; cmpRes = {}; cmpId++; cmpQueue = presets.slice(); paintFit(); cmpNext();
+    cmpKey = key; cmpRes = {}; cmpId++; cmpQueue = cmpList(); paintFit(); cmpNext();
   }
   function cmpNext() {
     const p = cmpQueue.shift(); if (!p) return;
@@ -508,7 +511,7 @@ export function initPlanner(root) {
     if (left) return;
     const sel = presets.find((x) => x.id === state.cont.preset); if (!sel) return;
     const vol = (p) => p.L * p.W * p.H; const noun = nounOf(sel.id);
-    const smaller = presets.filter((p) => p.id !== sel.id && nounOf(p.id) === noun && vol(p) < vol(sel)).sort((a, b) => vol(a) - vol(b));
+    const smaller = presets.filter((p) => p.id !== sel.id && nounOf(p.id) === noun && (p.group || '') === (sel.group || '') && vol(p) < vol(sel)).sort((a, b) => vol(a) - vol(b));
     if (!smaller.length) return;
     const key = JSON.stringify([state.cont.preset, lastQ, engineItems().map((it) => [it.l, it.w, it.h, it.weight, it.rotation, it.maxOnTop, it.maxLoad]), state.stack, curStops ? 1 : 0]);
     if (key === mixKey) return;
@@ -532,7 +535,7 @@ export function initPlanner(root) {
     if (!fitBox) return;
     const total = qtyOf().reduce((a, b) => a + b, 0);
     const sel = state.cont.preset;
-    const rows = presets.map((p) => ({ p, r: p.id === sel ? mainRow() || cmpRes[p.id] : cmpRes[p.id] }));
+    const rows = cmpList().map((p) => ({ p, r: p.id === sel ? mainRow() || cmpRes[p.id] : cmpRes[p.id] }));
     if (!presets.some((p) => p.id === sel)) { const r = mainRow(); if (r) rows.unshift({ p: { id: 'custom', name: 'Your size', L: state.cont.L, W: state.cont.W, H: state.cont.H }, r }); }
     const done = rows.filter((x) => x.r && !x.r.bad);
     const vol = (p) => p.L * p.W * p.H;
