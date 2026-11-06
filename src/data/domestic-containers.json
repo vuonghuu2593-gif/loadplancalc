@@ -1,0 +1,17 @@
+{
+  "source": {
+    "publisher": "Union Pacific Railroad",
+    "title": "EMP and UMAX Container Specifications",
+    "url": "https://www.up.com/shipping/intermodal/emp/empcont",
+    "checked": "2026-11-06",
+    "reads": "Read twice: page text via curl + HTML-to-text (table rows label | value), and a separate fetch asking for every table row character for character; both gave the same figures.",
+    "note": "EMP and UMAX are the rail-owned 53' domestic container fleets Union Pacific gives shippers access to. One specification is published for the fleet; the page says to contact a Union Pacific Market Analyst with specification questions."
+  },
+  "containers": [
+    { "id": "up-emp-umax-53", "name": "53' domestic container, Union Pacific EMP / UMAX",
+      "printed": { "insideWidth": "99 3/8\"", "insideHeight": "109 1/2\"", "overallLength": "53'", "insideLength": "52' 6 11/16\"", "doorHeight": "109 1/2\"", "doorWidth": "98\"",
+        "gross": "67,200 lbs.", "tareAluminum": "Average 10,200 lbs.", "tareSteel": "10,300 lbs.", "forkLift": "24,000 lbs.", "cuft": "3,970", "walls": "wood or steel", "floor": "wood" },
+      "Lin": 630.6875, "Win": 99.375, "Hin": 109.5, "doorWin": 98, "doorHin": 109.5,
+      "grossLb": 67200, "tareAluminumAvgLb": 10200, "tareSteelLb": 10300, "forkLiftLb": 24000, "cuft": 3970 }
+  ]
+}

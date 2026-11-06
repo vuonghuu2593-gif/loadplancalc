@@ -1,0 +1,140 @@
+---
+// Reference page: the 53' domestic (intermodal) container, from Union Pacific's EMP/UMAX specification (domestic-containers.json).
+// Inch figures as printed; mm converted exactly (1 in = 25.4 mm), lb → kg at 0.45359237.
+// Every count is computed by the engine at build time and checked by validate(); the build fails otherwise.
+import Base from '../layouts/Base.astro';
+import dc from '../data/domestic-containers.json';
+import cdata from '../data/containers.json';
+import tdata from '../data/trailers.json';
+import { pack, validate } from '../scripts/packer.js';
+const IN = 25.4, KG = 0.45359237;
+const n = (v: number, d = 0) => v.toLocaleString('en-US', { maximumFractionDigits: d, minimumFractionDigits: 0 });
+const ftin = (inches: number) => { const ft = Math.floor(inches / 12 + 1e-9); const r = Math.round((inches - ft * 12) * 10000) / 10000; return `${ft}′ ${n(r, 4)}″`; };
+const c = dc.containers[0];
+const S = dc.source;
+const mm = (i: number) => i * IN;
+const in3 = c.Lin * c.Win * c.Hin, cuft = in3 / 1728, m3 = (mm(c.Lin) * mm(c.Win) * mm(c.Hin)) / 1e9;
+// printed 52' 6 11/16" = 630.6875 in; volume check: 630.6875 × 99.375 × 109.5 = 6,862,865.4 in³ ÷ 1,728 = 3,971.6 ft³ (printed 3,970)
+if (c.Lin !== 52 * 12 + 6 + 11 / 16 || c.Win !== 99 + 3 / 8 || Math.abs(cuft - c.cuft) > 5) throw new Error('53 container figures changed');
+if (Math.round(in3) !== 6862865 || Math.abs(m3 - 112.4622) > 0.001) throw new Error('volume example changed; update the lede');
+const paySteel = c.grossLb - c.tareSteelLb, payAlu = c.grossLb - c.tareAluminumAvgLb; // 56,900 and 57,000 lb, worked out from the printed gross and tare
+const hc = cdata.containers.find((x) => x.id === '40hc')!;
+const hcM3 = (hc.L * hc.W * hc.H) / 1e9;
+const comp = tdata.trailers.find((t) => t.id === '53ht-composite')!;
+
+const PH = 50 * IN; // example loaded pallet height (pallet + goods), not a standard
+type Load = { key: string; label: string; l: number; w: number; h: number; rotation: string; stackable: boolean };
+const loads: Load[] = [
+  { key: 'chep1', label: '48 × 40 in pallets, one high', l: 48 * IN, w: 40 * IN, h: PH, rotation: 'upright', stackable: false },
+  { key: 'chep2', label: '48 × 40 in pallets, two high', l: 48 * IN, w: 40 * IN, h: PH, rotation: 'upright', stackable: true },
+  { key: 'euro1', label: 'Euro pallets 1,200 × 800 mm, one high', l: 1200, w: 800, h: PH, rotation: 'upright', stackable: false },
+  { key: 'euro2', label: 'Euro pallets 1,200 × 800 mm, two high', l: 1200, w: 800, h: PH, rotation: 'upright', stackable: true },
+  { key: 'c1', label: 'Cartons 600 × 400 × 400 mm', l: 600, w: 400, h: 400, rotation: 'any', stackable: true },
+  { key: 'c2', label: 'Cartons 24 × 16 × 12 in', l: 24 * IN, w: 16 * IN, h: 12 * IN, rotation: 'any', stackable: true },
+];
+type Box = { L: number; W: number; H: number; doorW: number; doorH: number };
+const box53: Box = { L: mm(c.Lin), W: mm(c.Win), H: mm(c.Hin), doorW: mm(c.doorWin), doorH: mm(c.doorHin) };
+const boxHC: Box = { L: hc.L, W: hc.W, H: hc.H, doorW: hc.doorW, doorH: hc.doorH };
+function fit(b: Box, x: Load, what: string) {
+  const r = pack(b, [{ l: x.l, w: x.w, h: x.h, weight: 0, qty: 5000, rotation: x.rotation, stackable: x.stackable }], { timeMs: 3000 });
+  const errs = validate(r);
+  if (errs.length) throw new Error(`${what} plan failed its check: ${x.key}: ${errs.join(', ')}`);
+  return r.totals.n;
+}
+const perms = (a: number, b: number, h: number, any: boolean) => any ? [[a, b, h], [a, h, b], [b, a, h], [b, h, a], [h, a, b], [h, b, a]] : [[a, b, h], [b, a, h]];
+const block = (b: Box, x: Load) => Math.max(...perms(x.l, x.w, x.h, x.rotation === 'any').map(([l, w, h]) =>
+  Math.floor(b.L / l + 1e-9) * Math.floor(b.W / w + 1e-9) * (x.stackable ? Math.floor(b.H / h + 1e-9) : 1)));
+const rows = loads.map((x) => {
+  const a = fit(box53, x, '53 container'), h = fit(boxHC, x, '40 HC');
+  if (a < block(box53, x) || h < block(boxHC, x)) throw new Error(`${x.key}: engine below the single-block bound`);
+  return { x, a, h };
+});
+const f = Object.fromEntries(rows.map((r) => [r.x.key, r.a])) as Record<string, number>;
+// hand checks quoted in the text: 48 × 40 in two across (96 of 99.375 in) × 15 rows of 40 in (600 of 630.6875 in) = 30;
+// Euro two crosswise (2,400 of 2,524.1 mm) × 20 rows of 800 mm (16,000 of 16,019.5 mm) = 40; 600 × 400 × 400 mm 4 × 40 × 6 = 960
+if (f.chep1 !== 30 || f.chep2 !== 60 || f.euro1 !== 40 || f.euro2 !== 80 || f.c1 !== 960) throw new Error(`hand-checked counts changed: ${JSON.stringify(f)}`);
+const perPallet = paySteel / f.chep2; // 56,900 ÷ 60 = 948.3 lb
+
+const url = new URL('/53-foot-container-dimensions/', 'https://loadplancalc.com').href;
+const schema = { '@context': 'https://schema.org', '@type': 'Article', headline: '53 ft container dimensions', dateModified: S.checked, mainEntityOfPage: url };
+---
+<Base title="53 ft Container Dimensions: Inside Size, Door, Payload" description="Inside length, width and height of a 53' domestic intermodal container in ft-in, inches and mm, with door opening, volume, gross and tare weight from Union Pacific's EMP/UMAX spec, and how many pallets fit." schema={schema}>
+  <section class="prose">
+    <h1>53 ft container dimensions</h1>
+    <p class="lede">A 53' domestic container is the intermodal box for freight that moves by rail and truck within North America. Union Pacific's EMP and UMAX containers are {ftin(c.Lin)} ({n(c.Lin, 4)} in, {n(mm(c.Lin), 1)} mm) long, {c.printed.insideWidth.replace('"', ' in')} ({n(mm(c.Win), 1)} mm) wide and {c.printed.insideHeight.replace('"', ' in')} ({n(mm(c.Hin), 1)} mm) high inside, with a door {c.doorWin} in wide and {n(c.doorHin, 1)} in high. That is {n(c.Lin, 4)} × {c.Win} × {c.Hin} = {n(in3)} in³, and ÷ 1,728 = <strong>{n(cuft, 1)} ft³</strong> (Union Pacific prints {n(c.cuft)} cu ft), or <strong>{n(m3, 2)} m³</strong> — about {n(m3 / hcM3, 1)} times a 40' high cube shipping container ({n(hcM3, 2)} m³). It takes {f.chep1} pallets of 48 × 40 in on the floor, or {f.chep2} two high.</p>
+  </section>
+
+  <section class="prose">
+    <h2>Union Pacific EMP and UMAX 53' container specification</h2>
+    <div class="tablebox">
+      <table>
+        <thead><tr><th>Figure</th><th class="num">As printed</th><th class="num">Converted</th></tr></thead>
+        <tbody>
+          <tr><td>Inside length</td><td class="num">{c.printed.insideLength}</td><td class="num">{n(c.Lin, 4)} in<br><span class="small">{n(mm(c.Lin), 1)} mm</span></td></tr>
+          <tr><td>Inside width</td><td class="num">{c.printed.insideWidth}</td><td class="num">{n(c.Win, 3)} in<br><span class="small">{ftin(c.Win)} · {n(mm(c.Win), 1)} mm</span></td></tr>
+          <tr><td>Inside height</td><td class="num">{c.printed.insideHeight}</td><td class="num">{n(c.Hin, 1)} in<br><span class="small">{ftin(c.Hin)} · {n(mm(c.Hin), 1)} mm</span></td></tr>
+          <tr><td>Overall length</td><td class="num">{c.printed.overallLength}</td><td class="num">636 in<br><span class="small">16,154.4 mm</span></td></tr>
+          <tr><td>Door opening width</td><td class="num">{c.printed.doorWidth}</td><td class="num">{n(mm(c.doorWin), 1)} mm</td></tr>
+          <tr><td>Door opening height</td><td class="num">{c.printed.doorHeight}</td><td class="num">{n(mm(c.doorHin), 1)} mm</td></tr>
+          <tr><td>Cubic capacity</td><td class="num">{c.printed.cuft} cu ft</td><td class="num">{n(c.cuft * 0.028316846592, 1)} m³</td></tr>
+          <tr><td>Gross weight rating</td><td class="num">{c.printed.gross}</td><td class="num">{n(c.grossLb * KG)} kg</td></tr>
+          <tr><td>Tare weight, EMP aluminum</td><td class="num">{c.printed.tareAluminum}</td><td class="num">{n(c.tareAluminumAvgLb * KG)} kg</td></tr>
+          <tr><td>Tare weight, EMP and UMAX steel</td><td class="num">{c.printed.tareSteel}</td><td class="num">{n(c.tareSteelLb * KG)} kg</td></tr>
+          <tr><td>Fork lift truck rating (floor strength)</td><td class="num">{c.printed.forkLift}</td><td class="num">{n(c.forkLiftLb * KG)} kg</td></tr>
+          <tr><td>Walls / floor</td><td class="num">{c.printed.walls} / {c.printed.floor}</td><td class="num">–</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="small">From <a href={S.url} rel="noopener">{S.publisher}, {S.title}</a>, checked {S.checked}. Fractions as decimals (6 11/16 = 6.6875, 3/8 = 0.375); millimetres at exactly 1 in = 25.4 mm, kilograms at 1 lb = 0.45359237 kg, m³ at 1 ft³ = 0.028316846592 m³. Union Pacific publishes one specification for the fleet and asks shippers to call its market analysts with specification questions; containers from other owners can differ.</p>
+
+    <h3>Payload: gross minus tare</h3>
+    <p>Union Pacific prints a gross weight rating and the container's own (tare) weight, not a payload. Taking one from the other gives the most cargo the rating allows: {n(c.grossLb)} − {n(c.tareSteelLb)} = <strong>{n(paySteel)} lb</strong> ({n(paySteel * KG)} kg) in a steel container, and {n(c.grossLb)} − {n(c.tareAluminumAvgLb)} = {n(payAlu)} lb in an aluminum one on its average tare. Road weight limits for the truck, chassis and container together can be lower; your railroad or drayage carrier tells you what you may load.</p>
+  </section>
+
+  <section class="prose">
+    <h2>How many pallets and cartons fit in a 53 ft container</h2>
+    <p>Computed with the <a href="/container-loading-calculator/">load planner</a>'s engine for the inside size and door above, and checked by its independent validator; the 40' high cube column uses Hapag-Lloyd's inside size and door. Pallets are kept this side up (turned either way flat), 50 in ({n(PH)} mm) high when loaded; two high means one loaded pallet on another. Cartons may stand any way up. Weight is not limited here.</p>
+    <div class="tablebox">
+      <table>
+        <thead><tr><th>Load</th><th class="num">53' container (UP)</th><th class="num">40' high cube</th></tr></thead>
+        <tbody>
+          {rows.map((r) => <tr><td>{r.x.label}</td><td class="num">{n(r.a)}</td><td class="num">{n(r.h)}</td></tr>)}
+        </tbody>
+      </table>
+    </div>
+    <p class="small">Hand check: 48 × 40 in pallets go two across with the 48 in side across (2 × 48 = 96 of {c.Win} in) in 15 rows of 40 in (600 of {n(c.Lin, 4)} in) = {f.chep1}; two high needs 2 × 50 = 100 of {c.Hin} in, so {f.chep2}. Euro pallets go two crosswise (2,400 of {n(mm(c.Win), 1)} mm) in 20 rows of 800 mm (16,000 of {n(mm(c.Lin), 1)} mm) = {f.euro1}, with only 19.5 mm to spare. 600 × 400 × 400 mm cartons: 4 across (2,400 mm) × 40 rows of 400 mm (16,000 mm) × 6 layers (2,400 of {n(mm(c.Hin), 1)} mm) = {f.c1}.</p>
+    <p><strong>Weight check:</strong> {f.chep2} pallets two high within the {n(paySteel)} lb payload of a steel container leaves {n(perPallet, 1)} lb ({n(perPallet * KG)} kg) per loaded pallet on average. Heavier pallets fill the weight before the space: enter the pallet weight and your weight limit in the planner and it stops at the limit.</p>
+  </section>
+
+  <section class="prose">
+    <h2>53' container, 53' trailer and 40' shipping container</h2>
+    <ul class="plain">
+      <li><strong>Against a 53' dry van trailer.</strong> The container is the same length inside to within an inch ({n(c.Lin, 4)} in against {comp.Lin} in for Hyundai Translead's Composite van) but narrower ({c.Win} in against {comp.Win} in) and lower ({c.Hin} in against {comp.Hin} in). Floor pallet counts of 48 × 40 in and Euro pallets come out the same as in that van; carton counts can differ. Trailer sizes are on <a href="/53-foot-trailer-dimensions/">53 ft trailer dimensions</a>.</li>
+      <li><strong>Against a 40' high cube.</strong> The 53' box has {n(m3 - hcM3, 1)} m³ more space and takes {f.chep1} floor pallets of 48 × 40 in where a 40' high cube takes {rows[0].h}. Union Pacific describes its EMP and UMAX boxes as domestic containers; the 20' and 40' sizes ocean carriers publish are on <a href="/shipping-container-dimensions/">shipping container dimensions</a>.</li>
+      <li><strong>Door.</strong> The door is {c.doorWin} in wide, {n(c.Win - c.doorWin, 3)} in narrower than the inside, and as high as the inside ({n(c.doorHin, 1)} in). Two 48 in pallet sides (96 in) pass the door with 2 in to spare; a load that uses the full inside width does not.</li>
+    </ul>
+  </section>
+
+  <section class="prose">
+    <h2>Before you load a 53' container</h2>
+    <ul class="plain">
+      <li><strong>Plan it in 3D.</strong> In the <a href="/container-loading-calculator/">container loading calculator</a>, choose <strong>Custom size</strong> and enter {n(c.Lin, 4)} × {c.Win} × {c.Hin} in, the door {c.doorWin} × {n(c.doorHin, 1)} in and your weight limit; every box is then checked against the door. For pallets only, <a href="/how-many-pallets-fit-in-a-53-foot-trailer/">how many pallets fit in a 53 ft trailer</a> works the same way with a custom size.</li>
+      <li><strong>Mind the floor rating.</strong> Union Pacific rates the floor for a fork lift truck of {n(c.forkLiftLb)} lb ({n(c.forkLiftLb * KG)} kg); ask before driving a heavier truck in.</li>
+      <li><strong>Fill the gaps.</strong> Gaps at the door and between rows let a load shift on the way; the <a href="/dunnage-bag-calculator/">dunnage bag calculator</a> and <a href="/cargo-securing-calculator/">cargo securing calculator</a> help size them.</li>
+      <li><strong>Check your box.</strong> A container from another owner, or an older one, can have a different inside size or door. Measure the narrowest point and the door before a tight plan.</li>
+    </ul>
+  </section>
+
+  <section class="prose">
+    <h2>Related</h2>
+    <div class="chips">
+      <a href="/53-foot-trailer-dimensions/">53 ft trailer dimensions</a>
+      <a href="/shipping-container-dimensions/">Shipping container dimensions</a>
+      <a href="/how-many-pallets-fit-in-a-53-foot-trailer/">Pallets in a 53 ft trailer</a>
+      <a href="/semi-trailer-dimensions/">Semi trailer dimensions</a>
+      <a href="/container-loading-calculator/">Container loading calculator</a>
+      <a href="/pallet-sizes/">Standard pallet sizes</a>
+      <a href="/how-we-calculate/">How we calculate</a>
+    </div>
+  </section>
+</Base>
