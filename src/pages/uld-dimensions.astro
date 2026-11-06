@@ -1,0 +1,103 @@
+---
+// Reference page: air cargo ULDs (unit load devices) from Vietnam Airlines Cargo's ULD specification (src/data/uld.json).
+// Figures as printed; the cargo weight (max gross − tare), volumetric weight (m³ × 1,000,000 ÷ 6,000) and density
+// break-even are worked out here and labelled as such. No carton counts: the airline prints outside base sizes and
+// volumes, not the inside box or contour, so the engine has no box to pack.
+import Base from '../layouts/Base.astro';
+import u from '../data/uld.json';
+const n = (v: number, d = 0) => v.toLocaleString('en-US', { maximumFractionDigits: d, minimumFractionDigits: 0 });
+const S = u.source;
+const DIV = 6000; // cm³ per kg, the air cargo divisor already cited on /dimensional-weight-calculator/ and /how-we-calculate/
+const rows = u.ulds.map((x) => {
+  const cargo = x.mgwKg - x.tareKg, volKg = (x.m3 * 1e6) / DIV, dens = cargo / x.m3;
+  const area = (x.baseMm[0] * x.baseMm[1]) / 1e6;
+  const a321 = 'mgwA321Kg' in x && x.mgwA321Kg ? x.mgwA321Kg - x.tareKg : null;
+  return { x, cargo, volKg, dens, area, a321 };
+});
+const R = Object.fromEntries(rows.map((r) => [r.x.id, r])) as Record<string, (typeof rows)[number]>;
+// hand checks quoted in the text: AKE 1,587 − 65 = 1,522 kg; 4.5 m³ × 1,000,000 ÷ 6,000 = 750 kg; 1,522 ÷ 4.5 = 338.2 kg/m³;
+// PMC 6,800 − 120 = 6,680 kg, 11.5 m³ → 1,916.7 kg, 580.9 kg/m³; PAG 6,685 kg, 1,750 kg; AMP 6,501 kg; AKH on an A321 1,134 − 67 = 1,067 kg.
+if (R.ake.cargo !== 1522 || R.ake.volKg !== 750 || Math.abs(R.ake.dens - 338.22) > 0.01 || R.pmc.cargo !== 6680 || Math.abs(R.pmc.volKg - 1916.67) > 0.01
+  || R.pag.cargo !== 6685 || R.pag.volKg !== 1750 || R.amp.cargo !== 6501 || R.akh.a321 !== 1067 || R.pkc.a321 !== 1069) throw new Error('ULD figures changed; update the text');
+// inch and mm figures printed side by side must agree (1 in = 25.4 mm, to the printed millimetre)
+for (const x of u.ulds) x.baseIn.forEach((v, i) => { if (Math.abs(v * 25.4 - x.baseMm[i]) > 1) throw new Error(`${x.code} base in/mm disagree`); });
+
+const url = new URL('/uld-dimensions/', 'https://loadplancalc.com').href;
+const schema = { '@context': 'https://schema.org', '@type': 'Article', headline: 'ULD dimensions: air cargo containers and pallets', dateModified: S.checked, mainEntityOfPage: url };
+---
+<Base title="ULD Dimensions: LD3 (AKE), PMC, PAG Air Cargo Sizes" description="Air cargo ULD sizes from an airline's own specification: LD3 AKE and LD3-45 AKH containers, PMC, PAG and PKC pallets and the AMP container, with base, height, max gross, tare, volume and aircraft." schema={schema}>
+  <section class="prose">
+    <h1>ULD dimensions: air cargo containers and pallets</h1>
+    <p class="lede">A ULD (unit load device) is the container or pallet that air cargo is built up on before it goes into the aircraft. The LD3 container, IATA code AKE, has a base of 61.5 × 60.4 in (1,562 × 1,534 mm), is 64 in (1,625 mm) high and holds 4.5 m³, with a maximum gross weight of 3,500 lb (1,587 kg) and a tare weight from 65 kg, according to Vietnam Airlines Cargo. That leaves at most 1,587 − 65 = <strong>1,522 kg</strong> for cargo. At the 6,000 cm³ per kg air divisor, the full 4.5 m³ counts as 750 kg, so cargo lighter than about 338 kg per m³ fills an AKE by space before weight.</p>
+  </section>
+
+  <section class="prose">
+    <h2>ULD sizes and weights</h2>
+    <div class="tablebox">
+      <table>
+        <thead><tr><th>ULD</th><th class="num">Base</th><th class="num">Height</th><th class="num">Max gross</th><th class="num">Tare</th><th class="num">Volume</th><th>Aircraft</th></tr></thead>
+        <tbody>
+          {rows.map(({ x }) => <tr>
+            <td><strong>{x.code}</strong><br><span class="small">{x.name}</span></td>
+            <td class="num">{x.baseIn[0]} × {x.baseIn[1]} in<br><span class="small">{n(x.baseMm[0])} × {n(x.baseMm[1])} mm</span></td>
+            <td class="num">{x.printed.height ? <>{x.printed.height.split(' (')[0]}<br><span class="small">{n(x.heightMm!)} mm</span></> : '–'}</td>
+            <td class="num">{n(x.mgwKg)} kg<br><span class="small">{x.printed.mgw.split(' (')[0].replace('3500', '3,500').replace('15000', '15,000')}</span>{x.printed.mgwNote ? '*' : ''}</td>
+            <td class="num">{x.tareFrom ? 'from ' : ''}{x.tareKg} kg{x.kind === 'pallet' ? <><br><span class="small">with net</span></> : ''}</td>
+            <td class="num">{x.m3} m³<br><span class="small">{x.volumeKind}</span></td>
+            <td>{x.aircraft}</td>
+          </tr>)}
+        </tbody>
+      </table>
+    </div>
+    <p class="small">* Max gross notes as printed: for the AKH and PKC, "When used on A321, its MGW is limited to 1134 kgs (2500 lb)"; for the PAG, PMC and AMP, "MGW depends on the position loaded in the aircraft according to W&amp;B Manual" (the weight and balance manual). From <a href={S.url} rel="noopener">{S.publisher}, {S.title}</a>, checked {S.checked}. The airline prints no height for its pallets: how high a pallet may be built depends on where it is loaded in the aircraft.</p>
+    <p>Three base sizes cover all six: the AKE, AKH and PKC share the 61.5 × 60.4 in base; the PMC and the AMP container share 125 × 96 in; the PAG is 125 × 88 in, 8 in narrower than the PMC.</p>
+  </section>
+
+  <section class="prose">
+    <h2>How much cargo fits: weight against space</h2>
+    <p>The airline prints the maximum gross weight (ULD plus cargo) and the ULD's own (tare) weight, not a cargo weight. Taking one from the other gives the most cargo the rating allows. The volumetric weight is the ULD's volume at the 6,000 cm³ per kg divisor used on the <a href="/dimensional-weight-calculator/">dimensional weight calculator</a> (1 m³ = 166.7 kg). The break-even density is cargo weight ÷ volume: denser cargo reaches the weight limit before it fills the space.</p>
+    <div class="tablebox">
+      <table>
+        <thead><tr><th>ULD</th><th class="num">Cargo weight (max gross − tare)</th><th class="num">Volumetric weight of the full volume</th><th class="num">Break-even density</th><th class="num">Base area</th></tr></thead>
+        <tbody>
+          {rows.map((r) => <tr>
+            <td><strong>{r.x.code}</strong></td>
+            <td class="num">{r.x.tareFrom ? 'up to ' : ''}{n(r.cargo)} kg<br><span class="small">{n(r.cargo / 0.45359237)} lb{r.a321 !== null ? ` · A321: ${n(r.a321)} kg` : ''}</span></td>
+            <td class="num">{n(r.volKg, 1)} kg</td>
+            <td class="num">{n(r.dens, 1)} kg/m³</td>
+            <td class="num">{n(r.area, 2)} m²</td>
+          </tr>)}
+        </tbody>
+      </table>
+    </div>
+    <p class="small">Worked out from the printed figures: AKE 1,587 − 65 = 1,522 kg and 1,522 ÷ 4.5 = 338.2 kg/m³; PMC 6,800 − 120 = 6,680 kg and 11.5 × 1,000,000 ÷ 6,000 = 1,916.7 kg; AKH on an A321 1,134 − 67 = 1,067 kg. For the PAG, PMC and AMP the gross weight can be lower in some aircraft positions, so their cargo weight is an upper limit. The AKE and AKH tare is printed as a minimum ("from"), so their cargo weight is too. Pounds at 1 lb = 0.45359237 kg.</p>
+  </section>
+
+  <section class="prose">
+    <h2>Why there is no carton count for ULDs</h2>
+    <p>Our other dimension pages count how many pallets and cartons fit, using the load planner's engine on the published inside size. ULDs are different. The LD3 has a sloped side to follow the curve of the lower deck, and pallets are built up to a contour set for the aircraft position, so the usable space is not a simple box. The airline publishes outside base sizes and a volume, not the inside dimensions or the contour, and we do not guess them.</p>
+    <p>If your airline or handling agent gives you the contour for a pallet position, you can plan the box-shaped part of it in the <a href="/pallet-loading-calculator/">pallet loading calculator</a>: enter the pallet base as a custom pallet size and the contour's lowest height as <strong>Max height incl. pallet</strong>. The plan then stays inside the contour.</p>
+  </section>
+
+  <section class="prose">
+    <h2>Before you book ULD space</h2>
+    <ul class="plain">
+      <li><strong>Ask your airline.</strong> Each airline lists the ULDs it uses and the limits for each aircraft; the figures above are Vietnam Airlines Cargo's. The same IATA code means the same base, but the tare, contour and weight limit can differ.</li>
+      <li><strong>Check the aircraft.</strong> The AKH and PKC are listed for the A321 with a lower gross weight there (1,134 kg); the AKE, PAG, PMC and AMP for wide-body aircraft (B777, B787, A350, A330).</li>
+      <li><strong>Work out your chargeable weight.</strong> For loose cargo, the <a href="/dimensional-weight-calculator/">dimensional weight calculator</a> compares the actual and volumetric weight; the <a href="/cbm-calculator/">CBM calculator</a> adds up the volume of a shipment.</li>
+      <li><strong>Sea and road instead?</strong> Ocean containers are on <a href="/shipping-container-dimensions/">shipping container dimensions</a>; truck trailers on <a href="/semi-trailer-dimensions/">semi trailer dimensions</a>.</li>
+    </ul>
+  </section>
+
+  <section class="prose">
+    <h2>Related</h2>
+    <div class="chips">
+      <a href="/dimensional-weight-calculator/">Dimensional weight calculator</a>
+      <a href="/cbm-calculator/">CBM calculator</a>
+      <a href="/shipping-container-dimensions/">Shipping container dimensions</a>
+      <a href="/pallet-loading-calculator/">Pallet loading calculator</a>
+      <a href="/pallet-sizes/">Standard pallet sizes</a>
+      <a href="/how-we-calculate/">How we calculate</a>
+    </div>
+  </section>
+</Base>

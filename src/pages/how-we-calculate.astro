@@ -10,6 +10,7 @@ import pm from '../data/promaster-cargo-vans.json';
 import dw from '../data/dimweight.json';
 import xs from '../data/trailer-specs.json';
 import dc from '../data/domestic-containers.json';
+import uld from '../data/uld.json';
 ---
 <Base title="How We Calculate" description="The load planning method, the checks every plan passes, and the sources behind every figure on Load Plan Calc.">
   <section class="prose">
@@ -61,6 +62,7 @@ import dc from '../data/domestic-containers.json';
         {pallets.pallets.map((x) => <tr><td>{x.name}: footprint, height, weight, safe working load, stacking limit{x.emptyStack ? ', empty pallets per trailer stack' : ''}</td><td><a href={x.url} rel="noopener">{x.publisher}</a></td><td>{pallets.checked}</td></tr>)}
         {trailers.trailers.map((t) => <tr><td>{t.name}: interior length, width, height; interior volume; GVWR</td><td><a href={t.url} rel="noopener">{trailers.source.publisher}</a></td><td>{trailers.source.checked}</td></tr>)}
         {dc.containers.map((c) => <tr><td>{c.name}: inside length, width, height; door opening; gross weight rating; tare (aluminum average, steel); fork lift truck rating; cubic capacity</td><td><a href={dc.source.url} rel="noopener">{dc.source.publisher}</a></td><td>{dc.source.checked}</td></tr>)}
+        {uld.ulds.map((x) => <tr><td>{x.code} {x.name}: base size, {x.heightMm ? 'height, ' : ''}max gross weight, tare, {x.volumeKind} volume, aircraft</td><td><a href={uld.source.url} rel="noopener">{uld.source.publisher}</a></td><td>{uld.source.checked}</td></tr>)}
         {xs.hyundai.map((t) => <tr><td>53' {t.kind}, Hyundai Translead {t.model}: interior length, width, height; interior volume; GVWR; standard weight</td><td><a href={t.url} rel="noopener">Hyundai Translead</a></td><td>{xs.checked}</td></tr>)}
         {xs.others.map((o) => <tr><td>53' {o.kind}, {o.maker} {o.model}: inside width, inside height, overall size{'doorHin' in o ? ', door opening' : ''}{'payloadLb' in o ? ', GVWR, payload capacity' : ''}</td><td><a href={o.url} rel="noopener">{o.maker}</a></td><td>{xs.checked}</td></tr>)}
         {bt.trucks.map((t) => <tr><td>{t.name} (rental box truck): {t.fleet === 'U-Haul' ? "inside length, width, height; Mom's Attic; deck height; door opening; max load; gross vehicle weight; volume" : '“up to” interior length, width, height; floor space; loading space; load capacity'}</td><td><a href={t.url} rel="noopener">{t.fleet}</a></td><td>{bt.checked}</td></tr>)}

@@ -1,0 +1,30 @@
+{
+  "source": {
+    "publisher": "Vietnam Airlines Cargo",
+    "title": "ULD Specification",
+    "url": "https://cargo.vietnamairlines.com/be/en/shipping-guide/uld-specification",
+    "checked": "2026-11-06",
+    "reads": "Read twice: page text via curl + HTML-to-text (www.vietnamairlines.com, which redirects to cargo.vietnamairlines.com), and a separate fetch of the cargo.vietnamairlines.com page asking for every figure verbatim; both gave the same figures.",
+    "note": "The page lists the six ULD types Vietnam Airlines offers to cargo customers. Lufthansa Cargo answered 403; the Emirates SkyCargo and Cathay Cargo ULD guide URLs returned 'not found' pages; Air Canada Cargo's ULD page is rendered by script with no figures in its HTML."
+  },
+  "ulds": [
+    { "id": "ake", "code": "AKE", "name": "LD3 Container", "kind": "container",
+      "printed": { "base": "61.5 x 60.4 in (1562 x 1534 mm)", "height": "64 in (1625 mm)", "mgw": "3500 lb (1587 kg)", "tare": "from 65 kg", "volume": "4.5 m3", "aircraft": "B777/ B787/A350/A330" },
+      "baseIn": [61.5, 60.4], "baseMm": [1562, 1534], "heightMm": 1625, "mgwKg": 1587, "tareKg": 65, "tareFrom": true, "m3": 4.5, "volumeKind": "internal", "aircraft": "B777, B787, A350, A330" },
+    { "id": "akh", "code": "AKH", "name": "LD3-45 Container", "kind": "container",
+      "printed": { "base": "61.5 x 60.4 in (1562 x 1534 mm)", "height": "45 in (1143 mm)", "mgw": "3500 lb (1587 kg)", "mgwNote": "(*) When used on A321, its MGW is limited to 1134 kgs (2500 lb).", "tare": "from 67 kg", "volume": "3.6 m3", "aircraft": "A321" },
+      "baseIn": [61.5, 60.4], "baseMm": [1562, 1534], "heightMm": 1143, "mgwKg": 1587, "mgwA321Kg": 1134, "tareKg": 67, "tareFrom": true, "m3": 3.6, "volumeKind": "internal", "aircraft": "A321" },
+    { "id": "pag", "code": "PAG", "name": "Pallet PAG", "kind": "pallet",
+      "printed": { "base": "125 x 88 in (3175 x 2235 mm)", "mgw": "15000 lb (6800 kg)", "mgwNote": "(*) MGW depends on the position loaded in the aircraft according to W&B Manual.", "tare": "115 kg (including net)", "volume": "10.5 m3", "aircraft": "B777/B787/A350/A330" },
+      "baseIn": [125, 88], "baseMm": [3175, 2235], "heightMm": null, "mgwKg": 6800, "mgwByPosition": true, "tareKg": 115, "tareFrom": false, "m3": 10.5, "volumeKind": "usable", "aircraft": "B777, B787, A350, A330" },
+    { "id": "pmc", "code": "PMC", "name": "Pallet PMC", "kind": "pallet",
+      "printed": { "base": "125 x 96 in (3175 x 2438 mm)", "mgw": "15000 lb (6800 kg)", "mgwNote": "(*) MGW depends on the position loaded in the aircraft according to W&B Manual.", "tare": "120 kg (including net)", "volume": "11.5 m3", "aircraft": "B777/B787/A350/A330" },
+      "baseIn": [125, 96], "baseMm": [3175, 2438], "heightMm": null, "mgwKg": 6800, "mgwByPosition": true, "tareKg": 120, "tareFrom": false, "m3": 11.5, "volumeKind": "usable", "aircraft": "B777, B787, A350, A330" },
+    { "id": "pkc", "code": "PKC", "name": "Pallet PKC", "kind": "pallet",
+      "printed": { "base": "61.5 x 60.4 in (1562 x 1534 mm)", "mgw": "3500 lb (1587 kg)", "mgwNote": "(*) When used on A321, its MGW is limited to 1134 kgs (2500 lb).", "tare": "65 kg (including net)", "volume": "3.6 m3", "aircraft": "A321" },
+      "baseIn": [61.5, 60.4], "baseMm": [1562, 1534], "heightMm": null, "mgwKg": 1587, "mgwA321Kg": 1134, "tareKg": 65, "tareFrom": false, "m3": 3.6, "volumeKind": "usable", "aircraft": "A321" },
+    { "id": "amp", "code": "AMP", "name": "AMP Container", "kind": "container",
+      "printed": { "base": "125 x 96 in (3175 x 2438 mm)", "height": "63.5 in (1612 mm)", "mgw": "15000 lb (6804 kg).", "mgwNote": "(*) MGW depends on the position loaded in the aircraft according to W&B Manual.", "tare": "303 kg", "volume": "11.5 m3", "aircraft": "B777/B787/A350/A330" },
+      "baseIn": [125, 96], "baseMm": [3175, 2438], "heightMm": 1612, "mgwKg": 6804, "mgwByPosition": true, "tareKg": 303, "tareFrom": false, "m3": 11.5, "volumeKind": "internal", "aircraft": "B777, B787, A350, A330" }
+  ]
+}
