@@ -20,12 +20,19 @@ export function totals(lines) {
   for (const x of ok) { const t = lineOf(x); m3 += t.m3; kg += t.kg; n += x.qty; }
   return { ok, m3, kg, n, ft3: m3 / FT3_M3, lb: kg / LB_KG, kgm3: m3 > 0 ? kg / m3 : 0, pcf: m3 > 0 ? kg / m3 / PCF_KGM3 : 0 };
 }
+// Class from a density guideline table (rows sorted by falling minimum, last row min 0): the first row whose
+// minimum average density (lb/ft³) the shipment reaches. Uses the unrounded density.
+export function classOf(pcf, rows) {
+  if (!(pcf > 0) || !rows) return null;
+  return rows.find((r) => pcf >= r.min) || null;
+}
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const num = (v) => { const n = parseFloat(String(v).replace(/,/g, '')); return Number.isFinite(n) && n >= 0 ? n : NaN; };
 
 export function initDensity(root) {
   let lines = JSON.parse(root.dataset.defaults);
   let units = 'imperial';
+  const classes = root.dataset.classes ? JSON.parse(root.dataset.classes) : null;
   try { units = localStorage.getItem('lpc-dens-units') || (navigator.language === 'en-US' ? 'imperial' : 'metric'); } catch { /* storage blocked */ }
   if (!U[units]) units = 'imperial';
   const $ = (s) => root.querySelector(s);
@@ -62,6 +69,8 @@ export function initDensity(root) {
     R('cube').textContent = has ? (imp ? `${fmt(t.ft3, 2)} ft³` : `${fmt(t.m3, 3)} m³`) : '–';
     R('cubeSub').textContent = has ? (imp ? `${fmt(t.m3, 3)} m³` : `${fmt(t.ft3, 2)} ft³`) : '';
     R('count').textContent = fmt(t.n);
+    const cls = classes && has ? classOf(t.pcf, classes) : null;
+    if (classes) R('cls').textContent = cls ? `Class ${cls.class}` : '–';
     const skipped = lines.length - t.ok.length;
     R('skip').hidden = !skipped;
     R('skip').textContent = skipped ? `${skipped === 1 ? 'One line is' : `${skipped} lines are`} left out: enter a length, width, height, weight and number of pieces.` : '';
@@ -72,6 +81,8 @@ export function initDensity(root) {
       node.querySelector('[data-out]').textContent = imp
         ? `${fmt(one / FT3_M3, 2)} ft³ each · ${fmt(a.kg / a.m3 / PCF_KGM3, 2)} lb/ft³`
         : `${fmt(one, 3)} m³ each · ${fmt(a.kg / a.m3, 1)} kg/m³`;
+      const lc = classes ? classOf(a.kg / a.m3 / PCF_KGM3, classes) : null;
+      if (lc) node.querySelector('[data-out]').textContent += ` · class ${lc.class}`;
     });
     // live formula steps
     const steps = t.ok.map((x) => {
@@ -83,7 +94,8 @@ export function initDensity(root) {
     });
     R('steps').innerHTML = has ? steps.join('<br>') + (imp
       ? `<br>Density = ${fmt(t.lb, 2)} lb ÷ ${fmt(t.ft3, 3)} ft³ = <strong>${fmt(t.pcf, 2)} lb/ft³</strong><br>× 16.0185 (0.45359237 ÷ 0.028316846592) = ${fmt(t.kgm3, 1)} kg/m³`
-      : `<br>Density = ${fmt(t.kg, 2)} kg ÷ ${fmt(t.m3, 4)} m³ = <strong>${fmt(t.kgm3, 1)} kg/m³</strong><br>÷ 16.0185 (0.45359237 ÷ 0.028316846592) = ${fmt(t.pcf, 2)} lb/ft³`) : 'Enter a line to see the steps.';
+      : `<br>Density = ${fmt(t.kg, 2)} kg ÷ ${fmt(t.m3, 4)} m³ = <strong>${fmt(t.kgm3, 1)} kg/m³</strong><br>÷ 16.0185 (0.45359237 ÷ 0.028316846592) = ${fmt(t.pcf, 2)} lb/ft³`)
+      + (cls ? `<br>Class: ${fmt(t.pcf, 3)} lb/ft³ is ${cls.min > 0 ? `at least ${fmt(cls.min, 1)}` : 'less than 1'}${(() => { const i = classes.indexOf(cls); return i > 0 ? ` and less than ${fmt(classes[i - 1].min, 1)}` : ''; })()} lb/ft³ → <strong>class ${cls.class}</strong>` : '') : 'Enter a line to see the steps.';
   }
 
   host.addEventListener('input', (e) => {

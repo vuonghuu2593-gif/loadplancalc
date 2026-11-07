@@ -1,7 +1,7 @@
 {
-  "updated": "2026-11-06",
-  "tools": "31aca414a2e9d9464f96a0f90a8385c51ea09eb83ed8bc229908f62568be9268",
-  "guide": "2fb2750a62ee30a0fb80be31c2328f33e6dc043136bf85f09d6aaa779a09a755",
+  "updated": "2026-11-07",
+  "tools": "08f348ac06de297c63f3fc96794b44d633c54848915d919d777a4f72abf71157",
+  "guide": "dcdb80327a2a87f8aa0c5333538ceef5769af003d100c9738c061c6b2271d3ff",
   "toolPages": [
     "/cargo-securing-calculator/",
     "/cbm-calculator/",
@@ -10,6 +10,7 @@
     "/cubic-feet-calculator/",
     "/dimensional-weight-calculator/",
     "/dunnage-bag-calculator/",
+    "/freight-class-calculator/",
     "/freight-density-calculator/",
     "/how-many-pallets-fit-in-a-53-foot-trailer/",
     "/how-many-pallets-fit-in-a-container/",

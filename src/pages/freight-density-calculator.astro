@@ -1,7 +1,7 @@
 ---
 // Freight density calculator: weight ÷ cube for one or more shipment lines (pallets, crates, cartons).
 // Pure arithmetic with exact unit definitions (1 in = 25.4 mm, 1 lb = 0.45359237 kg). It gives the density
-// only, not a freight class: LTL classes come from NMFTA's NMFC (nmfta.org, read in a browser 2026-10-23), not copied here.
+// only; /freight-class-calculator/ adds the class from NMFTA's FCDC Density Guidelines (2026-11-07).
 import ToolPage from '../layouts/ToolPage.astro';
 import pdata from '../data/pallets.json';
 const IN = 25.4, LB = 0.45359237, FT3 = 0.3048 ** 3, PCF = LB / FT3;
@@ -57,7 +57,7 @@ const m3Of = (hcm: number) => (euro.L / 1000) * (euro.W / 1000) * (hcm / 100);
         <div><div class="k">Pieces</div><div class="v" data-r="count">0</div></div>
       </div>
       <p class="warn" data-r="skip" hidden></p>
-      <p class="small densnote">Density only: this page does not give a freight class. The less-than-truckload (LTL) industry classifies freight with the NMFC, published by <a href="https://www.nmfta.org/" rel="noopener">NMFTA</a>.</p>
+      <p class="small densnote">Density only. For the class NMFTA's density guidelines give for it, use the <a href="/freight-class-calculator/">freight class calculator</a>; the class that applies is the one in the NMFC item for your commodity (<a href="https://www.nmfta.org/" rel="noopener">NMFTA</a>).</p>
     </div>
 
     <template id="dens-line">
@@ -126,6 +126,7 @@ const m3Of = (hcm: number) => (euro.L / 1000) * (euro.W / 1000) * (hcm / 100);
   <section class="prose">
     <h2>Related</h2>
     <div class="chips">
+      <a href="/freight-class-calculator/">Freight class calculator</a>
       <a href="/cubic-feet-calculator/">Cubic feet calculator</a>
       <a href="/cbm-calculator/">CBM calculator</a>
       <a href="/dimensional-weight-calculator/">Dimensional weight calculator</a>

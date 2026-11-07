@@ -1,0 +1,15 @@
+{
+  "source": "National Motor Freight Traffic Association (NMFTA), Freight Classification Development Council (FCDC) Density Guidelines, ©2021, linked from nmfta.org Public Docket Files",
+  "url": "https://nmfta.org/wp-content/uploads/2026/02/FCDC-Density-Guidelines-1.pdf",
+  "page": "https://nmfta.org/standards/classification/public-docket-files/",
+  "checked": "2026-11-07",
+  "read": "pdftotext -layout and pdftotext -raw of the PDF, identical",
+  "note": "The density guidelines are used in the assignment of classes where average density is representative or reflective of the distribution of densities. Furthermore, the density/class relationships set forth in the guidelines presume that there are no unusual or significant handling, stowability or liability characteristics.",
+  "rows": [
+    { "min": 50, "class": "50" }, { "min": 35, "class": "55" }, { "min": 30, "class": "60" }, { "min": 22.5, "class": "65" },
+    { "min": 15, "class": "70" }, { "min": 13.5, "class": "77.5" }, { "min": 12, "class": "85" }, { "min": 10.5, "class": "92.5" },
+    { "min": 9, "class": "100" }, { "min": 8, "class": "110" }, { "min": 7, "class": "125" }, { "min": 6, "class": "150" },
+    { "min": 5, "class": "175" }, { "min": 4, "class": "200" }, { "min": 3, "class": "250" }, { "min": 2, "class": "300" },
+    { "min": 1, "class": "400" }, { "min": 0, "class": "500", "label": "Less than 1" }
+  ]
+}
