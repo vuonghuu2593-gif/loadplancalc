@@ -30,6 +30,7 @@ const n = (v: number) => v.toLocaleString('en-US');
 
   <section class="prose">
     <h2>How the calculator works</h2>
+    <p>This is a free 3D load planner: it runs in your browser, needs no sign-up, and shows every carton in a 3D view you can turn, step through and edit.</p>
     <p>The planner fills the container from the back wall toward the door. At each step it takes the empty space nearest the back and the floor, and fills its corner with the best block of identical cartons — a set of rows, columns and layers in one orientation. What is left of that space is cut into smaller spaces, and the process repeats until nothing more fits or every carton is loaded. This is the “block building” method used in container loading research (Eley, 2002; Fanslau and Bortfeldt, 2010).</p>
     <p>The planner tries many variations — different ways of scoring blocks and cutting the leftover space, plus seeded random choices — and keeps the plan that loads the most cargo volume. The same inputs always give the same plan, so a shared link shows exactly what you saw.</p>
     <p>Before a plan is shown, an independent check confirms that no two cartons overlap, every carton is inside the container and fits through the door opening in the way it is stowed, “this side up” cartons are not tipped, every carton stands fully on the floor or on cartons below it (with interlocked layers: at least the share of its base you chose, with its centre over a carton), nothing is stacked on a carton marked as not stackable, and the payload limit is not exceeded.</p>
