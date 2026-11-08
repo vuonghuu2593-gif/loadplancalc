@@ -54,14 +54,14 @@ const wMin = Math.min(...epalW.map((x) => x.weightKg!)), wMax = Math.max(...epal
 const url = new URL('/pallet-sizes/', 'https://loadplancalc.com').href;
 const schema = { '@context': 'https://schema.org', '@type': 'Article', headline: 'Standard pallet sizes', dateModified: data.checked, mainEntityOfPage: url };
 ---
-<Base title="Standard Pallet Sizes, Height and Weight: Euro and 48 × 40" description="Pallet sizes, height and weight in mm, inches, kg and lb: Euro pallet 1200 × 800, EPAL 2, 3, 6, 7 and 48 × 40 in, with safe working load, gross weight and max loaded height in containers and trailers." schema={schema}>
+<Base title="Standard Pallet Sizes and Dimensions: Euro and 48 × 40" description="Pallet sizes and dimensions, height and weight in mm, inches, kg and lb: Euro pallet 1200 × 800, EPAL 2, 3, 6, 7 and 48 × 40 in, with safe working load, gross weight and max loaded height in containers and trailers." schema={schema}>
   <section class="prose">
     <h1>Standard pallet sizes</h1>
     <p class="lede">The EPAL Euro pallet is {n(euro.L)} × {n(euro.W)} mm and {euro.H} mm high ({n(inch(euro.L), 1)} × {n(inch(euro.W), 1)} × {n(inch(euro.H), 1)} in), weighs about {euro.weightKg} kg and has a safe working load of {n(euro.swlKg)} kg, according to EPAL. The North American 48 × 40 in pallet measures {n(us.L)} × {n(us.W)} × {us.H} mm in CHEP's specification for its block pallet. Below are the sizes, heights, weights and load ratings of six common pallets, each from the organisation that sets or makes it. Empty, they are {hMin}–{hMax} mm ({n(inch(hMin), 1)}–{n(inch(hMax), 1)} in) high; how high a loaded pallet may be is set by the racking, the vehicle and the customer, not by a standard (see <a href="#height">pallet height</a>). Empty, the EPAL pallets weigh about {wtd(wMin)}–{wtd(wMax)} kg ({n(lb(wMin), 1)}–{n(lb(wMax), 1)} lb); a loaded pallet weighs its goods plus that (see <a href="#weight">pallet weight</a>).</p>
   </section>
 
   <section class="prose">
-    <h2>Pallet dimensions</h2>
+    <h2 id="dimensions">Pallet dimensions</h2>
     <div class="tablebox">
       <table>
         <thead><tr><th>Pallet</th><th class="num">Footprint</th><th class="num">Height</th><th class="num">Weight</th><th class="num">Safe working load</th></tr></thead>
@@ -77,6 +77,8 @@ const schema = { '@context': 'https://schema.org', '@type': 'Article', headline:
       </table>
     </div>
     <p class="small">EPAL figures from EPAL's product pages; the 48 × 40 in figures from CHEP's product page (CHEP does not list a weight for this pallet there, and its load figure is what the pallet is "designed … to carry … in normal operating circumstances with a uniformly distributed load"). EPAL prints the Euro pallet as length 800 mm and width 1,200 mm, and the EPAL 3 as length 1,000 mm and width 1,200 mm; the table gives the long side first. Inches and pounds are converted (1 in = 25.4 mm, 1 lb = 0.45359237 kg) unless the maker prints them.</p>
+    <h3 id="euro-pallet-dimensions">Euro pallet dimensions</h3>
+    <p>The Euro pallet (EPAL 1) is {n(euro.L)} mm long, {n(euro.W)} mm wide and {euro.H} mm high: {n(inch(euro.L), 1)} × {n(inch(euro.W), 1)} × {n(inch(euro.H), 1)} in, or {n(euro.L / 1000, 1)} × {n(euro.W / 1000, 1)} m. It is built from {euro.boards} boards and {euro.blocks} blocks, weighs about {euro.weightKg} kg ({n(lb(euro.weightKg!), 1)} lb) and carries {n(euro.swlKg)} kg ({n(lb(euro.swlKg!))} lb) as a safe working load (<a href={euro.url} rel="noopener">EPAL</a>). For how many fit in a container or trailer see <a href="/how-many-pallets-fit-in-a-container/">pallets per container</a> and <a href="/how-many-pallets-fit-in-a-53-foot-trailer/">pallets per 53 ft trailer</a>.</p>
   </section>
 
   <section class="prose" id="stacking">
