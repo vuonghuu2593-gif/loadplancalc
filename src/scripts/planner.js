@@ -925,9 +925,11 @@ export function initPlanner(root) {
     {
       const oh = state.cont.overhang || 0, c = state.cont;
       let x0 = oh, x1 = oh + c.L, y0 = oh, y1 = oh + c.W, top = 0;
-      for (const b of boxes) { x0 = Math.min(x0, b.x); x1 = Math.max(x1, b.x + b.dx); y0 = Math.min(y0, b.y); y1 = Math.max(y1, b.y + b.dy); top = Math.max(top, b.z + b.dz); }
+      let box3 = 0; // cartons' own volume, to say how much of the cube they fill
+      for (const b of boxes) { x0 = Math.min(x0, b.x); x1 = Math.max(x1, b.x + b.dx); y0 = Math.min(y0, b.y); y1 = Math.max(y1, b.y + b.dy); top = Math.max(top, b.z + b.dz); box3 += b.dx * b.dy * b.dz; }
       const L = x1 - x0, W = y1 - y0, H = (c.palletH || 0) + top, mm3 = L * W * H, u = U[units], dp = units === 'metric' ? 1 : 2;
-      if (boxes.length && L > 0 && W > 0) set('cube', units === 'metric' ? `${fmt(mm3 / 1e9, 3)} m³` : `${fmt(mm3 / 304.8 ** 3, 2)} ft³`, `${fmt(u.fromMM(L), dp)} × ${fmt(u.fromMM(W), dp)} × ${fmt(u.fromMM(H), dp)} ${u.len} (pallet + load) · ${units === 'metric' ? `${fmt(mm3 / 304.8 ** 3, 2)} ft³` : `${fmt(mm3 / 1e9, 3)} m³`}`);
+      const vol = (v, main) => (units === 'metric') === main ? `${fmt(v / 1e9, 3)} m³` : `${fmt(v / 304.8 ** 3, 2)} ft³`;
+      if (boxes.length && L > 0 && W > 0) set('cube', vol(mm3, true), `${fmt(u.fromMM(L), dp)} × ${fmt(u.fromMM(W), dp)} × ${fmt(u.fromMM(H), dp)} ${u.len} (pallet + load) · ${vol(mm3, false)}. Cartons ${vol(box3, true)} (${vol(box3, false)}) = ${fmt(box3 / mm3 * 100, 1)}% of the cube; the rest is the pallet and air.`);
       else set('cube', '–', 'Shown once a carton is loaded.');
     }
     if (state.items.length !== 1) { set('tihi', '–', 'Shown for one box type. With mixed boxes, read the plan layer by layer in the Side view.'); set('pallets', '–', 'Shown for one box type.'); return; }

@@ -1006,8 +1006,11 @@ ok(errs.length === 0, 'no JS errors ' + errs.join(' | '));
   await pc.goto('http://localhost:4401/pallet-loading-calculator/'); await pc.waitForTimeout(400);
   await pc.waitForFunction(() => !document.querySelector('[data-result]').classList.contains('busy') && document.querySelector('[data-r="cube"]').textContent !== '–', null, { timeout: 20000 });
   ok(await T('[data-r="cube"]') === '1.578 m³' && (await T('[data-r="cubeSub"]')).startsWith('120.0 × 80.0 × 164.4 cm') || (await T('[data-r="cubeSub"]')).startsWith('120 × 80 × 164.4 cm'), 'pallet cube default: 1.578 m³, 120 × 80 × 164.4 cm (' + await T('[data-r="cube"]') + ' / ' + await T('[data-r="cubeSub"]') + ')');
+  // cartons fill (2026-11-09), hand-checked: default interlocked 8 / 7 × 6 = 45 cartons × 0.4 × 0.3 × 0.25 m = 1.35 m³ (÷ 0.028316846592 = 47.67 ft³); 1.35 ÷ 1.57824 = 85.54% → 85.5%
+  ok((await T('[data-r="cubeSub"]')).includes('Cartons 1.35 m³ (47.67 ft³) = 85.5% of the cube'), 'cartons fill: 1.35 m³ = 85.5% of the cube (' + await T('[data-r="cubeSub"]') + ')');
   await pc.click('[data-units="imperial"]'); await pc.waitForTimeout(600);
   ok(await T('[data-r="cube"]') === '55.74 ft³', 'imperial: 55.74 ft³ (' + await T('[data-r="cube"]') + ')');
+  ok((await T('[data-r="cubeSub"]')).includes('Cartons 47.67 ft³ (1.35 m³) = 85.5% of the cube'), 'imperial cartons fill: 47.67 ft³ = 85.5% (' + await T('[data-r="cubeSub"]') + ')');
   await pc.click('[data-units="metric"]'); await pc.waitForTimeout(600);
   ok(await T('[data-r="cube"]') === '1.578 m³', 'back to metric: 1.578 m³');
   // overhang 50 mm a side and 7 layers allowed by a higher limit change the cube
