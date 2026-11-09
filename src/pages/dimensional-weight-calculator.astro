@@ -27,13 +27,19 @@ const rows = boxes.map(([l, w, h]) => {
 });
 const metricDiv = (139 * 2.54 ** 3) / LB; // 139 in³/lb in cm³/kg
 const q = dw.quotes;
+
+// Air cargo volumetric weight table: L × W × H in cm ÷ 6,000 (IATA standard as quoted by Maersk), and ÷ 5,000 (used by some carriers, same source).
+const airBoxes: [number, number, number][] = [[40, 30, 30], [50, 40, 30], [60, 40, 40], [100, 60, 30], [80, 60, 50], [120, 80, 100], [120, 100, 150]];
+const airRows = airBoxes.map(([l, w, h]) => ({ l, w, h, cm3: l * w * h, m3: (l * w * h) / 1e6, k6: (l * w * h) / 6000, k5: (l * w * h) / 5000 }));
+// hand checks: 100 × 60 × 30 = 180,000 cm³ → 30 kg (Maersk's example); 120 × 80 × 100 = 960,000 → 160 kg; 1 m³ = 166.67 kg
+if (airRows[3].k6 !== 30 || airRows[5].k6 !== 160 || airRows[5].k5 !== 192) throw new Error('volumetric weight table hand check failed');
 ---
 <ToolPage
-  title="Dimensional Weight Calculator (USPS DIM Weight Rule)"
-  description="Free dimensional weight calculator: box size in inches or cm and weight in lb or kg to dimensional and billable weight under the USPS rule (139 divisor, over 1,728 in³), or with your carrier's divisor."
+  title="Dimensional & Volumetric Weight Calculator (USPS, Air)"
+  description="Free dimensional weight calculator: box size in inches or cm and weight in lb or kg to dimensional and billable weight under the USPS rule (139 divisor, over 1,728 in³), air cargo volumetric weight (cm ÷ 6,000), or your carrier's divisor."
   h1="Dimensional weight calculator"
   name="Dimensional weight calculator"
-  lede={`Dimensional (DIM) weight charges a light, bulky package by its size. Under the USPS rule, round each side up to a whole inch, multiply, and if the result is over 1,728 in³ (1 cubic foot) divide by 139 and round up to a whole pound. For example, an 18 × 14 × 12 in box is <strong>${n(ex.vol)} in³</strong>; ${n(ex.vol)} ÷ 139 = ${n(ex.vol / 139, 2)}, rounded up to <strong>${ex.dimLb} lb</strong>. If the box weighs 10 lb, you pay for ${ex.billLb} lb. A 50 × 40 × 30 cm box is ${n(500 / IN, 2)} × ${n(400 / IN, 2)} × ${n(300 / IN, 2)} in, rounded up to ${exm.sides.join(' × ')} = ${n(exm.vol)} in³ → ${n(exm.vol / 139, 2)} → <strong>${exm.dimLb} lb</strong> (${n(exm.dimLb * LB, 2)} kg).`}
+  lede={`Dimensional (DIM) weight charges a light, bulky package by its size. Under the USPS rule, round each side up to a whole inch, multiply, and if the result is over 1,728 in³ (1 cubic foot) divide by 139 and round up to a whole pound. For example, an 18 × 14 × 12 in box is <strong>${n(ex.vol)} in³</strong>; ${n(ex.vol)} ÷ 139 = ${n(ex.vol / 139, 2)}, rounded up to <strong>${ex.dimLb} lb</strong>. If the box weighs 10 lb, you pay for ${ex.billLb} lb. A 50 × 40 × 30 cm box is ${n(500 / IN, 2)} × ${n(400 / IN, 2)} × ${n(300 / IN, 2)} in, rounded up to ${exm.sides.join(' × ')} = ${n(exm.vol)} in³ → ${n(exm.vol / 139, 2)} → <strong>${exm.dimLb} lb</strong> (${n(exm.dimLb * LB, 2)} kg). Air cargo calls it <strong>volumetric weight</strong>: length × width × height in cm ÷ 6,000, so a 100 × 60 × 30 cm box counts as 30 kg (<a href="#volumetric-weight">table below</a>).`}
 >
   <section class="dimw" data-tool="dimweight" data-rules={JSON.stringify(rules)} data-defaults={JSON.stringify(defaults)}>
     <form class="panel" onsubmit="return false" aria-label="Package">
@@ -137,6 +143,20 @@ const q = dw.quotes;
       </table>
     </div>
     <p class="small">Computed with the rule above (Priority Mail, Ground Advantage retail, Parcel Select Destination Entry): whole-inch sides, ÷ 139 above 1,728 in³, rounded up; “not rectangular” multiplies by 0.785 first. A 12 in cube is exactly 1,728 in³ and has no dimensional weight; one more inch of height (12 × 12 × 13 = 1,872 in³) gives 14 lb.</p>
+  </section>
+
+  <section class="prose" id="volumetric-weight">
+    <h2>Volumetric weight (air cargo)</h2>
+    <p>Volumetric weight is the air cargo name for dimensional weight. Choose <strong>Air cargo</strong> in the calculator and it works out length × width × height in centimetres ÷ 6,000, the divisor Maersk describes as "an industry standard, set by the International Air Transport Association (IATA)". You pay for the greater of the actual and the volumetric weight; Maersk also notes that some carriers divide by 5,000 instead, which makes a bulky shipment heavier on paper (<a href="https://www.maersk.com/logistics-explained/transportation-and-freight/2025/03/10/air-cargo-chargeable-weight" rel="noopener">Maersk, "Air cargo chargeable weight"</a>). At ÷ 6,000, one cubic metre counts as {n(1e6 / 6000, 2)} kg; at ÷ 5,000 it counts as 200 kg. If your carrier uses 5,000, choose <strong>Your carrier's divisor</strong> and enter 5000 in cm³ per kg.</p>
+    <div class="tablebox">
+      <table>
+        <thead><tr><th>Carton or pallet (cm)</th><th class="num">Volume</th><th class="num">Volumetric weight ÷ 6,000</th><th class="num">÷ 5,000</th></tr></thead>
+        <tbody>
+          {airRows.map((r) => <tr><td>{r.l} × {r.w} × {r.h}</td><td class="num">{n(r.cm3)} cm³<br><span class="small">{n(r.m3, 3)} m³</span></td><td class="num">{n(r.k6, 1)} kg</td><td class="num">{n(r.k5, 1)} kg</td></tr>)}
+        </tbody>
+      </table>
+    </div>
+    <p class="small">Sizes are not rounded in this table. Airlines and forwarders round sides and the chargeable weight in their own steps (often to the next half or whole kilogram), so check your carrier's tariff before you quote a price.</p>
   </section>
 
   <section class="prose">
