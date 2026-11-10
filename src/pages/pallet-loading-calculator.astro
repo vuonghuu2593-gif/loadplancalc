@@ -141,7 +141,7 @@ const swl = (p: typeof euro) => (p.id === 'chep4840' ? `${n(2800)} lb (${n(p.max
 
   <section class="prose" id="how-many-boxes">
     <h2>How many boxes fit on a pallet?</h2>
-    <p>Work it out in four steps, the same ones the calculator follows for a single carton size in column stacks:</p>
+    <p>Warehouses call the answer the pallet configuration, palletizing (palletization) pattern or Ti-Hi: how the cartons sit in each layer and how many layers are stacked. Work it out in four steps, the same ones the calculator follows for a single carton size in column stacks:</p>
     <ol class="plain">
       <li><strong>Boxes per layer (Ti):</strong> how many carton footprints fit on the pallet top, trying the carton both ways round and mixed rows. On a {n(euro.L)} × {n(euro.W)} mm Euro pallet, 400 × 300 mm cartons fit 4 × 2 = 8; a 48 × 40 in pallet takes 4 × 3 = 12 cartons of 12 × 12 in.</li>
       <li><strong>Layers (Hi):</strong> the height limit minus the pallet's own height, divided by the carton height, rounded down. With a {n(EX_H)} mm limit on the Euro pallet ({euro.H} mm high), 250 mm cartons give {n(EX_H - euro.H)} ÷ 250 = 6 layers.</li>
