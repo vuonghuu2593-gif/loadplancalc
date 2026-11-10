@@ -64,6 +64,8 @@ function rowsMix(c: Sp, p: { L: number; W: number }) {
   for (let x = 0; x * p.W <= c.L; x++) { const y = Math.floor((c.L - x * p.W) / p.L + 1e-9); if (x * pa + y * pb > best.n) best = { n: x * pa + y * pb, x, y, pa, pb }; }
   return best;
 }
+const exEuroTwo = fit(comp, euro, true);
+if (exEuroTwo !== 2 * exEuro) throw new Error(`Euro two high changed: ${exEuroTwo}; update the answer sentence`);
 const euroWide = fit(comp, WIDE, false), hWide = rowsMix(comp, WIDE);
 if (euroWide !== hWide.n || euroWide >= exEuro) throw new Error(`1200 x 805 case: engine ${euroWide}, rows ${hWide.n}`);
 // how far each 48 × 40 in pallet may overhang per side and still go two across with the 48 in side across
@@ -107,6 +109,7 @@ const short = (t: typeof comp) => t.model;
 
   <section class="prose">
     <h2>How many pallets fit in a 53 ft trailer</h2>
+    <p><strong>A 53 ft dry van holds {exChep} standard 48 × 40 in pallets on the floor, or {exChepTwo} stacked two high, and {exEuro} Euro pallets (1,200 × 800 mm) on the floor, or {exEuroTwo} two high.</strong> Those counts come from the planner for Hyundai Translead's 53' vans ({comp.Lin} in long inside, {orig.Win}–{comp.Win} in wide, {comp.Hin} in high) with every loaded pallet {n(EX_H / MM_PER_IN)} in tall; stacking two high also needs goods that can carry a pallet on top and a total weight within your payload. The answer to "how many pallets can fit on a 53 foot trailer" for your own load is the calculator above: enter your pallet size, height and weight.</p>
     <p>Computed with the planner for each pallet and trailer, pallets turned either way, on the floor (one high), and two high when each loaded pallet is 50 in ({n(EX_H)} mm) tall. Weight is not limited here: check your gross weight against your payload.</p>
     <div class="tablebox">
       <table>
