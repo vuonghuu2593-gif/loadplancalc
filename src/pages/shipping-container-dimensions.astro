@@ -49,7 +49,7 @@ const schema = { '@context': 'https://schema.org', '@type': 'Article', headline:
     <h3 id="20ft">20ft container dimensions</h3>
     <p>A 20' standard container ({s20.iso}) is {n(s20.L)} mm long, {n(s20.W)} mm wide and {n(s20.H)} mm high inside ({ftin(s20.L)} × {ftin(s20.W)} × {ftin(s20.H)}), with a door opening of {n(s20.doorW)} × {n(s20.doorH)} mm. It holds {s20.cbm} m³ and weighs {n(s20.tare)} kg empty, with a payload of {n(s20.payload)} kg.</p>
     <h3 id="40ft">40ft container dimensions</h3>
-    <p>A 40' standard container ({s40.iso}) has the same width, height and door as the 20' but is {n(s40.L)} mm ({ftin(s40.L)}) long inside, for {s40.cbm} m³. Tare is {n(s40.tare)} kg and payload {n(s40.payload)} kg, so it carries about twice the volume but not twice the weight.</p>
+    <p>A 40' standard container ({s40.iso}) has the same width, height and door as the 20' but is longer: {n(s40.L)} × {n(s40.W)} × {n(s40.H)} mm inside ({ftin(s40.L)} × {ftin(s40.W)} × {ftin(s40.H)}), with a door opening of {n(s40.doorW)} × {n(s40.doorH)} mm, for {s40.cbm} m³. Tare is {n(s40.tare)} kg and payload {n(s40.payload)} kg, so it carries about twice the volume but not twice the weight.</p>
     <h3 id="40ft-high-cube">40ft high cube container dimensions</h3>
     <p>A 40' high cube is {n(hc.L)} × {n(hc.W)} × {n(hc.H)} mm inside ({ftin(hc.L)} × {ftin(hc.W)} × {ftin(hc.H)}): {n(hc.H - s40.H)} mm taller than the 40' standard, with a {n(hc.doorW)} × {n(hc.doorH)} mm door. That is {n(cbm(hc), 1)} m³ from the inside dimensions. Tare is {n(hc.tare)} kg and payload {n(hc.payload)} kg.</p>
     <p class="small">All figures from Hapag-Lloyd's specifications in the table above; the high cube volume is length × width × height of its inside dimensions.</p>
