@@ -50,6 +50,11 @@ if (ex40 !== 25 || hEx40.n !== 25 || hEx40.na !== 15 || hEx40.nb !== 10 || ex20 
 const CH = 50 * MM_PER_IN, CKG = 1500 * KG_PER_LB;
 const chHc = fit(hc40, chep, true, CH), chDv = fit(dv40, chep, true, CH), hCh = lanes(hc40, chep);
 if (chHc !== 40 || chDv !== 20 || hCh.n !== 20 || hCh.na !== 11 || hCh.nb !== 9) throw new Error(`48 x 40 in example changed: HC ${chHc}, DV ${chDv}, lanes ${hCh.n}`);
+// 20ft answer (keyword "how many pallets fit in a 20ft container"): engine counts, hand-checked with the lane arithmetic
+// (20' Standard 5,900 × 2,352 mm): Euro 7 + 4 = 11; EPAL 2/3 5 + 4 = 9; half pallets 2 × 9 + 7 = 25; 48 × 40 in 5 + 4 = 9.
+const t20 = table.map(({ p, cells }) => ({ p, x: cells.find((x) => x.c.id === '20dv')! }));
+const HAND20: Record<string, number> = { epal1: 11, epal2: 9, epal3: 9, epal6: 25, epal7: 25, chep4840: 9 };
+for (const { p, x } of t20) if (HAND20[p.id] !== undefined && (x.one !== HAND20[p.id] || x.two !== 2 * HAND20[p.id])) throw new Error(`20ft answer changed: ${p.id} ${x.one}/${x.two}; update the 20ft section`);
 const short = (c: typeof dv40) => c.name.replace(' Standard', '').replace(' High Cube', ' HC');
 ---
 <ToolPage
@@ -101,6 +106,13 @@ const short = (c: typeof dv40) => c.name.replace(' Standard', '').replace(' High
       </table>
     </div>
     <p class="small">Inside sizes ({C.map((c) => `${short(c)} ${n(c.L)} × ${n(c.W)} × ${n(c.H)} mm`).join('; ')}) from Hapag-Lloyd's container pages (see <a href="/shipping-container-dimensions/">shipping container dimensions</a>); Hapag-Lloyd notes its figures are examples and units vary by maker. Pallet footprints from EPAL's and CHEP's product pages (<a href="/pallet-sizes/">standard pallet sizes</a>); the CHEP pallet is entered as exactly 48 × 40 in ({n(chep.L, 1)} × {n(chep.W)} mm). {allLanes ? 'In every cell the one-high count equals the best layout of straight lanes, crosswise and lengthwise side by side, worked out with the lane arithmetic of the example above, and two high doubles it.' : ''} Two high needs the inside height for two loaded pallets: at most {n(Math.floor(dv40.H / 2))} mm each in a 20' or 40' Standard and {n(Math.floor(hc40.H / 2))} mm in a High Cube.</p>
+
+    <h3 id="20ft">How many pallets fit in a 20ft container?</h3>
+    <p>A 20' Standard container is {n(dv20.L)} × {n(dv20.W)} mm inside ({inch(dv20.L)} × {inch(dv20.W)} in), {n(dv20.H)} mm ({inch(dv20.H)} in) high. On the floor, one high:</p>
+    <ul class="plain">
+      {t20.map(({ p, x }) => <li><strong>{p.name}</strong> ({n(p.L, 1)} × {n(p.W)} mm): <strong>{x.one}</strong> one high, {x.two} two high.</li>)}
+    </ul>
+    <p>The lanes work the same way as in the 40' example: Euro pallets go 7 crosswise (7 × {n(euro.W)} = 5,600 mm) beside 4 lengthwise (4 × {n(euro.L)} = 4,800 mm), {n(euro.L)} + {n(euro.W)} = 2,000 mm of the {n(dv20.W)} mm width. 1,200 × 1,000 mm pallets go 5 crosswise (5,000 mm) beside 4 lengthwise, 1,200 + 1,000 = 2,200 mm wide, so <strong>9</strong>; 48 × 40 in pallets also 5 + 4 = 9 (5 × 40 = 200 in of the {inch(dv20.L)} in length, 48 + 40 = 88 in of the {inch(dv20.W)} in width). Two high needs each loaded pallet at most {n(Math.floor(dv20.H / 2))} mm tall. To plan your own pallets, pick <strong>20' Standard</strong> in the calculator above.</p>
   </section>
 
   <section class="prose">
