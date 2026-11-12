@@ -47,10 +47,10 @@ const fitRows = examples.map((e) => {
 ---
 <ToolPage
   title="CBM Calculator: Cartons to Cubic Meters and Container Share"
-  description="Free CBM calculator: enter carton sizes in cm, mm or inches and quantities to get cubic meters (m³) and cubic feet, and the share of a 20ft, 40ft, 40ft high cube or 45ft container's volume."
+  description="Free CBM (cubic meter) calculator: enter carton sizes in cm, mm or inches and quantities to get cubic meters (m³) and cubic feet, and the share of a 20ft, 40ft, 40ft high cube or 45ft container's volume."
   h1="CBM calculator"
   name="CBM calculator"
-  lede={`Multiply length × width × height in metres to get a carton's volume in cubic metres (CBM), then multiply by the number of cartons. For example, a 60 × 40 × 40 cm carton is 0.6 × 0.4 × 0.4 = <strong>${n(a1, 3)} m³</strong> (${n(a1 / FT3, 2)} ft³). 400 of them plus 500 cartons of 50 × 30 × 30 cm (${n(b1, 3)} m³ each) make ${n(a1 * 400, 1)} + ${n(b1 * 500, 1)} = <strong>${n(total, 1)} m³</strong> (${n(total / FT3, 2)} ft³): ${n(pct(hc40), 1)}% of a 40' high cube's inside volume of ${n(vol(hc40), 2)} m³, ${n(pct(dv40), 1)}% of a 40' standard, and more than one 20' standard holds (${n(pct(dv20), 1)}%).`}
+  lede={`This cubic meter (CBM) calculator multiplies length × width × height in metres to get a carton's volume in cubic metres, then multiplies by the number of cartons. For example, a 60 × 40 × 40 cm carton is 0.6 × 0.4 × 0.4 = <strong>${n(a1, 3)} m³</strong> (${n(a1 / FT3, 2)} ft³). 400 of them plus 500 cartons of 50 × 30 × 30 cm (${n(b1, 3)} m³ each) make ${n(a1 * 400, 1)} + ${n(b1 * 500, 1)} = <strong>${n(total, 1)} m³</strong> (${n(total / FT3, 2)} ft³): ${n(pct(hc40), 1)}% of a 40' high cube's inside volume of ${n(vol(hc40), 2)} m³, ${n(pct(dv40), 1)}% of a 40' standard, and more than one 20' standard holds (${n(pct(dv20), 1)}%).`}
 >
   <section class="cbm" data-tool="cbm" data-containers={JSON.stringify(containers)} data-defaults={JSON.stringify(defaults)}>
     <form class="panel" onsubmit="return false" aria-label="Cartons">
