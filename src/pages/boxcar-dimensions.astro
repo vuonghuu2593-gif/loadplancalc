@@ -1,0 +1,172 @@
+---
+// Reference page: inside dimensions, doors and load limits of BNSF Railway's 50 ft and 60 ft boxcars, as BNSF prints them
+// on its own car diagrams (boxcars.json, read twice: PDF text layer and rendered page image).
+// Every count on this page is computed by the engine at build time and checked by validate(); the build fails otherwise.
+import Base from '../layouts/Base.astro';
+import bx from '../data/boxcars.json';
+import tdata from '../data/trailers.json';
+import pdata from '../data/pallets.json';
+import { pack, validate } from '../scripts/packer.js';
+const IN = 25.4, LB = 0.45359237;
+const n = (v: number, d = 0) => v.toLocaleString('en-US', { maximumFractionDigits: d, minimumFractionDigits: 0 });
+// 606 → 50′ 6″, 156.5 → 13′ 0½″, 43.875 → 3′ 7⅞″
+const FR: Record<string, string> = { '0': '', '0.5': '½', '0.875': '⅞' };
+const ftin = (inches: number) => { const ft = Math.floor(inches / 12 + 1e-9); const r = inches - ft * 12; const w = Math.floor(r + 1e-9); return `${ft}′ ${w}${FR[String(+(r - w).toFixed(3))] ?? ''}″`; };
+type Car = (typeof bx.cars)[number] & { loadLimit263Lb?: number; aarCode?: string };
+const C = bx.cars as Car[];
+if (C.length !== 2) throw new Error('expected the BNSF 50 ft and 60 ft boxcars');
+const c50 = C.find((c) => c.id === 'bnsf-50')!, c60 = C.find((c) => c.id === 'bnsf-60')!;
+// stored inches and mm must agree with each other (guards against a typo in the data file)
+for (const c of C) {
+  for (const [a, b] of [['L', 'Lin'], ['W', 'Win'], ['H', 'Hin'], ['doorW', 'doorWin'], ['doorH', 'doorHin']] as const)
+    if (Math.abs((c as any)[a] - (c as any)[b] * IN) > 0.001) throw new Error(`${c.id}: ${a} not converted exactly`);
+  // the printed load limit is the gross rail load minus the light (empty) weight: 286,000 − 74,000 = 212,000; 286,000 − 84,800 = 201,200
+  if (c.grlLb - c.lightLb !== c.loadLimitLb) throw new Error(`${c.id}: load limit ≠ gross rail load − light weight`);
+}
+if (c60.loadLimit263Lb !== 263000 - c60.lightLb) throw new Error('60 ft: 263K load limit ≠ 263,000 − light weight');
+const cuft = (c: Car) => (c.Lin * c.Win * c.Hin) / 1728;
+const m3 = (c: Car) => (c.L * c.W * c.H) / 1e9;
+// worked example (lede), checked by hand: 606 × 114 × 156 = 10,777,104 in³; ÷ 1,728 = 6,236.8 ft³ (BNSF prints 6,235 cu ft)
+if (c50.Lin * c50.Win * c50.Hin !== 10777104 || Math.abs(cuft(c50) - 6236.75) > 0.01) throw new Error('50 ft volume example changed; update the lede');
+
+// What fits on the floor: computed by the engine for each car's printed inside size, checked by validate().
+// Boxcars load through a side door, which the engine's end-door check does not model, so no door check here.
+const euro = pdata.pallets.find((p) => p.id === 'epal1')!;
+const PH = 50 * IN; // example loaded pallet height (pallet + goods), not a standard
+type Load = { key: string; label: string; l: number; w: number; h: number };
+const loads: Load[] = [
+  { key: 'chep', label: '48 × 40 in pallets, one high', l: 48 * IN, w: 40 * IN, h: PH },
+  { key: 'euro', label: 'Euro pallets 1,200 × 800 mm, one high', l: euro.L, w: euro.W, h: PH },
+];
+function fit(c: Car, x: Load) {
+  const r = pack({ L: c.L, W: c.W, H: c.H }, [{ l: x.l, w: x.w, h: x.h, weight: 0, qty: 500, rotation: 'upright', stackable: false }], { timeMs: 3000 });
+  const errs = validate(r);
+  if (errs.length) throw new Error(`boxcar plan failed its check: ${c.id} ${x.key}: ${errs.join(', ')}`);
+  return r.totals.n;
+}
+// by hand: straight lanes along the car, na lanes with side a across (b along) and nb lanes with side b across (a along)
+function lanes(c: Car, a: number, b: number) {
+  let best = 0;
+  for (let na = 0; na * a <= c.W + 1e-9; na++) for (let nb = 0; na * a + nb * b <= c.W + 1e-9; nb++)
+    best = Math.max(best, na * Math.floor(c.L / b + 1e-9) + nb * Math.floor(c.L / a + 1e-9));
+  return best;
+}
+const fits = C.map((c) => ({ c, f: Object.fromEntries(loads.map((x) => {
+  const v = fit(c, x), h = lanes(c, x.l, x.w);
+  if (v < h) throw new Error(`${c.id} ${x.key}: engine ${v} < lanes by hand ${h}`);
+  return [x.key, v];
+})) as Record<string, number> }));
+const F = (id: string) => fits.find((x) => x.c.id === id)!.f;
+// hand checks quoted in the text (114 in = 2,895.6 mm wide)
+// 48 × 40 in, 50 ft (606 in): two across with the 48 in side across (96 ≤ 114), 15 rows of 40 in (600 ≤ 606) = 30
+// 48 × 40 in, 60 ft (729 in): 18 rows of 40 in (720 ≤ 729) × 2 = 36
+// Euro, 50 ft (15,392.4 mm): one lane crosswise (1,200 across, 19 × 800 = 15,200 along) + two lanes lengthwise (800 + 800 across, 12 × 1,200 = 14,400 along); 1,200 + 1,600 = 2,800 ≤ 2,895.6 → 19 + 24 = 43;
+//   the two lengthwise lanes leave 992.4 mm × 1,600 mm at the end: one more pallet crosswise (1,200 across, 800 along) → 44
+// Euro, 60 ft (18,516.6 mm): 23 × 800 = 18,400 → 23, plus 2 × 15 (15 × 1,200 = 18,000) = 30 → 53
+const f50 = F('bnsf-50'), f60 = F('bnsf-60');
+if (f50.chep !== 30 || f60.chep !== 36 || f50.euro !== 44 || f60.euro !== 53)
+  throw new Error(`hand-checked counts changed: ${JSON.stringify(f50)} / ${JSON.stringify(f60)}; update the text`);
+const comp = tdata.trailers.find((t) => t.id === '53ht-composite')!;
+const compChep = (() => { const r = pack({ L: comp.L, W: comp.W, H: comp.H }, [{ l: 48 * IN, w: 40 * IN, h: PH, weight: 0, qty: 500, rotation: 'upright', stackable: false }], { timeMs: 3000 });
+  const e = validate(r); if (e.length) throw new Error('53 ft comparison plan failed its check: ' + e.join(', ')); return r.totals.n; })();
+// weight by arithmetic: how heavy each pallet could be on average before the load limit runs out
+const perPallet = (c: Car) => Math.floor(c.loadLimitLb / F(c.id).chep);
+const url = new URL('/boxcar-dimensions/', 'https://loadplancalc.com').href;
+const schema = { '@context': 'https://schema.org', '@type': 'Article', headline: 'Boxcar dimensions', dateModified: bx.checked, mainEntityOfPage: url };
+const len = (i: number) => `${ftin(i)}<br><span class="small">${n(i, 3)} in<br>${n(i * IN)} mm</span>`;
+const lbkg = (lb: number) => `${n(lb)} lb<br><span class="small">${n(lb * LB)} kg</span>`;
+type Row = { label: string; cell: (c: Car) => string };
+const rows: Row[] = [
+  { label: 'Inside length', cell: (c) => len(c.Lin) },
+  { label: 'Inside width (between side sheets)', cell: (c) => len(c.Win) },
+  { label: 'Inside height', cell: (c) => len(c.Hin) },
+  { label: 'Door opening, clear width', cell: (c) => len(c.doorWin) },
+  { label: 'Door opening, clear height', cell: (c) => len(c.doorHin) },
+  { label: 'Doors', cell: (c) => c.printed.doors },
+  { label: 'Floor height (light car)', cell: (c) => len(c.floorIn) },
+  { label: 'Volume (printed)', cell: (c) => `${n(c.cuft)} cu ft<br><span class="small">${n(c.cuft * 0.028316846592, 1)} m³</span>` },
+  { label: 'L × W × H', cell: (c) => `${n(cuft(c), 1)} ft³<br><span class="small">${n(m3(c), 2)} m³</span>` },
+  { label: 'Load limit @ 286K', cell: (c) => lbkg(c.loadLimitLb) },
+  { label: 'Load limit @ 263K', cell: (c) => (c.loadLimit263Lb ? lbkg(c.loadLimit263Lb) : 'not printed') },
+  { label: 'Gross rail load', cell: (c) => lbkg(c.grlLb) },
+  { label: 'Light (empty) weight', cell: (c) => lbkg(c.lightLb) },
+  { label: 'Floor rating', cell: (c) => c.printed['floor rating'] },
+  { label: 'Built', cell: (c) => `${c.built}, ${c.builder}` },
+];
+---
+<Base title="Boxcar Dimensions: 50 ft & 60 ft Rail Boxcar Inside Size" description="Inside length, width and height of BNSF's 50 ft and 60 ft boxcars in ft-in and mm, with door opening, floor height, volume, load limit and how many pallets fit on the floor." schema={schema}>
+  <section class="prose">
+    <h1>Boxcar dimensions</h1>
+    <p class="lede">A 50 ft boxcar is about 50 ft long inside, and a railroad prints the exact size on the car's diagram. BNSF's diagram for its 50 ft boxcars ({c50.series}) gives an inside length of {ftin(c50.Lin)}, a width between the side sheets of {ftin(c50.Win)} and an inside height of {ftin(c50.Hin)}: {c50.Lin} × {c50.Win} × {c50.Hin} in ({n(c50.L, 1)} × {n(c50.W, 1)} × {n(c50.H, 1)} mm). Multiplied out: {c50.Lin} × {c50.Win} × {c50.Hin} = {n(c50.Lin * c50.Win * c50.Hin)} in³, and ÷ 1,728 = <strong>{n(cuft(c50), 1)} ft³</strong> ({n(m3(c50), 1)} m³), against the {n(c50.cuft)} cu ft BNSF prints. On its floor go <strong>{f50.chep} pallets of 48 × 40 in</strong> one high, two across in 15 rows, and the car may carry {n(c50.loadLimitLb)} lb of lading.</p>
+  </section>
+
+  <section class="prose">
+    <h2>Inside dimensions of BNSF 50 ft and 60 ft boxcars</h2>
+    <div class="tablebox">
+      <table class="cartable">
+        <thead><tr><th></th>{C.map((c) => <th class="num"><a href={c.url} rel="noopener">{c.id === 'bnsf-50' ? '50 ft' : '60 ft'}</a></th>)}</tr></thead>
+        <tbody>
+          <tr><th scope="row">Car numbers</th>{C.map((c) => <td class="num">{c.series}</td>)}</tr>
+          {rows.map((r) => <tr><th scope="row">{r.label}</th>{C.map((c) => <td class="num" set:html={r.cell(c)} />)}</tr>)}
+        </tbody>
+      </table>
+    </div>
+    <p class="small">Feet and inches, pounds and cubic feet as printed on BNSF Railway's car diagrams “{c50.title}” ({c50.series}, page {c50.page}) and “{c60.title}” ({c60.series}, page {c60.page}), both PDFs on bnsf.com (linked in the table head), checked {bx.checked}. Millimetres converted at exactly 1 in = 25.4 mm, kilograms at 1 lb = 0.45359237 kg, cubic metres at 1 ft³ = 0.028316846592 m³. “L × W × H” is our arithmetic from the inside size; it lands within 2 cu ft of BNSF's printed volume for both cars. Each diagram covers only the numbered cars named on it: other railroads' and other series' boxcars have other sizes, so check the diagram of the car you are offered.</p>
+  </section>
+
+  <section class="prose">
+    <h2>Load limit, gross rail load and light weight</h2>
+    <p>The <strong>gross rail load</strong> (GRL) is the most the loaded car may weigh on the rails, {n(c50.grlLb)} lb for both cars (that is what “286K” means). The <strong>light weight</strong> is the empty car. The <strong>load limit</strong> is the difference, the most lading you may put in: {n(c50.grlLb)} − {n(c50.lightLb)} = {n(c50.loadLimitLb)} lb for the 50 ft car and {n(c60.grlLb)} − {n(c60.lightLb)} = {n(c60.loadLimitLb)} lb for the heavier 60 ft car. The 60 ft diagram also prints a load limit at 263K of {n(c60.loadLimit263Lb!)} lb (263,000 − {n(c60.lightLb)}), the limit when the car may weigh no more than 263,000 lb loaded. Both diagrams print a floor rating of “70K”.</p>
+    <p>Spread over the floor, the load limit is a lot: {f50.chep} pallets of 48 × 40 in in the 50 ft car could average {n(perPallet(c50))} lb each, and {f60.chep} in the 60 ft car {n(perPallet(c60))} lb each, before the load limit is reached. Dense loads reach the load limit before the car is full; light loads fill the space first.</p>
+    <p class="small">Height of the load: the diagrams note “{c50.cgNote.replace(/^\* /, '')}” (50 ft) and “{c60.cgNote.replace(/^\* /, '')}” (60 ft). That is the load height BNSF assumed for the loaded centre of gravity printed on the diagram; ask the railroad before loading higher.</p>
+  </section>
+
+  <section class="prose">
+    <h2>How many pallets fit in a boxcar</h2>
+    <p>Computed with the <a href="/container-loading-calculator/">load planner</a>'s engine for each car's printed inside size, and checked by its independent validator. Pallets are kept this side up (turned either way flat), one high, 50 in ({n(PH)} mm) tall when loaded. Boxcars load through a door in the side, which the planner's door check (built for end doors) does not model, so the counts below are floor positions; the forklift has to be able to set each pallet there through the door.</p>
+    <div class="tablebox">
+      <table class="cartable">
+        <thead><tr><th>Pallets on the floor</th>{C.map((c) => <th class="num">{c.id === 'bnsf-50' ? '50 ft' : '60 ft'}</th>)}</tr></thead>
+        <tbody>
+          {loads.map((x) => <tr><th scope="row">{x.label}</th>{C.map((c) => <td class="num">{n(F(c.id)[x.key])}</td>)}</tr>)}
+        </tbody>
+      </table>
+    </div>
+    <p class="small">Hand checks. 48 × 40 in pallets: the cars are {c50.Win} in wide, so two pallets fit across with the 48 in side across (96 in), and rows of 40 in run along the car: 15 rows in the 50 ft car (600 of {c50.Lin} in) = {f50.chep}, 18 rows in the 60 ft car (720 of {c60.Lin} in) = {f60.chep}. Euro pallets ({n(c50.W, 1)} mm wide): one lane with the 1,200 mm side across plus two lanes with the 800 mm side across takes 1,200 + 800 + 800 = 2,800 mm; in the 50 ft car ({n(c50.L, 1)} mm) that is 19 pallets 800 mm long (15,200 mm) plus 2 × 12 pallets 1,200 mm long (14,400 mm) = 43, and the two 800 mm lanes leave {n(c50.L - 12 * 1200, 1)} mm at the end, 1,600 mm wide, room for one more pallet crosswise (1,200 mm across, 800 mm along): {f50.euro}. In the 60 ft car ({n(c60.L, 1)} mm) 23 + 2 × 15 = {f60.euro}.</p>
+  </section>
+
+  <section class="prose">
+    <h2>Before you load a boxcar</h2>
+    <ul class="plain">
+      <li><strong>Plan it in 3D.</strong> In the <a href="/container-loading-calculator/">container loading calculator</a>, choose <strong>Custom size</strong> and type the car's inside length, width and height ({c50.Lin} × {c50.Win} × {c50.Hin} in for the 50 ft car). Empty the door width and height fields: they check an end door, and a boxcar door is in the side.</li>
+      <li><strong>The door decides the forklift.</strong> The 50 ft car has a single {ftin(c50.doorWin)} plug door and the 60 ft car a {ftin(c60.doorWin)} opening from two 8 ft plug doors, both {ftin(c50.doorHin)} high. Pallets go in through the middle of the car and are driven to each end, so the forklift must be able to turn inside the {ftin(c50.Win)} width.</li>
+      <li><strong>Gaps let the load shift.</strong> Ask the railroad for its loading rules for your commodity; where airbags are used to fill voids, the <a href="/dunnage-bag-calculator/">dunnage bag calculator</a> works out bag sizes for the gaps.</li>
+      <li><strong>Floor height.</strong> The floor is {ftin(c50.floorIn)} (50 ft) and {ftin(c60.floorIn)} (60 ft) above the top of the rail on an empty (light) car, so you need a dock at about that height or a ramp.</li>
+      <li><strong>Compared with a truck.</strong> A 53′ dry van is {comp.Lin} × {comp.Win} × {comp.Hin} in inside in the Hyundai Translead Composite and takes {compChep} pallets of 48 × 40 in one high, against {f50.chep} and {f60.chep} in these boxcars: see <a href="/53-foot-trailer-dimensions/">53 ft trailer dimensions</a> and <a href="/semi-trailer-dimensions/">semi trailer dimensions</a>. For a 53′ container that rides on intermodal trains, see <a href="/53-foot-container-dimensions/">53 ft container dimensions</a>.</li>
+    </ul>
+  </section>
+
+  <section class="prose">
+    <h2>Related</h2>
+    <div class="chips">
+      <a href="/53-foot-container-dimensions/">53 ft container dimensions</a>
+      <a href="/53-foot-trailer-dimensions/">53 ft trailer dimensions</a>
+      <a href="/semi-trailer-dimensions/">Semi trailer dimensions</a>
+      <a href="/box-truck-dimensions/">Box truck dimensions</a>
+      <a href="/shipping-container-dimensions/">Shipping container dimensions</a>
+      <a href="/container-loading-calculator/">Container loading calculator</a>
+      <a href="/dunnage-bag-calculator/">Dunnage bag calculator</a>
+      <a href="/pallet-sizes/">Standard pallet sizes</a>
+      <a href="/how-we-calculate/">How we calculate</a>
+    </div>
+  </section>
+</Base>
+
+<style>
+  .cartable { font-size: 14px; }
+  .cartable td.num { font-family: inherit; font-size: 13.5px; }
+  .cartable th, .cartable td { padding: 8px 4px; }
+  .cartable th:first-child { padding-left: 10px; }
+  .cartable tbody th { font-weight: 600; min-width: 96px; }
+  .cartable td:last-child, .cartable th:last-child { padding-right: 10px; }
+</style>
