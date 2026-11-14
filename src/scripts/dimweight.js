@@ -18,6 +18,27 @@ const clean = (x) => +x.toFixed(6);
 export const roundUp = (x) => Math.ceil(clean(x));
 export const roundOff = (x) => Math.floor(clean(x) + 0.5);
 
+// Sea freight LCL, weight or measurement (W/M): "W" = 1,000 kilos, "M" = 1 cubic meter; freight is computed on the
+// gross weight or the measurement, whichever gives the greater revenue. Sizes in whole centimetres (below 0.5 cm
+// ignored, 0.5 cm and over rounded up); cube of one package in m³ to two decimals, rounded off; packages of like
+// size: that cube × the number of packages, total rounded off to two decimals. Mainfreight, Inc. dba Mainline,
+// FMC Rules Tariff MFGT-01.21.2026, Rule 2A and Rule 2H "Measurement & Weight" (read twice 2026-11-14:
+// pdftotext layer and the rendered page image).
+export const SEA_KG_PER_M3 = 1000;
+const round2 = (x) => Math.floor(clean(x * 100) + 0.5) / 100;
+export function seaCalc(p) {
+  const qty = p.qty > 0 ? p.qty : 1;
+  if (!(p.l > 0 && p.w > 0 && p.h > 0 && p.kg >= 0)) return null;
+  const exact = [p.l, p.w, p.h].map((mm) => mm / 10);
+  const sides = exact.map(roundOff);                                  // whole centimetres
+  const cm3 = sides[0] * sides[1] * sides[2];
+  const cube1 = round2(cm3 / 1e6);                                    // one package, m³ to two decimals
+  const cube = round2(cube1 * qty);                                   // all packages
+  const kg = p.kg * qty, tonnes = kg / 1000;
+  const byM = cube > tonnes;
+  return { sea: true, exact, sides, cm3, cube1, cube, kg, tonnes, byM, rt: byM ? cube : tonnes, qty };
+}
+
 // p: { l, w, h } in mm, kg, qty; rule: a USPS rule from dimweight.json or null for custom;
 // shape: 'rect' | 'nonrect'; divisor: in³ per lb (custom only); dunit: 'in3lb' | 'cm3kg' (custom only)
 export function dimCalc(p, rule, shape = 'rect', divisor = 139, dunit = 'in3lb') {
@@ -80,10 +101,12 @@ export function initDim(root) {
     root.querySelectorAll('[data-shape]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.shape === st.shape)));
     const custom = st.rule === 'custom', air = st.rule === 'air';
     $('[data-custom]').hidden = !custom;
-    $('[data-shapebox]').hidden = custom || air;
+    $('[data-shapebox]').hidden = custom || air || st.rule === 'sea';
   }
 
   function calc() {
+    if (st.rule === 'sea') return calcSea();
+    R('dimk').textContent = 'Dimensional weight';
     const air = st.rule === 'air';
     const rule = air ? null : rules.find((r) => r.id === st.rule) || null;
     const c = air ? dimCalc({ l: st.l, w: st.w, h: st.h, kg: st.kg, qty: st.qty }, null, 'rect', fromCm3PerKg(AIR_CM3_PER_KG), 'cm3kg')
@@ -137,6 +160,35 @@ export function initDim(root) {
         + `<br>Billable = greater of actual ${fmt(c.actual, 2)} ${wu} and dimensional ${fmt(c.dim, 2)} ${wu} = ${fmt(c.bill, 2)} ${wu}`;
     }
     R('warn').hidden = !warn.length; R('warn').textContent = warn.join(' ');
+  }
+
+  function calcSea() {
+    const c = seaCalc({ l: st.l, w: st.w, h: st.h, kg: st.kg, qty: st.qty });
+    if (!c) {
+      R('main').textContent = '–'; R('dim').textContent = '–'; R('mainsub').textContent = ''; R('dimsub').textContent = '';
+      for (const k of ['why', 'price', 'total']) R(k).textContent = '';
+      R('steps').textContent = 'Enter a length, width, height and weight to see the steps.';
+      R('warn').hidden = false; R('warn').textContent = 'Enter a length, width and height above 0 and a weight.';
+      return;
+    }
+    const q = c.qty, rt = (x) => `${fmt(x, 3)} W/M`, m2 = (x) => x.toFixed(2);
+    R('dimk').textContent = 'Measurement (M)';
+    R('main').textContent = rt(c.rt);
+    R('mainsub').textContent = `${c.byM ? 'by measurement' : 'by weight'}: ${fmt(c.rt * 1000, 1)} kg (${kglb(c.rt * 1000)}) charged`;
+    R('dim').textContent = `${m2(c.cube)} m³`;
+    R('dimsub').textContent = `= ${fmt(c.cube * SEA_KG_PER_M3)} kg at 1 m³ = 1,000 kg`;
+    R('why').textContent = c.byM
+      ? `The measurement, ${m2(c.cube)} m³, is greater than the weight, ${fmt(c.kg, 2)} kg = ${fmt(c.tonnes, 3)} t, so the freight is charged on ${m2(c.cube)} m³.`
+      : `The weight, ${fmt(c.kg, 2)} kg = ${fmt(c.tonnes, 3)} t, is not less than the measurement, ${m2(c.cube)} m³, so the freight is charged on ${fmt(c.tonnes, 3)} t.`;
+    R('price').textContent = 'Sea freight LCL rates per W/M (also called per revenue ton) apply per 1,000 kg or per 1 m³, whichever gives the greater figure. Minimum charges, rounding and surcharges differ between carriers and forwarders: check your quote.';
+    R('total').textContent = q > 1 ? `${fmt(q)} packages of this size and weight: ${m2(c.cube1)} m³ each, ${m2(c.cube)} m³ and ${fmt(c.kg, 2)} kg in total.` : '';
+    const ex = c.exact.map((x) => fmt(x, 2)).join(' × ');
+    R('steps').innerHTML = `${ex} cm → to whole centimetres (0.5 cm and over up): ${c.sides.join(' × ')} cm`
+      + `<br>${c.sides.join(' × ')} = ${fmt(c.cm3)} cm³ = ${fmt(c.cm3 / 1e6, 6)} m³ → two decimals: ${m2(c.cube1)} m³`
+      + (q > 1 ? `<br>${m2(c.cube1)} m³ × ${fmt(q)} packages = ${m2(c.cube)} m³` : '')
+      + `<br>Weight: ${q > 1 ? `${fmt(q)} × ${fmt(c.kg / q, 2)} kg = ` : ''}${fmt(c.kg, 2)} kg ÷ 1,000 = ${fmt(c.tonnes, 3)} t`
+      + `<br>Charged = greater of ${m2(c.cube)} (M) and ${fmt(c.tonnes, 3)} (W) = ${rt(c.rt)}`;
+    R('warn').hidden = true; R('warn').textContent = '';
   }
 
   root.addEventListener('input', (e) => {

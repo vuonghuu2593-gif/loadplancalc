@@ -1,7 +1,7 @@
 ---
 import ToolPage from '../layouts/ToolPage.astro';
 import dw from '../data/dimweight.json';
-import { dimCalc } from '../scripts/dimweight.js';
+import { dimCalc, seaCalc } from '../scripts/dimweight.js';
 // Exact definitions: 1 in = 25.4 mm, 1 lb = 0.45359237 kg. Rules quoted from the USPS Domestic Mail Manual.
 const IN = 25.4, LB = 0.45359237;
 const n = (v: number, d = 0) => v.toLocaleString('en-US', { maximumFractionDigits: d, minimumFractionDigits: 0 });
@@ -25,6 +25,17 @@ const rows = boxes.map(([l, w, h]) => {
   if (r.dimLb !== hand) throw new Error(`dim weight table: ${l} × ${w} × ${h} expected ${hand}`);
   return { l, w, h, vol: l * w * h, ft3: (l * w * h) / 1728, dim: r.dimLb, nr: nr.dimLb, capped: r.capped, nrCapped: nr.capped };
 });
+// Sea freight LCL, W/M (Mainfreight FMC Rules Tariff MFGT-01.21.2026, Rules 2A and 2H; read twice 2026-11-14)
+const MF_TARIFF = 'https://www.mainfreight.com/getmedia/586d2332-2612-4384-a849-baba043b670e/2026_FMC_Rules_Tariff_NRA-01-21-2026.pdf?ext=.pdf';
+const seaEx = seaCalc({ l: 600, w: 400, h: 354, kg: 18, qty: 10 })!;
+if (seaEx.sides.join() !== '60,40,35' || seaEx.cube1 !== 0.08 || seaEx.cube !== 0.8 || seaEx.tonnes !== 0.18 || !seaEx.byM || seaEx.rt !== 0.8) throw new Error('sea LCL example: expected 60 × 40 × 35 cm → 0.08 m³ × 10 = 0.80 W/M');
+const seaShip: [number, number, number, number, number][] = [[60, 40, 35, 18, 10], [120, 80, 150, 450, 1], [120, 100, 100, 1350, 2], [100, 100, 50, 900, 1], [40, 30, 30, 12, 50]];
+const seaRows = seaShip.map(([l, w, h, kg, qty]) => {
+  const c = seaCalc({ l: l * 10, w: w * 10, h: h * 10, kg, qty })!;
+  const hand = Math.max(Math.round(Math.round(l * w * h / 1e4) / 100 * qty * 100) / 100, kg * qty / 1000);
+  if (Math.abs(c.rt - hand) > 1e-9) throw new Error(`sea LCL table: ${l} × ${w} × ${h} expected ${hand}`);
+  return { ...c, l, w, h, kgEach: kg, qty };
+});
 const metricDiv = (139 * 2.54 ** 3) / LB; // 139 in³/lb in cm³/kg
 const q = dw.quotes;
 
@@ -35,11 +46,11 @@ const airRows = airBoxes.map(([l, w, h]) => ({ l, w, h, cm3: l * w * h, m3: (l *
 if (airRows[3].k6 !== 30 || airRows[5].k6 !== 160 || airRows[5].k5 !== 192) throw new Error('volumetric weight table hand check failed');
 ---
 <ToolPage
-  title="Dimensional & Volumetric Weight Calculator (USPS, Air)"
-  description="Free dimensional weight calculator: box size in inches or cm and weight in lb or kg to dimensional and billable weight under the USPS rule (139 divisor, over 1,728 in³), air cargo volumetric weight (cm ÷ 6,000), or your carrier's divisor."
+  title="Dimensional & Volumetric Weight Calculator (USPS, Air, Sea LCL)"
+  description="Free dimensional weight calculator: box size in inches or cm and weight in lb or kg to dimensional and billable weight under the USPS rule (139 divisor, over 1,728 in³), air cargo volumetric weight (cm ÷ 6,000), sea freight LCL weight or measure (1 m³ = 1,000 kg), or your carrier's divisor."
   h1="Dimensional weight calculator"
   name="Dimensional weight calculator"
-  lede={`Dimensional (DIM) weight charges a light, bulky package by its size. Under the USPS rule, round each side up to a whole inch, multiply, and if the result is over 1,728 in³ (1 cubic foot) divide by 139 and round up to a whole pound. For example, an 18 × 14 × 12 in box is <strong>${n(ex.vol)} in³</strong>; ${n(ex.vol)} ÷ 139 = ${n(ex.vol / 139, 2)}, rounded up to <strong>${ex.dimLb} lb</strong>. If the box weighs 10 lb, you pay for ${ex.billLb} lb. A 50 × 40 × 30 cm box is ${n(500 / IN, 2)} × ${n(400 / IN, 2)} × ${n(300 / IN, 2)} in, rounded up to ${exm.sides.join(' × ')} = ${n(exm.vol)} in³ → ${n(exm.vol / 139, 2)} → <strong>${exm.dimLb} lb</strong> (${n(exm.dimLb * LB, 2)} kg). Air cargo calls it <strong>volumetric weight</strong>: length × width × height in cm ÷ 6,000, so a 100 × 60 × 30 cm box counts as 30 kg (<a href="#volumetric-weight">table below</a>).`}
+  lede={`Dimensional (DIM) weight charges a light, bulky package by its size. Under the USPS rule, round each side up to a whole inch, multiply, and if the result is over 1,728 in³ (1 cubic foot) divide by 139 and round up to a whole pound. For example, an 18 × 14 × 12 in box is <strong>${n(ex.vol)} in³</strong>; ${n(ex.vol)} ÷ 139 = ${n(ex.vol / 139, 2)}, rounded up to <strong>${ex.dimLb} lb</strong>. If the box weighs 10 lb, you pay for ${ex.billLb} lb. A 50 × 40 × 30 cm box is ${n(500 / IN, 2)} × ${n(400 / IN, 2)} × ${n(300 / IN, 2)} in, rounded up to ${exm.sides.join(' × ')} = ${n(exm.vol)} in³ → ${n(exm.vol / 139, 2)} → <strong>${exm.dimLb} lb</strong> (${n(exm.dimLb * LB, 2)} kg). Air cargo calls it <strong>volumetric weight</strong>: length × width × height in cm ÷ 6,000, so a 100 × 60 × 30 cm box counts as 30 kg (<a href="#volumetric-weight">table below</a>). Sea freight LCL charges <strong>W/M</strong>: 1,000 kg or 1 m³, whichever is greater, so 10 cartons of 60 × 40 × 35 cm and 18 kg each are 0.08 m³ × 10 = 0.80 m³ against 0.18 t and pay for <strong>0.80 W/M</strong> (<a href="#sea-lcl">sea freight below</a>).`}
 >
   <section class="dimw" data-tool="dimweight" data-rules={JSON.stringify(rules)} data-defaults={JSON.stringify(defaults)}>
     <form class="panel" onsubmit="return false" aria-label="Package">
@@ -54,6 +65,7 @@ if (airRows[3].k6 !== 30 || airRows[5].k6 !== 160 || airRows[5].k5 !== 192) thro
         <select data-f="rule">
           {dw.rules.map((r) => <option value={r.id}>{r.label}</option>)}
           <option value="air">Air cargo: 6,000 cm³ per kg (IATA standard)</option>
+          <option value="sea">Sea freight LCL: weight or measure, 1 m³ = 1,000 kg (W/M)</option>
           <option value="custom">Your carrier's divisor (enter it)</option>
         </select>
       </label>
@@ -86,7 +98,7 @@ if (airRows[3].k6 !== 30 || airRows[5].k6 !== 160 || airRows[5].k5 !== 192) thro
     <div class="result" data-result aria-live="polite">
       <div class="grid">
         <div><div class="k">Billable weight</div><div class="v hi" id="r-main" data-r="main">–</div><div class="sub" data-r="mainsub"></div></div>
-        <div><div class="k">Dimensional weight</div><div class="v" data-r="dim">–</div><div class="sub" data-r="dimsub"></div></div>
+        <div><div class="k" data-r="dimk">Dimensional weight</div><div class="v" data-r="dim">–</div><div class="sub" data-r="dimsub"></div></div>
       </div>
       <p data-r="why"></p>
       <p data-r="price"></p>
@@ -105,6 +117,7 @@ if (airRows[3].k6 !== 30 || airRows[5].k6 !== 160 || airRows[5].k5 !== 192) thro
       <li><strong>Billable weight</strong> = the greater of the actual weight and the dimensional weight. If the dimensional weight is over 70 lb, the customer pays the 70-pound price.</li>
     </ol>
     <p>With <strong>Air cargo</strong>, the volumetric weight is length × width × height in centimetres ÷ 6,000, and you pay for the greater of the actual and the volumetric weight. Maersk calls the 6,000 divisor "an industry standard, set by the International Air Transport Association (IATA)" and works an example: a 100 × 60 × 30 cm shipment weighing 50 kg is (100 × 60 × 30) ÷ 6,000 = 30 kg by volume, so it is charged at its 50 kg actual weight; it also notes that some carriers use 5,000 instead (<a href="https://www.maersk.com/logistics-explained/transportation-and-freight/2025/03/10/air-cargo-chargeable-weight" rel="noopener">Maersk, "Air cargo chargeable weight"</a>). A 120 × 80 × 100 cm pallet of 100 kg is 960,000 ÷ 6,000 = 160 kg by volume, so it is charged as 160 kg. Sizes are not rounded here; airlines round the chargeable weight in their own steps.</p>
+    <p>With <strong>Sea freight LCL</strong>, the calculator follows the weight-or-measurement (W/M) rule of a published ocean rules tariff: each side in whole centimetres (under 0.5 cm dropped, 0.5 cm and over rounded up), length × width × height of one package in m³ to two decimals, × the number of packages, the total again to two decimals. That is the measurement (M). The weight (W) is the gross weight in tonnes of 1,000 kg. You are charged on the greater figure, called W/M or revenue tons (<a href="#sea-lcl">details below</a>).</p>
     <p>With <strong>Your carrier's divisor</strong>, the sizes are not rounded: dimensional weight = length × width × height ÷ your divisor, in in³ per lb or cm³ per kg, and the billable weight is the greater of the two.</p>
     <p>With your current inputs:</p>
     <div class="formula" data-r="steps" aria-live="polite">–</div>
@@ -157,6 +170,24 @@ if (airRows[3].k6 !== 30 || airRows[5].k6 !== 160 || airRows[5].k5 !== 192) thro
       </table>
     </div>
     <p class="small">Sizes are not rounded in this table. Airlines and forwarders round sides and the chargeable weight in their own steps (often to the next half or whole kilogram), so check your carrier's tariff before you quote a price.</p>
+  </section>
+
+  <section class="prose" id="sea-lcl">
+    <h2>Sea freight LCL: weight or measure (W/M)</h2>
+    <p>Less-than-container-load (LCL) sea freight is priced per W/M, also called per revenue ton: 1,000 kg of weight or 1 cubic metre of volume, whichever gives the greater figure. In effect 1 m³ counts as 1,000 kg, much more generous than air cargo's 6,000 cm³ per kg (1 m³ = about 167 kg). The rule is quoted here from the FMC rules tariff of an ocean transport intermediary, <a href={MF_TARIFF} rel="noopener">Mainfreight, Inc. dba Mainline, Tariff No. MFGT-01.21.2026</a> (effective 21 January 2026):</p>
+    <ul class="plain">
+      <li>Rule 2A: rates “apply per 1 Cubic Meter (M) or 1000 Kilos (W), as indicated, whichever basis yields the greater revenue”, and “Rates indicated by W/M or WM are optional weight or measurement rates and the rate yielding the greater revenue will be charged.”</li>
+      <li>Rule 2H, Measurement &amp; Weight: “"W" and "M" signify 1,000 kilos and 1 cubic meter respectively”; “All packages will be measured in CENTIMETERS and weight in KILOGRAMS”; “parts below 0.5 cm. are to be ignored, and those of 0.5 cm. and over are to be rounded off to the centimeter above”; the three dimensions are multiplied “to produce the cube of one package or piece in cubic meters to two decimals”; for “multiple packages of like dimensions, the cube on one package to two decimals is to be multiplied by the number of packages and the total cube is then to be rounded off to two decimals.”</li>
+    </ul>
+    <div class="tablebox">
+      <table>
+        <thead><tr><th>Shipment (cm, kg each)</th><th class="num">Measurement (M)</th><th class="num">Weight (W)</th><th class="num">Charged</th></tr></thead>
+        <tbody>
+          {seaRows.map((r) => <tr><td>{r.qty > 1 ? `${r.qty} × ` : ''}{r.l} × {r.w} × {r.h}, {n(r.kgEach)} kg</td><td class="num">{r.qty > 1 ? <>{r.cube1.toFixed(2)} × {r.qty} = </> : ''}{r.cube.toFixed(2)} m³</td><td class="num">{n(r.kg)} kg = {n(r.tonnes, 3)} t</td><td class="num">{n(r.rt, 3)} W/M ({r.byM ? 'M' : 'W'})</td></tr>)}
+        </tbody>
+      </table>
+    </div>
+    <p class="small">Computed with the same function as the calculator. Rounding each package to two decimals first matters for small cartons: 60 × 40 × 35 cm is 0.084 m³ but counts as 0.08 m³. This is one carrier's published rule; other carriers and forwarders may round differently and add minimum charges (often 1 W/M) and surcharges, so check your quote. For the total volume of mixed cartons, use the <a href="/cbm-calculator/">CBM calculator</a>.</p>
   </section>
 
   <section class="prose">
