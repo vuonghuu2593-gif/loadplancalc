@@ -10,6 +10,12 @@ const C = cdata.containers;
 const vol = (c: { L: number; W: number; H: number }) => (c.L * c.W * c.H) / 1e9;
 const by = (id: string) => C.find((c) => c.id === id)!;
 const dv20 = by('20dv'), dv40 = by('40dv'), hc40 = by('40hc'), hc45 = by('45hc');
+// CBM to kg (chargeable weight): air cargo 6,000 cm³ per kg (IATA standard as quoted by Maersk; some carriers 5,000),
+// sea freight LCL W/M 1 m³ = 1,000 kg (Mainfreight FMC rules tariff MFGT-01.21.2026, Rule 2A). Pure arithmetic.
+const MAERSK = 'https://www.maersk.com/logistics-explained/transportation-and-freight/2025/03/10/air-cargo-chargeable-weight';
+const MF_TARIFF = 'https://www.mainfreight.com/getmedia/586d2332-2612-4384-a849-baba043b670e/2026_FMC_Rules_Tariff_NRA-01-21-2026.pdf?ext=.pdf';
+const kgRows = [0.1, 0.5, 1, 2, 5, 10, 33].map((m3) => ({ m3, a6: (m3 * 1e6) / 6000, a5: (m3 * 1e6) / 5000, sea: m3 * 1000 }));
+if (Math.abs(kgRows[2].a6 - 166.6667) > 1e-3 || kgRows[2].a5 !== 200 || kgRows[2].sea !== 1000) throw new Error('cbm to kg table');
 const containers = C.map((c) => ({ id: c.id, name: c.name, L: c.L, W: c.W, H: c.H, doorW: c.doorW, doorH: c.doorH, payload: c.payload }));
 
 // Defaults = the worked example in the lede (the same cartons as the container loading calculator's example).
@@ -46,8 +52,8 @@ const fitRows = examples.map((e) => {
 });
 ---
 <ToolPage
-  title="CBM Calculator: Cartons to Cubic Meters and Container Share"
-  description="Free CBM (cubic meter) calculator: enter carton sizes in cm, mm or inches and quantities to get cubic meters (m³) and cubic feet, and the share of a 20ft, 40ft, 40ft high cube or 45ft container's volume."
+  title="CBM Calculator: Cartons to Cubic Meters, CBM to kg, Container Share"
+  description="Free CBM (cubic meter) calculator: enter carton sizes in cm, mm or inches and quantities to get cubic meters (m³) and cubic feet, and the share of a 20ft, 40ft, 40ft high cube or 45ft container's volume, plus CBM to kg chargeable weight for air and sea freight."
   h1="CBM calculator"
   name="CBM calculator"
   lede={`This cubic meter (CBM) calculator multiplies length × width × height in metres to get a carton's volume in cubic metres, then multiplies by the number of cartons. For example, a 60 × 40 × 40 cm carton is 0.6 × 0.4 × 0.4 = <strong>${n(a1, 3)} m³</strong> (${n(a1 / FT3, 2)} ft³). 400 of them plus 500 cartons of 50 × 30 × 30 cm (${n(b1, 3)} m³ each) make ${n(a1 * 400, 1)} + ${n(b1 * 500, 1)} = <strong>${n(total, 1)} m³</strong> (${n(total / FT3, 2)} ft³): ${n(pct(hc40), 1)}% of a 40' high cube's inside volume of ${n(vol(hc40), 2)} m³, ${n(pct(dv40), 1)}% of a 40' standard, and more than one 20' standard holds (${n(pct(dv20), 1)}%).`}
@@ -139,6 +145,24 @@ const fitRows = examples.map((e) => {
       </table>
     </div>
     <p class="small">Computed from the sizes shown (1 in = 25.4 mm). The sizes are examples, not standards. “Cartons per m³” is volume only.</p>
+  </section>
+
+  <section class="prose" id="cbm-to-kg">
+    <h2>CBM to kg: chargeable weight</h2>
+    <p>A cubic metre is a volume, so it has no fixed weight: how many kilograms 1 CBM weighs depends on what is in the cartons. When freight people ask “CBM to kg”, they mean the <strong>chargeable weight</strong> a volume counts as. The carrier charges the greater of the actual weight and that figure:</p>
+    <ul>
+      <li><strong>Air cargo:</strong> length × width × height in cm ÷ 6,000, which Maersk calls “an industry standard, set by the International Air Transport Association (IATA)”, so 1 m³ = 1,000,000 cm³ ÷ 6,000 = 166.67 kg. Some carriers divide by 5,000 instead (1 m³ = 200 kg) (<a href={MAERSK} rel="noopener">Maersk, “Air cargo chargeable weight”</a>).</li>
+      <li><strong>Sea freight LCL:</strong> priced per W/M, 1,000 kg or 1 cubic metre, whichever gives the greater figure, so 1 m³ counts as 1,000 kg (<a href={MF_TARIFF} rel="noopener">Mainfreight, Inc. dba Mainline, FMC Rules Tariff MFGT-01.21.2026</a>, Rule 2A). Ocean carriers' own tariffs can differ.</li>
+    </ul>
+    <div class="tablebox">
+      <table>
+        <thead><tr><th>Volume</th><th class="num">Air ÷ 6,000</th><th class="num">Air ÷ 5,000</th><th class="num">Sea LCL (W/M)</th></tr></thead>
+        <tbody>
+          {kgRows.map((r) => <tr><td>{n(r.m3, 1)} m³<br><span class="small">{n(r.m3 / FT3, 1)} ft³</span></td><td class="num">{n(r.a6, 2)} kg</td><td class="num">{n(r.a5, 0)} kg</td><td class="num">{n(r.sea, 0)} kg</td></tr>)}
+        </tbody>
+      </table>
+    </div>
+    <p class="small">Computed from the rules quoted above; airlines and forwarders round the chargeable weight in their own steps. For one shipment's billable weight, with the actual weight compared, use the <a href="/dimensional-weight-calculator/">dimensional weight calculator</a> (Air cargo or Sea freight LCL).</p>
   </section>
 
   <section class="prose">

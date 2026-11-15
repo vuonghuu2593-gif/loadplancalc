@@ -159,6 +159,7 @@ const schema = { '@context': 'https://schema.org', '@type': 'HowTo', name: `How 
   <section class="prose" id="cbm-calculator">
     <h2>CBM calculator</h2>
     <p>The <a href="/cbm-calculator/">CBM calculator</a> (a cubic meter calculator) adds up the volume of your cartons in cubic metres (CBM) and cubic feet, and shows what share of each container's inside volume that is. It is plain arithmetic; it does not plan where the cartons go.</p>
+    <p>Below the calculator, the <a href="/cbm-calculator/#cbm-to-kg">CBM to kg</a> table shows the chargeable weight a volume counts as: air cargo at 6,000 cm³ per kg (1 m³ = 166.67 kg) or 5,000 (200 kg), and sea freight LCL at 1 m³ = 1,000 kg. A cubic metre has no fixed weight; for one shipment compared with its actual weight, use the dimensional weight calculator.</p>
     <ul class="plain">
       <li><strong>Unit (cm · mm · in):</strong> the unit for carton sizes. Sizes are kept in millimetres, so switching back and forth never changes your numbers. Your choice is remembered on this device.</li>
       <li><strong>Carton lines:</strong> for each carton size enter a name, the quantity and the outside length, width and height. Each line shows the volume of one carton and of the whole line. <strong>+ Add carton line</strong> adds another size (up to 10); <strong>Remove</strong> deletes a line. A line with an empty or zero size or quantity is left out, and a note says so.</li>
@@ -380,6 +381,7 @@ const schema = { '@context': 'https://schema.org', '@type': 'HowTo', name: `How 
   <section class="prose" id="whats-new">
     <h2>What's new</h2>
     <ul class="plain">
+      <li><strong>November 15, 2026:</strong> the <a href="/cbm-calculator/#cbm-to-kg">CBM calculator</a> page has a <strong>CBM to kg</strong> table: the chargeable weight of 0.1 to 33 m³ for air cargo (÷ 6,000 and ÷ 5,000) and sea freight LCL (1 m³ = 1,000 kg), from the rules already used by the dimensional weight calculator.</li>
       <li><strong>November 14, 2026:</strong> the <a href="/dimensional-weight-calculator/#sea-lcl">dimensional weight calculator</a> has a <strong>Sea freight LCL</strong> rule: weight or measure (W/M), 1 m³ = 1,000 kg, with the centimetre and two-decimal cube rounding of Mainfreight's published FMC rules tariff, plus a table of example shipments.</li>
       <li><strong>November 13, 2026 (evening):</strong> new reference page: <a href="/boxcar-dimensions/">boxcar dimensions</a> — BNSF's 50 ft and 60 ft boxcars (inside size, side door, floor height, volume, load limit) and how many pallets fit on the floor; plan one in the container loading calculator with <strong>Custom size</strong> and empty door fields, since the door check is for end doors.</li>
       <li><strong>November 13, 2026:</strong> the <a href="/pallet-loading-calculator/">pallet loading calculator</a>'s title and description now name the <strong>Pallet cube</strong> it already shows (the loaded pallet's outside volume in m³ and ft³), so it is easier to find as a pallet cube calculator. Nothing changed in how it works.</li>
