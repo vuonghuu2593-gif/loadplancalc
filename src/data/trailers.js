@@ -8,3 +8,15 @@ export const trailerPresets = tdata.trailers.map((t) => ({
   source: `Hyundai Translead (${t.model})`,
   note: `Inside ${t.printed.length.replace(/.*Interior /, '')} long, ${t.Win}″ wide, ${t.Hin}″ high as printed by the maker; models are customized, so check your trailer. No door opening or payload is published there: those fields are empty (no door check, no weight limit) until you enter your own.`,
 }));
+
+// 53' reefer preset: Hyundai Translead ThermoTech, inside size as printed on its model page (trailer-specs.json,
+// read twice 2026-10-25). The width is "lining to lining". No door opening or payload published: both stay empty.
+import xs from './trailer-specs.json';
+const MM = 25.4;
+const thermo = xs.hyundai.find((t) => t.id === '53ht-thermotech');
+export const reefer = thermo;
+export const reeferPresets = [{
+  id: thermo.id, name: "53' reefer, Hyundai Translead ThermoTech", L: thermo.Lin * MM, W: thermo.Win * MM, H: thermo.Hin * MM,
+  doorW: null, doorH: null, payload: null, url: thermo.url, source: 'Hyundai Translead (ThermoTech)',
+  note: `Refrigerated trailer. Inside ${thermo.printed.length.replace(/.*Interior: /, '')} long, ${thermo.Win}″ wide (lining to lining), ${thermo.Hin}″ high as printed by the maker; models are customized, so check your trailer. No door opening or payload is published there: those fields are empty (no door check, no weight limit) until you enter your own.`,
+}];

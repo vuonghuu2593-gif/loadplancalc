@@ -3,7 +3,7 @@ import ToolPage from '../layouts/ToolPage.astro';
 import LoadPlanner from '../components/LoadPlanner.astro';
 import pdata from '../data/pallets.json';
 import tdata from '../data/trailers.json';
-import { trailerPresets } from '../data/trailers.js';
+import { trailerPresets, reeferPresets, reefer } from '../data/trailers.js';
 import { pack, validate } from '../scripts/packer.js';
 const MM_PER_IN = 25.4, KG_PER_LB = 0.45359237;
 const n = (v: number, d = 0) => v.toLocaleString('en-US', { maximumFractionDigits: d, minimumFractionDigits: 0 });
@@ -71,15 +71,24 @@ if (euroWide !== hWide.n || euroWide >= exEuro) throw new Error(`1200 x 805 case
 // how far each 48 × 40 in pallet may overhang per side and still go two across with the 48 in side across
 const ohMax = (t: typeof comp) => (t.Win - 2 * 48) / 4;
 const short = (t: typeof comp) => t.model;
+// 53' reefer (Hyundai Translead ThermoTech): engine counts, checked against the hand lanes and the row mix
+const R = reeferPresets[0];
+const rTable = pallets.map((p) => ({ p, one: fit(R, p, false), two: fit(R, p, true), hand: { n: Math.max(lanes(R, p).n, rowsMix(R, p).n) } }));
+if (!rTable.every((x) => x.one === x.hand.n && x.two === 2 * x.one)) throw new Error('reefer table: engine and hand lanes differ: ' + rTable.map((x) => `${x.p.id} ${x.one}/${x.two} hand ${x.hand.n}`).join(', '));
+const rChep = rTable.find((x) => x.p.id === 'chep4840')!, rEuro = rTable.find((x) => x.p.id === 'epal1')!, rEuroRows = rowsMix(R, euro);
+// hand check: 48 x 40 in two across (96 of 97.4 in) in 15 rows of 40 in (600 of 626 in) = 30; Euro: 20 rows of 800 mm need
+// 16,000 mm but 626 in = 15,900.4 mm, so the best is 39 (13 rows of 3 lengthwise, 3 x 800 = 2,400 of 2,473.96 mm, 13 x 1,200 = 15,600 mm)
+if (rChep.one !== 30 || rChep.two !== 60 || rEuro.one !== 39 || rEuro.two !== 78 || rEuroRows.n !== 39) throw new Error(`reefer counts changed: 48x40 ${rChep.one}/${rChep.two}, Euro ${rEuro.one}/${rEuro.two} (rows ${rEuroRows.n}); update the text`);
+if (reefer.Hin / 2 < EX_H / MM_PER_IN) throw new Error('reefer two high: example pallet taller than half the inside height');
 ---
 <ToolPage
   title="How Many Pallets Fit in a 53 Foot Trailer? Calculator"
-  description="How many 48 × 40 in, Euro and EPAL pallets fit in a 53 ft dry van, one or two high, from a trailer maker's published inside dimensions. Free calculator with a 3D plan."
+  description="How many 48 × 40 in, Euro and EPAL pallets fit in a 53 ft dry van or reefer trailer, one or two high, from a trailer maker's published inside dimensions. Free calculator with a 3D plan."
   h1="How many pallets fit in a 53 ft trailer?"
   name="Pallets in a 53 ft trailer calculator"
   lede={`Pick the trailer and the pallet, enter how high and heavy each loaded pallet is, and see how many fit, one or two high, with a 3D plan. For example, 48 × 40 in pallets on the floor of a 53' dry van with Hyundai Translead's published interior of ${comp.printed.length.replace(/.*Interior /, '')} (${comp.Lin} in) × ${comp.Win} in: <strong>${exChep} pallets</strong> one high. Turn them so the 48 in side runs across: two side by side take 2 × 48 = 96 in of the ${comp.Win} in width, and 15 rows of 40 in take 15 × 40 = 600 in of the ${comp.Lin} in length (16 rows would need 640 in). With the 48 in side along the trailer only ${chepAlong} fit: 13 rows (13 × 48 = 624 in) of two (2 × 40 = 80 in; three across would need 120 in). Euro pallets (${n(euro.L)} × ${n(euro.W)} mm) fit <strong>${exEuro}</strong>: two crosswise (2 × ${n(euro.L)} = 2,400 mm of the ${n(comp.W, 1)} mm width) in 20 rows (20 × ${n(euro.W)} = 16,000 mm of ${n(comp.L)} mm). Stacked two high, which works when each loaded pallet is at most ${comp.Hin / 2} in tall (the inside height is ${comp.Hin} in), the 48 × 40 in count doubles to ${exChepTwo}.`}
 >
-  <LoadPlanner mode="container" defaults={defaults} boxPresets={boxPresets} spacePresets={trailerPresets} spaceLabel="Trailer" presetLabel="Trailer model" />
+  <LoadPlanner mode="container" defaults={defaults} boxPresets={boxPresets} spacePresets={[...trailerPresets, ...reeferPresets]} spaceLabel="Trailer" presetLabel="Trailer model" />
 
   <section class="prose">
     <h2>Setting up your pallets</h2>
@@ -126,6 +135,28 @@ const short = (t: typeof comp) => t.model;
     <p class="small">Inside sizes from Hyundai Translead's product specifications (checked {tdata.source.checked}), converted exactly at 1 in = 25.4 mm: {T.map((t) => `${t.model} ${t.Lin} × ${t.Win} × ${t.Hin} in (${n(t.L)} × ${n(t.W, 1)} × ${n(t.H)} mm)`).join('; ')}. Pallet footprints from EPAL's and CHEP's product pages (<a href="/pallet-sizes/">standard pallet sizes</a>); the CHEP pallet is entered as exactly 48 × 40 in. {allLanes ? 'In every cell the one-high count equals the best layout of straight lanes, crosswise and lengthwise side by side, worked out with the lane arithmetic of the example above, and two high doubles it.' : ''} {same ? `The counts are the same in all three models (${T.map((t) => `${t.model} ${t.Win} in wide`).join(', ')}): the narrowest,` : 'The narrowest,'} {orig.Win} in ({n(orig.W, 1)} mm), still takes two 48 in sides (96 in) or two Euro pallets crosswise (2,400 mm). Two high needs at most {comp.Hin / 2} in ({n(comp.H / 2)} mm) per loaded pallet.</p>
   </section>
 
+  <section class="prose" id="reefer">
+    <h2>How many pallets fit in a 53 ft reefer trailer?</h2>
+    <p><strong>A 53 ft reefer holds {rChep.one} pallets of 48 × 40 in on the floor ({rChep.two} two high), the same as a dry van, but only {rEuro.one} Euro pallets ({rEuro.two} two high), one fewer.</strong> Insulated walls make a refrigerated trailer smaller inside. Hyundai Translead prints the <a href={reefer.url} rel="noopener">ThermoTech</a> reefer as {reefer.printed.length.replace(/.*Interior: /, '')} ({reefer.Lin} in, {n(R.L, 1)} mm) long, {reefer.Win} in ({n(R.W, 2)} mm) wide lining to lining and {reefer.Hin} in ({n(R.H, 1)} mm) high inside, against {comp.Lin} × {comp.Win} × {comp.Hin} in for the Composite dry van. Pick <strong>{R.name}</strong> under Trailer model above to plan your own load in it.</p>
+    <div class="tablebox">
+      <table>
+        <thead><tr><th>Pallet (L × W)</th><th class="num">One high</th><th class="num">Two high</th></tr></thead>
+        <tbody>
+          {rTable.map(({ p, one, two }) => <tr>
+            <td><a href={p.url} rel="noopener">{p.name}</a><br><span class="small">{n(p.L, 1)} × {n(p.W)} mm{p.id === 'chep4840' ? ' (48 × 40 in)' : ''}</span></td>
+            <td class="num"><strong>{one}</strong></td><td class="num">{two}</td>
+          </tr>)}
+        </tbody>
+      </table>
+    </div>
+    <p class="small">Computed by the planner in the ThermoTech's inside size, pallets turned either way, each loaded pallet {n(EX_H / MM_PER_IN)} in tall; every one-high count equals the better of the best straight lanes along the trailer and the best mix of rows across it (the arithmetic of the examples on this page), and two high doubles it. Hand check: 48 × 40 in pallets go two across with the 48 in side across (2 × 48 = 96 of {reefer.Win} in) in 15 rows of 40 in (600 of {reefer.Lin} in) = {rChep.one}. Euro pallets would need 20 rows of 800 mm = 16,000 mm for 40, but the trailer is {n(R.L, 1)} mm long; the best is {rEuroRows.y} rows of {rEuroRows.pb} lengthwise (3 × 800 = 2,400 of {n(R.W, 2)} mm across, {rEuroRows.y} × 1,200 = {n(rEuroRows.y * 1200)} mm along){rEuroRows.x ? ` and ${rEuroRows.x} rows of ${rEuroRows.pa} crosswise` : ''} = {rEuroRows.n}. Two high needs at most {reefer.Hin / 2} in ({n(R.H / 2, 1)} mm) per loaded pallet.</p>
+    <ul class="plain">
+      <li><strong>Almost no spare width.</strong> Two 48 in sides leave {n(reefer.Win - 96, 1)} in across, so goods may overhang at most {n(ohMax(reefer), 3)} in past each edge of each pallet before two no longer fit side by side.</li>
+      <li><strong>Airflow.</strong> Cold air has to move around the load: follow your shipper's and carrier's loading pattern for the trailer and the product, which can leave space at the front, the sides or above the load and lower the count.</li>
+      <li><strong>Other reefers.</strong> <a href="https://www.utilitytrailer.com/reefers/specifications" rel="noopener">Utility Trailer's reefer specifications</a> print 97½ in inside width at the wearband and 104⅛ in inside height but no inside length, so they are not in the presets; measure your trailer and enter it as a custom size (see <a href="/53-foot-trailer-dimensions/">53 ft trailer dimensions</a>).</li>
+    </ul>
+  </section>
+
   <section class="prose">
     <h2>The trailers in the presets</h2>
     <div class="tablebox">
@@ -140,7 +171,7 @@ const short = (t: typeof comp) => t.model;
         </tbody>
       </table>
     </div>
-    <p class="small">Source: Hyundai Translead's model pages (linked), Product Specifications, checked {tdata.source.checked}. The printed volume matches length × width × height: for example {comp.Lin} × {comp.Win} × {comp.Hin} = {n(comp.Lin * comp.Win * comp.Hin)} in³ ÷ 1,728 = {n(comp.Lin * comp.Win * comp.Hin / 1728, 1)} cu ft. All three are 53′ 0″ long and 102.36″ wide outside, with a GVWR of {T.map((t) => n(t.gvwrLb)).filter((v, i, a) => a.indexOf(v) === i).join(' / ')} lb. The pages give no rear door opening and no payload, so the planner leaves them empty. Trailers from other makers, and other builds of these models, can differ by an inch or more: measure yours. Outside sizes, the Composite XT and ThermoTech reefer, and the widths and heights Utility and Stoughton publish are on <a href="/53-foot-trailer-dimensions/">53 ft trailer dimensions</a>.</p>
+    <p class="small">Source: Hyundai Translead's model pages (linked), Product Specifications, checked {tdata.source.checked}. The printed volume matches length × width × height: for example {comp.Lin} × {comp.Win} × {comp.Hin} = {n(comp.Lin * comp.Win * comp.Hin)} in³ ÷ 1,728 = {n(comp.Lin * comp.Win * comp.Hin / 1728, 1)} cu ft. All three are 53′ 0″ long and 102.36″ wide outside, with a GVWR of {T.map((t) => n(t.gvwrLb)).filter((v, i, a) => a.indexOf(v) === i).join(' / ')} lb. The pages give no rear door opening and no payload, so the planner leaves them empty. Trailers from other makers, and other builds of these models, can differ by an inch or more: measure yours. The ThermoTech reefer preset is described <a href="#reefer">above</a>. Outside sizes, the Composite XT, and the widths and heights Utility and Stoughton publish are on <a href="/53-foot-trailer-dimensions/">53 ft trailer dimensions</a>.</p>
   </section>
 
   <section class="prose">
