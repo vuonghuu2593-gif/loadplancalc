@@ -3,6 +3,7 @@ import ToolPage from '../layouts/ToolPage.astro';
 import LoadPlanner from '../components/LoadPlanner.astro';
 import cdata from '../data/containers.json';
 import pdata from '../data/pallets.json';
+import sdata from '../data/special-containers.json';
 import { pack, validate } from '../scripts/packer.js';
 const MM_PER_IN = 25.4, KG_PER_LB = 0.45359237;
 const n = (v: number, d = 0) => v.toLocaleString('en-US', { maximumFractionDigits: d, minimumFractionDigits: 0 });
@@ -55,11 +56,24 @@ if (chHc !== 40 || chDv !== 20 || hCh.n !== 20 || hCh.na !== 11 || hCh.nb !== 9)
 const t20 = table.map(({ p, cells }) => ({ p, x: cells.find((x) => x.c.id === '20dv')! }));
 const HAND20: Record<string, number> = { epal1: 11, epal2: 9, epal3: 9, epal6: 25, epal7: 25, chep4840: 9 };
 for (const { p, x } of t20) if (HAND20[p.id] !== undefined && (x.one !== HAND20[p.id] || x.two !== 2 * HAND20[p.id])) throw new Error(`20ft answer changed: ${p.id} ${x.one}/${x.two}; update the 20ft section`);
+// Reefers (Hapag-Lloyd, special-containers.json; the same presets as the planner): height = the listed height, for the
+// 20' reefer the booklet's maximum stowage height to the red load line. Two high = two loaded pallets of at most half
+// that height. Hand lanes (a·L + b·W ≤ inside width): 20' Reefer 5,450 × 2,280 mm: Euro 1 crosswise lane of
+// floor(5,450/800) = 6 + 1 lengthwise lane of floor(5,450/1,200) = 4 → 10 (1,200 + 800 = 2,000 ≤ 2,280);
+// 48 × 40 in: 5 + 4 = 9 (1,219.2 + 1,016 = 2,235.2). 40' Reefer HC 11,599 × 2,290 mm: Euro 14 + 9 = 23; 48 × 40 in 11 + 9 = 20.
+const RF = sdata.reefers;
+const rfTable = pallets.map((p) => ({ p, cells: RF.map((c) => { const half = Math.floor(c.H / 2); return { c, half, one: fit(c as typeof dv40, p, false), two: fit(c as typeof dv40, p, true, half), hand: lanes(c as typeof dv40, p) }; }) }));
+const HANDRF: Record<string, number[]> = { epal1: [10, 23], chep4840: [9, 20] };
+for (const { p, cells } of rfTable) {
+  cells.forEach((x) => { if (x.one !== x.hand.n || x.two !== 2 * x.one) throw new Error(`reefer count changed: ${p.id} in ${x.c.id}: ${x.one} one high, ${x.two} two high, lanes ${x.hand.n}`); });
+  if (HANDRF[p.id] && cells.some((x, i) => x.one !== HANDRF[p.id][i])) throw new Error(`reefer hand check failed: ${p.id}`);
+}
+const rf20 = RF.find((c) => c.id === '20rf')!, rf40 = RF.find((c) => c.id === '40rh')!;
 const short = (c: typeof dv40) => c.name.replace(' Standard', '').replace(' High Cube', ' HC');
 ---
 <ToolPage
   title="How Many Pallets Fit in a 20ft or 40ft Container?"
-  description="How many Euro, EPAL and 48 × 40 in pallets fit in a 20ft, 40ft, 40ft high cube or 45ft container, one or two high. Free calculator with a 3D plan and an engine-computed table."
+  description="How many Euro, EPAL and 48 × 40 in pallets fit in a 20ft, 40ft, 40ft high cube, 45ft or reefer container, one or two high. Free calculator with a 3D plan and an engine-computed table."
   h1="How many pallets fit in a container?"
   name="Pallets in a container calculator"
   lede={`Pick the container and the pallet, enter how high and heavy each loaded pallet is, and see how many fit, one or two high, with a 3D plan. For example, Euro pallets (${n(euro.L)} × ${n(euro.W)} mm) on the floor of a 40' Standard container (inside ${n(dv40.L)} × ${n(dv40.W)} mm): <strong>25 pallets</strong> one high. They go in two lanes side by side: 15 pallets turned crosswise in a ${n(euro.L)} mm wide lane (15 × ${n(euro.W)} = 12,000 mm of the ${n(dv40.L)} mm length) and 10 lengthwise in an ${n(euro.W)} mm lane (10 × ${n(euro.L)} = 12,000 mm); ${n(euro.L)} + ${n(euro.W)} = 2,000 mm of the ${n(dv40.W)} mm width, while three pallets side by side would need at least 3 × ${n(euro.W)} = 2,400 mm. In a 20' Standard (${n(dv20.L)} mm long) the same lanes hold 7 + 4 = <strong>11</strong> (7 × ${n(euro.W)} = 5,600 mm, 4 × ${n(euro.L)} = 4,800 mm). Stacked two high, which works when each loaded pallet is ${n(EX_H)} mm tall (2 × ${n(EX_H)} = ${n(2 * EX_H)} mm, under the ${n(dv40.H)} mm inside height), a 40' takes 50.`}
@@ -113,6 +127,24 @@ const short = (c: typeof dv40) => c.name.replace(' Standard', '').replace(' High
       {t20.map(({ p, x }) => <li><strong>{p.name}</strong> ({n(p.L, 1)} × {n(p.W)} mm): <strong>{x.one}</strong> one high, {x.two} two high.</li>)}
     </ul>
     <p>The lanes work the same way as in the 40' example: Euro pallets go 7 crosswise (7 × {n(euro.W)} = 5,600 mm) beside 4 lengthwise (4 × {n(euro.L)} = 4,800 mm), {n(euro.L)} + {n(euro.W)} = 2,000 mm of the {n(dv20.W)} mm width. 1,200 × 1,000 mm pallets go 5 crosswise (5,000 mm) beside 4 lengthwise, 1,200 + 1,000 = 2,200 mm wide, so <strong>9</strong>; 48 × 40 in pallets also 5 + 4 = 9 (5 × 40 = 200 in of the {inch(dv20.L)} in length, 48 + 40 = 88 in of the {inch(dv20.W)} in width). Two high needs each loaded pallet at most {n(Math.floor(dv20.H / 2))} mm tall. To plan your own pallets, pick <strong>20' Standard</strong> in the calculator above.</p>
+  </section>
+
+  <section class="prose">
+    <h2 id="reefer">How many pallets fit in a reefer container?</h2>
+    <p>A refrigerated (reefer) container is smaller inside than a dry container of the same length. Hapag-Lloyd's 20' Reefer is {n(rf20.L)} × {n(rf20.W)} mm inside, with cargo allowed up to {n(rf20.H)} mm (the red load line in its booklet for series {rf20.booklet.series}, inside height {n(rf20.booklet.insideH)} mm). Its 40' Reefer High Cube is {n(rf40.L)} × {n(rf40.W)} mm and {n(rf40.H)} mm high. The planner computed these counts, pallets turned either way:</p>
+    <div class="tablebox">
+      <table>
+        <thead><tr><th>Pallet (L × W)</th>{RF.map((c) => <th class="num">{c.name}<br><span class="small">one high · two high (each ≤ {n(Math.floor(c.H / 2))} mm)</span></th>)}</tr></thead>
+        <tbody>
+          {rfTable.map(({ p, cells }) => <tr>
+            <td>{p.name}<br><span class="small">{n(p.L, 1)} × {n(p.W)} mm</span></td>
+            {cells.map((x) => <td class="num"><strong>{x.one}</strong> · {x.two}</td>)}
+          </tr>)}
+        </tbody>
+      </table>
+    </div>
+    <p>The lanes are the same as in a dry container, only shorter and narrower: in the 20' Reefer, Euro pallets go 6 crosswise (6 × {n(euro.W)} = 4,800 mm of the {n(rf20.L)} mm length) beside 4 lengthwise (4 × {n(euro.L)} = 4,800 mm), {n(euro.L)} + {n(euro.W)} = 2,000 mm of the {n(rf20.W)} mm width, so <strong>10</strong>, one fewer than the 11 in a 20' Standard. In the 40' Reefer High Cube they go 14 + 9 = <strong>23</strong> (25 in a 40' Standard). Two high only works when each loaded pallet is no taller than half the usable height: {n(Math.floor(rf20.H / 2))} mm in the 20' Reefer, {n(Math.floor(rf40.H / 2))} mm in the 40' Reefer High Cube.</p>
+    <p class="small">To plan your own load, open the <a href="/container-loading-calculator/">container loading calculator</a> and pick a reefer from the container list. Hapag-Lloyd's booklet prints no load-line height for its 40' Reefer HC series, so the table uses the inside height; every reefer has a red load line inside: keep the cargo below the line on your unit so the air can circulate. Reefer sizes and sources: <a href="/shipping-container-dimensions/">shipping container dimensions</a>.</p>
   </section>
 
   <section class="prose">

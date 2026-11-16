@@ -1,7 +1,7 @@
 {
-  "updated": "2026-11-15",
-  "tools": "265f1a4a50de07efd9ef133c727eb379abda33ffdb2fd4766d194b0328f77404",
-  "guide": "67021d76dc118376cb33ad1587d113a52ef1aa8124f6b47cfbf10f9a2d502288",
+  "updated": "2026-11-16",
+  "tools": "a9ba29050d569c4c4f3cb864ae5f534388ae0973128162f65154f102b142cded",
+  "guide": "24d898c9ee91123c24ea8fbd9145ef5c83eaad08495797cc6d122d352ef712c3",
   "toolPages": [
     "/cargo-securing-calculator/",
     "/cbm-calculator/",
