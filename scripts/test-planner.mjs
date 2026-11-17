@@ -683,7 +683,7 @@ ok(errs.length === 0, 'no JS errors ' + errs.join(' | '));
   // cells after the Select radio: type (full text), then the first line of One takes and Needed
   const rows = await pf.$$eval('[data-fittable] tr', (r) => r.map((x) => [...x.children].slice(1).map((c, j) => (j === 0 ? c.textContent : c.childNodes[0]?.textContent || '').trim())));
   const row = (name) => rows.find((r) => r[0].startsWith(name));
-  ok(rows.length === 20, 'comparison lists every size in the list, 4 containers + 3 dry vans + 1 reefer trailer + 8 box trucks + 4 Sprinter vans = 20 (' + rows.length + ')');
+  ok(rows.length === 21, 'comparison lists every size in the list, 4 containers + 3 dry vans + 1 reefer trailer + 8 box trucks + 4 Sprinter vans + 1 ProMaster City = 21 (' + rows.length + ')');
   ok(!!row("53' reefer, Hyundai Translead ThermoTech"), 'comparison has the ThermoTech 53\' reefer row');
   ok(row("40' High Cube")[0].includes('(selected)') && row("40' High Cube")[1] === '900' && row("40' High Cube")[2] === '1', "selected 40' HC row: 900 in one, 1 needed");
   ok(+row("20' Standard")[2].replace('+', '') >= 2 && +row("20' Standard")[1].replace(/,/g, '') < 900, "20' Standard: takes fewer than 900, needs 2 or more (" + row("20' Standard").join(' | ') + ')');

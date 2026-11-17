@@ -7,6 +7,7 @@ import trailers from '../data/trailers.json';
 import bt from '../data/box-trucks.json';
 import vd from '../data/cargo-vans.json';
 import pm from '../data/promaster-cargo-vans.json';
+import pmc from '../data/promaster-city.json';
 import dw from '../data/dimweight.json';
 import xs from '../data/trailer-specs.json';
 import dc from '../data/domestic-containers.json';
@@ -70,6 +71,7 @@ import bxc from '../data/boxcars.json';
         {xs.others.map((o) => <tr><td>53' {o.kind}, {o.maker} {o.model}: inside width, inside height, overall size{'doorHin' in o ? ', door opening' : ''}{'payloadLb' in o ? ', GVWR, payload capacity' : ''}</td><td><a href={o.url} rel="noopener">{o.maker}</a></td><td>{xs.checked}</td></tr>)}
         {bt.trucks.map((t) => <tr><td>{t.name} (rental box truck): {t.fleet === 'U-Haul' ? "inside length, width, height; Mom's Attic; deck height; door opening; max load; gross vehicle weight; volume" : '“up to” interior length, width, height; floor space; loading space; load capacity'}</td><td><a href={t.url} rel="noopener">{t.fleet}</a></td><td>{bt.checked}</td></tr>)}
         {pm.vans.map((v) => <tr><td>Ram ProMaster cargo van (2026), {v.short}: cargo length, minimum and maximum cargo width, cargo height, interior cargo volume, payload and GVWR (1500/2500/3500)</td><td><a href={v.url} rel="noopener">Ram</a></td><td>{pm.checked}</td></tr>)}
+        <tr><td>Ram ProMaster City cargo van (2027 body builder document): cargo length at floor and beltline, maximum and wheelhouse width, maximum height and height at the rear axle, rear door loading width and opening height, side door opening, lift-in height, wheelbase, cargo volume</td><td><a href={pmc.url} rel="noopener">Stellantis (Ram)</a></td><td>{pmc.checked}</td></tr>
         {vd.vans.map((v) => <tr><td>{v.name}: cargo bed length, width at floor and between the wheel arches, interior height, rear door opening, cargo volume, payload and GVWR (2500 Standard Output)</td><td><a href={v.url} rel="noopener">Mercedes-Benz Vans</a></td><td>{vd.checked}</td></tr>)}
         <tr><td>US limits on semitrailer length (48 ft minimum states must allow) and vehicle width (102 in / 2.6 m)</td><td><a href={xs.law.length.url} rel="noopener">{xs.law.length.ref}</a>; <a href={xs.law.width.url} rel="noopener">{xs.law.width.ref}</a> (eCFR)</td><td>{xs.checked}</td></tr>
         {dw.rules.flatMap((r) => r.sections).map((s) => <tr><td>USPS dimensional weight rule ({s.service}): 1,728 in³ threshold, divisor, 0.785 factor, rounding, 70-pound price</td><td><a href={s.url} rel="noopener">USPS {s.ref}</a></td><td>{dw.source.checked}</td></tr>)}

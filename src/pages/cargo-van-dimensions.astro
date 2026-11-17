@@ -5,6 +5,7 @@
 import Base from '../layouts/Base.astro';
 import vd from '../data/cargo-vans.json';
 import pm from '../data/promaster-cargo-vans.json';
+import { promasterCity as pc } from '../data/cargo-vans.js';
 import pdata from '../data/pallets.json';
 import bt from '../data/box-trucks.json';
 import { pack, validate } from '../scripts/packer.js';
@@ -85,6 +86,29 @@ const prows: { label: string; cell: (v: P) => string }[] = [
   { label: 'Interior cargo volume (printed)', cell: (v) => `${v.cuftPrinted} cu ft<br><span class="small">${n(parseFloat(v.cuftPrinted) * 0.3048 ** 3, 1)} m³</span>` },
   ...SER.map((k) => ({ label: `Payload, ${k}`, cell: (v: P) => { const sr = (v.series as Record<string, { payloadLb: number; gvwrLb: number; payloadKg: number }>)[k]; return sr ? `${n(sr.payloadLb)} lb<br><span class="small">${n(sr.payloadKg)} kg · GVWR ${n(sr.gvwrLb)} lb</span>` : '–'; } })),
 ];
+// Ram ProMaster City (promaster-city.json, Stellantis body builder document, mm as printed): every inch figure = mm ÷ 25.4 to 0.1 in.
+for (const f of pc.figures) if (Math.abs(Math.round(f.mm / IN * 10) / 10 - f.in) > 1e-9) throw new Error(`ProMaster City ${f.code}: in != mm / 25.4`);
+const cf = pc.f, cP = pc.P as { L: number; W: number; H: number; doorW: number; doorH: number };
+// pallets loaded to 45 in: a 50 in high pallet does not pass the 48.1 in (1,222 mm) rear opening
+const PH45 = 45 * IN;
+const cloads: Load[] = [
+  { key: 'chep50', label: '48 × 40 in pallets, 50 in high', l: 48 * IN, w: 40 * IN, h: PH, rotation: 'upright', stackable: false },
+  { key: 'chep45', label: '48 × 40 in pallets, 45 in high', l: 48 * IN, w: 40 * IN, h: PH45, rotation: 'upright', stackable: false },
+  { key: 'euro45', label: 'Euro pallets 1,200 × 800 mm, 45 in high', l: euro.L, w: euro.W, h: PH45, rotation: 'upright', stackable: false },
+  ...loads.filter((x) => ['c1', 'c2', 'c3'].includes(x.key)),
+];
+const cfit = Object.fromEntries(cloads.map((x) => {
+  const r = pack(cP, [{ l: x.l, w: x.w, h: x.h, weight: 0, qty: 2000, rotation: x.rotation, stackable: x.stackable }], { timeMs: 3000 });
+  const errs = validate(r);
+  if (errs.length) throw new Error(`ProMaster City plan failed its check: ${x.key}: ${errs.join(', ')}`);
+  const b = Math.max(...perms(x.l, x.w, x.h, x.rotation === 'any').map(([l, w, h]) => (w <= cP.doorW + 1e-9 && h <= cP.doorH + 1e-9 ? 1 : 0) * Math.floor(cP.L / l + 1e-9) * Math.floor(cP.W / w + 1e-9) * (x.stackable ? Math.floor(cP.H / h + 1e-9) : 1)));
+  if (r.totals.n < b) throw new Error(`ProMaster City ${x.key}: engine ${r.totals.n} < block ${b}`);
+  return [x.key, r.totals.n];
+})) as Record<string, number>;
+// hand checks: 50 in pallets: 1,270 mm > 1,222 mm door → 0. 48 × 40 in at 45 in: 48 in (1,219.2 mm) across ≤ 1,243 between the arches
+// and ≤ 1,271 door, rows of 40 in (1,016 mm) in 2,429 mm → 2 (3 would need 3,048). Euro: 1,200 across, rows of 800 in 2,429 → 3 (2,400).
+if (cfit.chep50 !== 0 || cfit.chep45 !== 2 || cfit.euro45 !== 3) throw new Error(`ProMaster City hand-checked pallet counts changed: ${cfit.chep50} / ${cfit.chep45} / ${cfit.euro45}`);
+const crows = ['L202-1', 'L204-1', 'W200', 'W201', 'H505', 'H201', 'W509', 'H202', 'L508', 'H508', 'H196', 'L101'].map((c) => cf[c]);
 const u10 = bt.trucks.find((t) => t.id === 'uhaul-10')!;
 const url = new URL('/cargo-van-dimensions/', 'https://loadplancalc.com').href;
 const schema = { '@context': 'https://schema.org', '@type': 'Article', headline: 'Cargo van dimensions', dateModified: vd.checked, mainEntityOfPage: url };
@@ -101,7 +125,7 @@ const rows: { label: string; cell: (v: V) => string }[] = [
   { label: 'GVWR, 2500 Standard Output', cell: (v) => `${n(v.gvwrLb)} lb<br><span class="small">${n(v.gvwrLb * LB)} kg</span>` },
 ];
 ---
-<Base title="Cargo Van Dimensions: Sprinter & ProMaster Inside Sizes" description="Inside length, width, height, volume and payload of the Mercedes-Benz Sprinter (with rear door opening) and Ram ProMaster cargo vans, in inches and mm, with how many pallets and cartons fit." schema={schema}>
+<Base title="Cargo Van Dimensions: Sprinter, ProMaster & ProMaster City" description="Inside length, width, height, volume and payload of the Mercedes-Benz Sprinter and Ram ProMaster cargo vans, plus the ProMaster City with its rear door opening, in inches and mm, with how many pallets and cartons fit." schema={schema}>
   <section class="prose">
     <h1>Cargo van dimensions</h1>
     <p class="lede">The Mercedes-Benz Sprinter cargo van with the 144 in wheelbase and high roof has a cargo bed {h144.Lin} in long, {h144.wheelhouseWin} in wide between the rear wheel arches ({h144.floorWin} in at the floor outside them) and {h144.Hin} in high, as Mercedes-Benz prints it. Multiplied out between the wheel arches: {h144.Lin} × {h144.wheelhouseWin} × {h144.Hin} = 556,871 in³, ÷ 1,728 = <strong>{n(box(h144), 1)} ft³</strong>; Mercedes-Benz prints a cargo volume of {h144.cuftPrinted} cu ft; it does not say how that is measured, and the floor beside the arches is not in the figure above. It takes <strong>{F(h144.id).chep} pallets of 48 × 40 in</strong> on the floor, one behind the other with the 48 in side across. Below are all four Sprinter cargo van bodies and five <a href="#ram-promaster">Ram ProMaster</a> bodies, and what fits in each.</p>
@@ -151,6 +175,30 @@ const rows: { label: string; cell: (v: V) => string }[] = [
     <p class="small">Hand checks. 48 × 40 in pallets go one across (two would need 80 in), the 48 in side across and 40 in along: 2 rows in {P[0].Lin} in (80 in), 3 in {P[1].Lin} in (120 in), still 3 in {P[3].Lin} in (4 would need 160 in) and 4 in {pmx.Lin} in (160 in). Euro pallets: 1,200 mm across ({n(pm136.W, 2)} mm) and rows of 800 mm: 3 in {n(P[0].L, 2)} mm and in {n(P[1].L, 2)} mm, 4 in {n(P[3].L, 2)} mm, 5 in {n(pmx.L, 2)} mm (4,000 mm). To plan your own load, enter the ProMaster's size as a custom space in the <a href="/container-loading-calculator/">container loading calculator</a> (and the door you measured).</p>
   </section>
 
+  <section class="prose" id="ram-promaster-city">
+    <h2>Ram ProMaster City cargo van inside dimensions</h2>
+    <p>The Ram ProMaster City cargo van is {cf['L202-1'].in.toFixed(1)} in ({n(cf['L202-1'].mm)} mm) long at the floor behind the front seats but {cf['L204-1'].in.toFixed(1)} in ({n(cf['L204-1'].mm)} mm) at the beltline, {cf['W201'].in.toFixed(1)} in ({n(cf['W201'].mm)} mm) wide between the rear wheel arches and {cf['H201'].in.toFixed(1)} in ({n(cf['H201'].mm)} mm) high at the rear axle, and its rear doors open {cf['W509'].in.toFixed(1)} × {cf['H202'].in.toFixed(1)} in ({n(cf['W509'].mm)} × {n(cf['H202'].mm)} mm), as Stellantis prints them in its body builder document. That door is the limit for pallets: a pallet loaded to 50 in (1,270 mm) is taller than the {cf['H202'].in.toFixed(1)} in opening, while a 48 × 40 in pallet loaded to 45 in goes in, the 48 in side across, and two fit one behind the other.</p>
+    <div class="tablebox">
+      <table class="vantable">
+        <thead><tr><th scope="col">Dimension (SAE J1100 code)</th><th scope="col" class="num">mm</th><th scope="col" class="num">in</th></tr></thead>
+        <tbody>
+          {crows.map((f) => <tr><th scope="row">{f.label} ({f.code})</th><td class="num">{n(f.mm, 1)}</td><td class="num">{f.in.toFixed(1)}</td></tr>)}
+          <tr><th scope="row">{pc.volume.label} ({pc.volume.code})</th><td class="num">{n(pc.volume.litres, 1)} L</td><td class="num">{pc.volume.cuft} ft³</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="small">Millimetres and inches as printed in Stellantis' <a href={pc.url} rel="noopener">2027 Ram ProMaster City Cargo Van Body Builder</a> document ("Views &amp; Charts - Cargo Van", Rev2, 8/4/2026; listed on <a href={pc.page} rel="noopener">Stellantis Media</a>), pages 4 to 6, checked {pc.checked}. The document prints no payload or GVWR: take them from your van's door-jamb label.</p>
+    <h3>How many pallets fit in a ProMaster City?</h3>
+    <p>Computed with the same engine and validator, on a conservative space: the {cf['L204-1'].in.toFixed(1)} in beltline length (the cargo area is longer only at the floor), the {cf['W201'].in.toFixed(1)} in between the wheel arches over the whole length and the {cf['H201'].in.toFixed(1)} in height at the rear axle. Every item must pass the {cf['W509'].in.toFixed(1)} × {cf['H202'].in.toFixed(1)} in rear door the way it is stowed. The van is also in the <a href="/container-loading-calculator/">container loading calculator</a>'s space list.</p>
+    <div class="tablebox">
+      <table class="vantable">
+        <thead><tr><th scope="col">Load</th><th scope="col" class="num">ProMaster City</th></tr></thead>
+        <tbody>{cloads.map((x) => <tr><th scope="row">{x.label}</th><td class="num">{n(cfit[x.key])}</td></tr>)}</tbody>
+      </table>
+    </div>
+    <p class="small">Hand checks. A pallet loaded to 50 in (1,270 mm) is taller than the {n(cf['H202'].mm)} mm rear opening: none. At 45 in high (1,143 mm), a 48 × 40 in pallet goes in with the 48 in side across (1,219.2 mm, within the {n(cf['W201'].mm)} mm between the arches and the {n(cf['W509'].mm)} mm door), and rows of 40 in (1,016 mm) along the {n(cf['L204-1'].mm)} mm: 2 (3 would need 3,048 mm). Euro pallets: 1,200 mm across, rows of 800 mm: 3 (2,400 mm). Cartons are not stacked higher than the {n(cf['H201'].mm)} mm height.</p>
+  </section>
+
   <section class="prose">
     <h2>Before you load a cargo van</h2>
     <ul class="plain">
@@ -159,7 +207,7 @@ const rows: { label: string; cell: (v: V) => string }[] = [
       <li><strong>Payload runs out fast.</strong> The 2500 Standard Output prints {n(x170.payloadLb)} to {n(s144.payloadLb)} lb of payload, depending on the body. Four pallets of 1,000 lb would be 4,000 lb: more than the {n(x170.payloadLb)} lb of the extended body before you add the driver. Enter the weight of each pallet or box in the planner and the payload stops the plan.</li>
       <li><strong>A van against a small truck.</strong> The longest Sprinter is {x170.Lin} in long inside; U-Haul's 10′ truck is {u10.Lin} in long and {u10.Win} in wide inside: see <a href="/box-truck-dimensions/">box truck dimensions</a> for 10′ to 26′ trucks.</li>
       <li><strong>Sprinter or ProMaster.</strong> The ProMaster is wider inside ({pm136.minWin} in at its minimum against the Sprinter's {s144.wheelhouseWin} in between the wheel arches) but lower: {pm136.Hin} in with the high roof against {h144.Hin} in. Neither takes two 48 × 40 in pallets side by side.</li>
-      <li><strong>Other vans.</strong> Ford Transit cargo vans are not on this page: Ford's spec pages could not be read when this page was updated. Measure your van and enter its size as a custom space.</li>
+      <li><strong>Other vans.</strong> Ford Transit cargo vans are not on this page: Ford's spec pages could not be read when this page was updated. The smaller <a href="#ram-promaster-city">ProMaster City</a> is: {cf['W201'].in.toFixed(1)} in between the wheel arches and a {cf['H202'].in.toFixed(1)} in high rear opening. Measure your van and enter its size as a custom space.</li>
     </ul>
   </section>
 

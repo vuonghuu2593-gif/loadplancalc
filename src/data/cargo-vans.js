@@ -9,3 +9,15 @@ export const vanPresets = vdata.vans.map((v) => ({
   source: `Mercedes-Benz Vans (Sprinter cargo van page)`,
   note: `Cargo bed ${v.Lin} in long, ${v.wheelhouseWin} in between the wheel arches (${v.floorWin} in at the floor outside them), ${v.Hin} in high, rear door ${v.doorWin} × ${v.doorHin} in and payload ${v.payloadLb.toLocaleString('en-US')} lb (2500 Standard Output) as Mercedes-Benz prints them. The plan uses the ${v.wheelhouseWin} in between the wheel arches over the whole length. The 3500, 3500XD and 4500 versions print ${vdata.wheelhouseOther.wheelhouseWin} in at the wheel arches and a different payload: enter yours.`,
 }));
+
+// Ram ProMaster City cargo van (promaster-city.json, Stellantis body builder document, mm as printed). Conservative plan
+// size: the beltline cargo length, the width between the wheel arches and the height at the rear axle; door = rear
+// doors' maximum loading width × rear opening height. No payload is printed there, so the payload field stays empty.
+import pmc from './promaster-city.json';
+const pf = Object.fromEntries(pmc.figures.map((f) => [f.code, f]));
+export const promasterCity = { ...pmc, f: pf, P: Object.fromEntries(Object.entries(pmc.plan).map(([k, c]) => [k, pf[c].mm])) };
+export const promasterCityPresets = [{
+  id: 'pm-city', name: 'Ram ProMaster City cargo van', L: pf['L204-1'].mm, W: pf['W201'].mm, H: pf['H201'].mm,
+  doorW: pf['W509'].mm, doorH: pf['H202'].mm, payload: null, url: pmc.url, source: 'Stellantis (Ram ProMaster City body builder document)',
+  note: `Cargo length ${pf['L202-1'].in.toFixed(1)} in at the floor and ${pf['L204-1'].in.toFixed(1)} in at the beltline, ${pf['W201'].in.toFixed(1)} in between the wheel arches (${pf['W200'].in.toFixed(1)} in maximum), ${pf['H201'].in.toFixed(1)} in high at the rear axle, rear door opening ${pf['W509'].in.toFixed(1)} × ${pf['H202'].in.toFixed(1)} in, as Stellantis prints them. The plan uses the beltline length, the width between the wheel arches and the height at the rear axle over the whole space. No payload is printed in that document: enter your van's payload from its door-jamb label.`,
+}];

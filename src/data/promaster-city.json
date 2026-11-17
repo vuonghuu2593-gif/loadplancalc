@@ -1,0 +1,24 @@
+{
+ "note": "Ram ProMaster City cargo van as Stellantis prints it in the '2027 Ram ProMaster City Cargo Van Body Builder' document on Stellantis Media (view-spec.do?id=28139 → S3 PDF 'Ram ProMaster City Views & Charts - Cargo Van – Rev2', Body Builder Instruction dated 8/4/2026; SAE J1100 codes, millimetres and inches as printed). Read twice on 2026-11-17: pages 4 and 6 from both text layers of the PDF (pdfplumber and poppler, identical), page 5 (an image-only page) from the full page image and from an enlarged crop of its rows, identical; every inch figure equals its mm figure ÷ 25.4 rounded to 0.1 in. The document prints no payload or GVWR. Planner preset (conservative): length = cargo length at beltline (L204-1, shorter than at the floor), width = wheelhouse width at floor (W201) over the whole length, height = cargo height at rear axle (H201, lower than the maximum H505), door = maximum loading width of the rear doors (W509) × rear opening height (H202). No prices.",
+ "checked": "2026-11-17",
+ "publisher": "Stellantis (Ram)",
+ "title": "2027 Ram ProMaster City Cargo Van Body Builder (Stellantis Media)",
+ "page": "https://media.stellantisnorthamerica.com/view-spec.do?id=28139",
+ "url": "https://s3.amazonaws.com/chryslermedia.iconicweb.com/mediasite/specs/Ram_ProMaster_City_Cargo_Van_BodyBuilder66h63tnt4tea5lt335ocdo03dn.pdf",
+ "figures": [
+  { "code": "L202-1", "label": "Cargo length at floor, behind the front row", "mm": 2821.0, "in": 111.1, "pdfPage": 4 },
+  { "code": "L204-1", "label": "Cargo length at beltline, behind the front row", "mm": 2429.0, "in": 95.6, "pdfPage": 4 },
+  { "code": "W200", "label": "Compartment width, maximum", "mm": 1635.0, "in": 64.4, "pdfPage": 5 },
+  { "code": "W201", "label": "Wheelhouse width at floor", "mm": 1243.0, "in": 48.9, "pdfPage": 5 },
+  { "code": "H505", "label": "Maximum cargo height", "mm": 1371.0, "in": 54.0, "pdfPage": 4 },
+  { "code": "H201", "label": "Cargo height at rear axle", "mm": 1364.0, "in": 53.7, "pdfPage": 4 },
+  { "code": "W509", "label": "Maximum loading width, rear doors", "mm": 1271.0, "in": 50.0, "pdfPage": 5 },
+  { "code": "H202", "label": "Rear opening height", "mm": 1222.0, "in": 48.1, "pdfPage": 4 },
+  { "code": "L508", "label": "Minimum loading width of the side cargo door", "mm": 926.0, "in": 36.5, "pdfPage": 4 },
+  { "code": "H508", "label": "Side cargo door opening height", "mm": 1220.0, "in": 48.0, "pdfPage": 4 },
+  { "code": "H196", "label": "Lift-in height", "mm": 590.0, "in": 23.2, "pdfPage": 6 },
+  { "code": "L101", "label": "Wheelbase", "mm": 3277.0, "in": 129.0, "pdfPage": 6 }
+ ],
+ "volume": { "code": "V6", "label": "Cargo volume, max. behind front seat", "litres": 5165.6, "cuft": 182.4, "pdfPage": 6 },
+ "plan": { "L": "L204-1", "W": "W201", "H": "H201", "doorW": "W509", "doorH": "H202" }
+}
