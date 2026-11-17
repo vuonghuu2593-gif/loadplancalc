@@ -69,11 +69,24 @@ for (const { p, cells } of rfTable) {
   if (HANDRF[p.id] && cells.some((x, i) => x.one !== HANDRF[p.id][i])) throw new Error(`reefer hand check failed: ${p.id}`);
 }
 const rf20 = RF.find((c) => c.id === '20rf')!, rf40 = RF.find((c) => c.id === '40rh')!;
+// Open top and hardtop containers (Hapag-Lloyd, special-containers.json, read twice on 2026-10-25 / 2026-11-05).
+// Hand lanes (a·L + b·W ≤ inside width): 20' Open Top 5,895 × 2,350 mm: Euro floor(5,895/800) = 7 crosswise + floor(5,895/1,200) = 4
+// lengthwise → 11 (1,200 + 800 = 2,000 ≤ 2,350; two crosswise lanes need 2,400); 48 × 40 in floor(5,895/1,016) = 5 + floor(5,895/1,219.2) = 4 → 9.
+// 40' Open Top 12,029 mm: Euro 15 + 10 = 25, 48 × 40 in 11 + 9 = 20. 20' Hardtop 5,886 × 2,342: 7 + 4 = 11, 5 + 4 = 9.
+// 40' Hardtop 12,020 and 40' Hardtop HC 12,032 × 2,352: 15 + 10 = 25, 11 + 9 = 20.
+const OT = [...sdata.opentops, ...sdata.hardtops];
+const otTable = pallets.map((p) => ({ p, cells: OT.map((c) => { const half = Math.floor(c.H / 2); return { c, half, one: fit(c as typeof dv40, p, false), two: fit(c as typeof dv40, p, true, half), hand: lanes(c as typeof dv40, p) }; }) }));
+const HANDOT: Record<string, number[]> = { epal1: [11, 25, 11, 25, 25], chep4840: [9, 20, 9, 20, 20] };
+for (const { p, cells } of otTable) {
+  cells.forEach((x) => { if (x.one !== x.hand.n || x.two !== 2 * x.one) throw new Error(`open top/hardtop count changed: ${p.id} in ${x.c.id}: ${x.one} one high, ${x.two} two high, lanes ${x.hand.n}`); });
+  if (HANDOT[p.id] && cells.some((x, i) => x.one !== HANDOT[p.id][i])) throw new Error(`open top/hardtop hand check failed: ${p.id}`);
+}
+const ot20 = OT.find((c) => c.id === '20ot')!, ot40 = OT.find((c) => c.id === '40ot')!, ht40 = OT.find((c) => c.id === '40ht')!, hh40 = OT.find((c) => c.id === '40hh')!;
 const short = (c: typeof dv40) => c.name.replace(' Standard', '').replace(' High Cube', ' HC');
 ---
 <ToolPage
   title="How Many Pallets Fit in a 20ft or 40ft Container?"
-  description="How many Euro, EPAL and 48 × 40 in pallets fit in a 20ft, 40ft, 40ft high cube, 45ft or reefer container, one or two high. Free calculator with a 3D plan and an engine-computed table."
+  description="How many Euro, EPAL and 48 × 40 in pallets fit in a 20ft, 40ft, 40ft high cube, 45ft, reefer, open top or hardtop container, one or two high. Free calculator with a 3D plan and an engine-computed table."
   h1="How many pallets fit in a container?"
   name="Pallets in a container calculator"
   lede={`Pick the container and the pallet, enter how high and heavy each loaded pallet is, and see how many fit, one or two high, with a 3D plan. For example, Euro pallets (${n(euro.L)} × ${n(euro.W)} mm) on the floor of a 40' Standard container (inside ${n(dv40.L)} × ${n(dv40.W)} mm): <strong>25 pallets</strong> one high. They go in two lanes side by side: 15 pallets turned crosswise in a ${n(euro.L)} mm wide lane (15 × ${n(euro.W)} = 12,000 mm of the ${n(dv40.L)} mm length) and 10 lengthwise in an ${n(euro.W)} mm lane (10 × ${n(euro.L)} = 12,000 mm); ${n(euro.L)} + ${n(euro.W)} = 2,000 mm of the ${n(dv40.W)} mm width, while three pallets side by side would need at least 3 × ${n(euro.W)} = 2,400 mm. In a 20' Standard (${n(dv20.L)} mm long) the same lanes hold 7 + 4 = <strong>11</strong> (7 × ${n(euro.W)} = 5,600 mm, 4 × ${n(euro.L)} = 4,800 mm). Stacked two high, which works when each loaded pallet is ${n(EX_H)} mm tall (2 × ${n(EX_H)} = ${n(2 * EX_H)} mm, under the ${n(dv40.H)} mm inside height), a 40' takes 50.`}
@@ -145,6 +158,29 @@ const short = (c: typeof dv40) => c.name.replace(' Standard', '').replace(' High
     </div>
     <p>The lanes are the same as in a dry container, only shorter and narrower: in the 20' Reefer, Euro pallets go 6 crosswise (6 × {n(euro.W)} = 4,800 mm of the {n(rf20.L)} mm length) beside 4 lengthwise (4 × {n(euro.L)} = 4,800 mm), {n(euro.L)} + {n(euro.W)} = 2,000 mm of the {n(rf20.W)} mm width, so <strong>10</strong>, one fewer than the 11 in a 20' Standard. In the 40' Reefer High Cube they go 14 + 9 = <strong>23</strong> (25 in a 40' Standard). Two high only works when each loaded pallet is no taller than half the usable height: {n(Math.floor(rf20.H / 2))} mm in the 20' Reefer, {n(Math.floor(rf40.H / 2))} mm in the 40' Reefer High Cube.</p>
     <p class="small">To plan your own load, open the <a href="/container-loading-calculator/">container loading calculator</a> and pick a reefer from the container list. Hapag-Lloyd's booklet prints no load-line height for its 40' Reefer HC series, so the table uses the inside height; every reefer has a red load line inside: keep the cargo below the line on your unit so the air can circulate. Reefer sizes and sources: <a href="/shipping-container-dimensions/">shipping container dimensions</a>.</p>
+  </section>
+
+  <section class="prose">
+    <h2 id="open-top">How many pallets fit in an open top or hardtop container?</h2>
+    <p>Open top containers (canvas roof) and hardtop containers (removable steel roof) are loaded through the doors or from above by crane, for cargo too tall or heavy to go in through the door. On the floor they take the same number of pallets as a dry container of the same length: Hapag-Lloyd's 20' Open Top is {n(ot20.L)} × {n(ot20.W)} mm inside and its 40' Open Top {n(ot40.L)} × {n(ot40.W)} mm, a few millimetres smaller than the 20' and 40' Standard, and the pallet lanes still fit. The planner computed these counts, pallets turned either way:</p>
+    <div class="tablebox">
+      <table>
+        <thead><tr><th>Pallet (L × W)</th>{OT.map((c) => <th class="num">{c.name}<br><span class="small">one high · two high (each ≤ {n(Math.floor(c.H / 2))} mm)</span></th>)}</tr></thead>
+        <tbody>
+          {otTable.map(({ p, cells }) => <tr>
+            <td>{p.name}<br><span class="small">{n(p.L, 1)} × {n(p.W)} mm</span></td>
+            {cells.map((x) => <td class="num"><strong>{x.one}</strong> · {x.two}</td>)}
+          </tr>)}
+        </tbody>
+      </table>
+    </div>
+    <p>Euro pallets in the 20' Open Top: 7 crosswise (7 × {n(euro.W)} = 5,600 mm of the {n(ot20.L)} mm length) beside 4 lengthwise (4 × {n(euro.L)} = 4,800 mm), {n(euro.L)} + {n(euro.W)} = 2,000 mm of the {n(ot20.W)} mm width: <strong>11</strong>. In the 40' Open Top, 40' Hardtop and 40' Hardtop High Cube: 15 + 10 = <strong>25</strong>. 48 × 40 in pallets: 5 + 4 = 9 in a 20', 11 + 9 = 20 in a 40'.</p>
+    <p>What changes is how tall a loaded pallet may be:</p>
+    <ul class="plain">
+      <li><strong>Through the doors</strong> the door opening limits each pallet: {n(ot20.doorH)} mm high in the 20' Open Top, {n(ot40.doorH)} mm in the 40' Open Top, {n(ht40.doorH)} mm in the 40' Hardtop and {n(hh40.doorH)} mm in the 40' Hardtop High Cube.</li>
+      <li><strong>From above</strong> a pallet is lowered through the roof opening ({n(ot20.roofW)} × {n(ot20.roofL)} mm in the 20' Open Top, {n(ot40.roofW)} × {n(ot40.roofL)} mm in the 40'), and with the roof bows and tarpaulin in place the cargo must stay below the inside height ({n(ot20.H)} mm in the 20', {n(ot40.H)} mm in the 40'). Cargo that sticks out above the roof is out of gauge and has to be agreed with the carrier.</li>
+    </ul>
+    <p class="small">Inside sizes, door and roof openings from Hapag-Lloyd's open top and hardtop pages (see <a href="/shipping-container-dimensions/#special">reefer, open top, hardtop and flat rack dimensions</a>); Hapag-Lloyd notes its figures are examples and containers vary by series. To plan your own load, pick an open top container in the <a href="/container-loading-calculator/">container loading calculator</a>.</p>
   </section>
 
   <section class="prose">
