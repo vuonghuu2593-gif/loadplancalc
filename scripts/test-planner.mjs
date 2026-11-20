@@ -413,6 +413,16 @@ await pg.screenshot({ path: process.env.SHOT || '/tmp/semi.png', fullPage: true 
   ok(await V8('[data-f="L"]') === '144' && await V8('[data-f="maxWeight"]') === '3100' && await pg8.$eval('#r-main', (e) => e.textContent.trim()) === '3 of 20', 'Penske 12\': no drift after 3 unit round trips');
   await pg8.click('[data-units="metric"]'); await pg8.waitForTimeout(300);
   ok(await V8('[data-f="L"]') === '365.8' && await V8('[data-f="W"]') === '198.1', 'Penske 12\' in metric: 144 x 78 in = 365.76 x 198.12 cm, shown 365.8 x 198.1 (' + await V8('[data-f="L"]') + ')');
+  // Budget trucks (box-trucks.json, 2026-11-20): door as printed, except the 16' (printed door wider than the inside -> no door)
+  // hand, 1,000 lb pallets: 26' 312 x 97 in -> 14 by space, 9 x 1,000 = 9,000 <= 9,180 lb payload -> 9;
+  // 16' 192 x 75 in -> one lane, 4 x 40 = 160 -> 4 (4,000 <= 4,460); 16' lift gate 192 x 89 -> 8 by space, 5 x 1,000 <= 5,524 -> 5
+  await pg8.click('[data-units="imperial"]'); await pg8.selectOption('[data-f="preset"]', 'budget-26'); await pg8.waitForTimeout(400); await bw();
+  ok(await V8('[data-f="L"]') === '312' && await V8('[data-f="W"]') === '97' && await V8('[data-f="H"]') === '97' && await V8('[data-f="doorW"]') === '94' && await V8('[data-f="doorH"]') === '91' && await V8('[data-f="maxWeight"]') === '9180' && await pg8.$eval('#r-main', (e) => e.textContent.trim()) === '9 of 20', 'Budget 26\' preset: 312 x 97 x 97 in, door 94 x 91 in, payload 9,180 lb, 9 pallets of 1,000 lb (' + await pg8.$eval('#r-main', (e) => e.textContent.trim()) + ')');
+  await pg8.selectOption('[data-f="preset"]', 'budget-16'); await pg8.waitForTimeout(400); await bw();
+  ok(await V8('[data-f="L"]') === '192' && await V8('[data-f="W"]') === '75' && await V8('[data-f="doorW"]') === '' && await V8('[data-f="doorH"]') === '' && await V8('[data-f="maxWeight"]') === '4460' && await pg8.$eval('#r-main', (e) => e.textContent.trim()) === '4 of 20', 'Budget 16\' preset: 192 x 75 in, no door, 4 pallets (' + await pg8.$eval('#r-main', (e) => e.textContent.trim()) + ')');
+  await pg8.selectOption('[data-f="preset"]', 'budget-16lg'); await pg8.waitForTimeout(400); await bw();
+  ok(await V8('[data-f="W"]') === '89' && await V8('[data-f="doorW"]') === '87' && await V8('[data-f="doorH"]') === '72' && await V8('[data-f="maxWeight"]') === '5524' && await pg8.$eval('#r-main', (e) => e.textContent.trim()) === '5 of 20', 'Budget 16\' lift gate preset: 89 in wide, door 87 x 72 in, payload 5,524 lb stops at 5 (' + await pg8.$eval('#r-main', (e) => e.textContent.trim()) + ')');
+  await pg8.click('[data-units="metric"]'); await pg8.waitForTimeout(300);
   // Sprinter cargo van (cargo-vans.json): 189 x 53 x 79 in, door 61 x 73 in, payload 3,704 lb; hand: 48 in across (<= 53), 4 rows of 40 in = 160 <= 189 -> 4;
   // 1,000 lb pallets: 4 x 1,000 = 4,000 > 3,704 -> 3
   await pg8.click('[data-units="imperial"]'); await pg8.selectOption('[data-f="preset"]', 'sprinter-170-ext'); await pg8.waitForTimeout(400); await bw();
@@ -683,7 +693,7 @@ ok(errs.length === 0, 'no JS errors ' + errs.join(' | '));
   // cells after the Select radio: type (full text), then the first line of One takes and Needed
   const rows = await pf.$$eval('[data-fittable] tr', (r) => r.map((x) => [...x.children].slice(1).map((c, j) => (j === 0 ? c.textContent : c.childNodes[0]?.textContent || '').trim())));
   const row = (name) => rows.find((r) => r[0].startsWith(name));
-  ok(rows.length === 21, 'comparison lists every size in the list, 4 containers + 3 dry vans + 1 reefer trailer + 8 box trucks + 4 Sprinter vans + 1 ProMaster City = 21 (' + rows.length + ')');
+  ok(rows.length === 25, 'comparison lists every size in the list, 4 containers + 3 dry vans + 1 reefer trailer + 12 box trucks + 4 Sprinter vans + 1 ProMaster City = 25 (' + rows.length + ')');
   ok(!!row("53' reefer, Hyundai Translead ThermoTech"), 'comparison has the ThermoTech 53\' reefer row');
   ok(row("40' High Cube")[0].includes('(selected)') && row("40' High Cube")[1] === '900' && row("40' High Cube")[2] === '1', "selected 40' HC row: 900 in one, 1 needed");
   ok(+row("20' Standard")[2].replace('+', '') >= 2 && +row("20' Standard")[1].replace(/,/g, '') < 900, "20' Standard: takes fewer than 900, needs 2 or more (" + row("20' Standard").join(' | ') + ')');

@@ -1,5 +1,5 @@
 ---
-// Reference page: inside dimensions of rental box (moving) trucks as U-Haul and Penske print them on their own truck pages.
+// Reference page: inside dimensions of rental box (moving) trucks as U-Haul, Penske and Budget print them on their own truck pages.
 // Feet-inch and pound figures as printed (box-trucks.json); mm and kg converted exactly (1 in = 25.4 mm, 1 lb = 0.45359237 kg).
 // Every count on this page is computed by the engine at build time and checked by validate(); the build fails otherwise.
 import Base from '../layouts/Base.astro';
@@ -12,10 +12,10 @@ const n = (v: number, d = 0) => v.toLocaleString('en-US', { maximumFractionDigit
 // 314 → 26′ 2″, 180 → 15′ 0″
 const ftin = (inches: number) => { const ft = Math.floor(inches / 12 + 1e-9); const r = Math.round(inches - ft * 12); return `${ft}′ ${r}″`; };
 const mm = (inches: number) => inches * IN;
-type Tk = (typeof bt.trucks)[number] & { atticIn?: number[]; emptyLb?: number; clearanceFt?: number; floorSqft?: number; ramp?: boolean | null; rampWin?: number; rampLb?: number };
+type Tk = (typeof bt.trucks)[number] & { atticIn?: number[]; emptyLb?: number; clearanceFt?: number; clearanceIn?: number; floorSqft?: number; ramp?: boolean | null; rampWin?: number; rampLb?: number; liftgateLb?: number; doorUnused?: string; gvwUpTo?: boolean };
 const T = bt.trucks as Tk[];
-const U = T.filter((t) => t.fleet === 'U-Haul'), P = T.filter((t) => t.fleet === 'Penske');
-if (U.length !== 4 || P.length !== 4) throw new Error('expected 4 U-Haul and 4 Penske trucks');
+const U = T.filter((t) => t.fleet === 'U-Haul'), P = T.filter((t) => t.fleet === 'Penske'), B = T.filter((t) => t.fleet === 'Budget');
+if (U.length !== 4 || P.length !== 4 || B.length !== 4) throw new Error('expected 4 U-Haul, 4 Penske and 4 Budget trucks');
 // printed strings and the stored inches must agree (guards against a typo in the data file)
 for (const t of T) {
   if (Math.abs(t.L - mm(t.Lin)) > 0.001 || Math.abs(t.W - mm(t.Win)) > 0.001 || Math.abs(t.H - mm(t.Hin)) > 0.001) throw new Error(`${t.id}: mm not converted exactly`);
@@ -40,7 +40,7 @@ const loads: Load[] = [
   { key: 'c2', label: 'Cartons 18 × 18 × 16 in', l: 18 * IN, w: 18 * IN, h: 16 * IN, rotation: 'any', stackable: true },
   { key: 'c3', label: 'Cartons 600 × 400 × 400 mm', l: 600, w: 400, h: 400, rotation: 'any', stackable: true },
 ];
-const space = (t: Tk) => ({ L: t.L, W: t.W, H: t.H, ...(t.doorW && t.doorH ? { doorW: t.doorW, doorH: t.doorH } : {}) });
+const space = (t: Tk) => ({ L: t.L, W: t.W, H: t.H, ...(t.doorW && t.doorH && !t.doorUnused ? { doorW: t.doorW, doorH: t.doorH } : {}) });
 function fit(t: Tk, x: Load) {
   const r = pack(space(t), [{ l: x.l, w: x.w, h: x.h, weight: 0, qty: 5000, rotation: x.rotation, stackable: x.stackable }], { timeMs: 3000 });
   const errs = validate(r);
@@ -67,6 +67,10 @@ for (const f of fits) if (f.c.chep !== lanes(f.t)) throw new Error(`${f.t.id}: e
 // U-Haul 15′ (180 × 92 in): one lane 48 in wide (4 × 40 = 160) + one lane 40 in wide (3 × 48 = 144), 48 + 40 = 88 ≤ 92 → 7
 // Penske 12′ (144 × 78 in): 78 < 80, so one lane only: 3 × 40 or 3 × 48 → 3
 // 600 × 400 × 400 mm in U-Haul 26′: 13 along (7,800 of 7,975.6) × 6 across (2,400 of 2,463.8) × 6 high (2,400 of 2,514.6) = 468
+// Budget (doors as printed, except the 16′ whose printed door is wider than its inside): 12′ 120 × 75 in, 75 < 80 → one lane, 3 × 40 = 120 → 3;
+// 16′ 192 × 75 → one lane, 4 × 40 = 160 or 4 × 48 = 192 → 4; 16′ lift gate 192 × 89: 48 + 40 = 88 ≤ 89 → 4 + 4 = 8; 26′ 312 × 97: 2 × 48 = 96, 7 × 40 = 280 → 14
+const b12 = B.find((t) => t.id === 'budget-12')!, b16 = B.find((t) => t.id === 'budget-16')!, b16lg = B.find((t) => t.id === 'budget-16lg')!, b26 = B.find((t) => t.id === 'budget-26')!;
+if (F('budget-12').chep !== 3 || F('budget-16').chep !== 4 || F('budget-16lg').chep !== 8 || F('budget-26').chep !== 14) throw new Error('Budget hand-checked pallet counts changed; update the text');
 const c26 = F('uhaul-26'), cp26 = F('penske-26'), c15 = F('uhaul-15'), cp12 = F('penske-12');
 if (c26.chep !== 14 || c26.euro !== 19 || c15.chep !== 7 || cp12.chep !== 3 || c26.c3 !== 468 || cp26.chep !== 14 || cp26.euro !== 19)
   throw new Error(`hand-checked counts changed: ${JSON.stringify(c26)} / ${JSON.stringify(c15)} / ${JSON.stringify(cp12)}; update the text`);
@@ -96,12 +100,20 @@ const fleets: { name: string; upTo: boolean; trucks: Tk[]; rows: Row[] }[] = [
     { label: 'Load capacity, up to', cell: (t) => lbkg(t.maxLoadLb) }, { label: 'Floor space, up to', cell: (t) => `${n(t.floorSqft!)} sq ft` },
     { label: 'Loading space, up to', cell: (t) => `${n(t.cuft)} cu ft` }, { label: 'L × W × H', cell: vol },
   ] },
+  { name: 'Budget', upTo: false, trucks: B, rows: [
+    { label: 'Inside length', cell: (t) => len(t.Lin) }, { label: 'Inside width', cell: (t) => len(t.Win) }, { label: 'Inside height', cell: (t) => len(t.Hin) },
+    { label: 'Rear door width', cell: (t) => len(t.doorWin!) + (t.doorUnused ? '<br><span class="small">wider than inside*</span>' : '') }, { label: 'Rear door height', cell: (t) => len(t.doorHin!) },
+    { label: 'Payload weight', cell: (t) => lbkg(t.maxLoadLb) }, { label: 'Gross vehicle weight', cell: (t) => (t.gvwUpTo ? 'up to ' : '') + lbkg(t.gvwLb!) },
+    { label: 'Clearance', cell: (t) => `${ftin(t.clearanceIn!)}<br><span class="small">${n(mm(t.clearanceIn!))} mm</span>` },
+    { label: 'Ramp or lift gate', cell: (t) => t.liftgateLb ? `lift gate<br><span class="small">${n(t.liftgateLb)} lb</span>` : t.ramp ? `ramp ${t.rampWin} in wide<br><span class="small">${n(t.rampLb!)} lb</span>` : 'none printed' },
+    { label: 'Cubic feet (printed)', cell: (t) => `${n(t.cuft)} cu ft` }, { label: 'L × W × H', cell: vol },
+  ] },
 ];
 ---
-<Base title="Box Truck Dimensions: U-Haul & Penske Truck Sizes (Inside)" description="Inside length, width and height of 10 to 26 ft box trucks (U-Haul and Penske moving trucks) in ft-in and mm, with door opening, deck height, max load, cubic feet and how many pallets fit." schema={schema}>
+<Base title="Box Truck Dimensions: U-Haul, Penske & Budget Truck Sizes" description="Inside length, width and height of 10 to 26 ft box trucks (U-Haul, Penske and Budget moving trucks) in ft-in and mm, with door opening, max load or payload, cubic feet and how many pallets fit." schema={schema}>
   <section class="prose">
     <h1>Box truck dimensions</h1>
-    <p class="lede">A “26 ft” moving truck is named after its cargo box, and the box is close to that length inside. U-Haul prints its 26′ truck as {u26.printed.inside.replace('Inside Dimensions: ', '').replace(' (LxWxH)', '')} inside, that is {u26.Lin} × {u26.Win} × {u26.Hin} in ({n(u26.L, 1)} × {n(u26.W, 1)} × {n(u26.H, 1)} mm). Multiplied out: {u26.Lin} × {u26.Win} × {u26.Hin} = {n(in3(u26))} in³, and ÷ 1,728 = <strong>{n(cuft(u26), 1)} ft³</strong> ({n(m3(u26), 2)} m³), while U-Haul prints a volume of {n(u26.cuft)} cu ft. On its floor go <strong>{c26.chep} pallets of 48 × 40 in</strong>, one high: turned with the 48 in side across, two side by side take 2 × 48 = 96 of the {u26.Win} in width, and 7 rows of 40 in take 280 of the {u26.Lin} in length (8 rows would need 320 in). The rear door opening is {ftin(u26.doorWin!)} × {ftin(u26.doorHin!)} ({u26.doorWin} × {u26.doorHin} in), lower than the {u26.Hin} in inside. Below are the sizes U-Haul and Penske print for all their box trucks, from 10′ to 26′, and how many pallets and cartons fit in each.</p>
+    <p class="lede">A “26 ft” moving truck is named after its cargo box, and the box is close to that length inside. U-Haul prints its 26′ truck as {u26.printed.inside.replace('Inside Dimensions: ', '').replace(' (LxWxH)', '')} inside, that is {u26.Lin} × {u26.Win} × {u26.Hin} in ({n(u26.L, 1)} × {n(u26.W, 1)} × {n(u26.H, 1)} mm). Multiplied out: {u26.Lin} × {u26.Win} × {u26.Hin} = {n(in3(u26))} in³, and ÷ 1,728 = <strong>{n(cuft(u26), 1)} ft³</strong> ({n(m3(u26), 2)} m³), while U-Haul prints a volume of {n(u26.cuft)} cu ft. On its floor go <strong>{c26.chep} pallets of 48 × 40 in</strong>, one high: turned with the 48 in side across, two side by side take 2 × 48 = 96 of the {u26.Win} in width, and 7 rows of 40 in take 280 of the {u26.Lin} in length (8 rows would need 320 in). The rear door opening is {ftin(u26.doorWin!)} × {ftin(u26.doorHin!)} ({u26.doorWin} × {u26.doorHin} in), lower than the {u26.Hin} in inside. Below are the sizes U-Haul, Penske and Budget print for their box trucks, from 10′ to 26′, and how many pallets and cartons fit in each.</p>
   </section>
 
   <section class="prose">
@@ -117,7 +129,8 @@ const fleets: { name: string; upTo: boolean; trucks: Tk[]; rows: Row[] }[] = [
         </table>
       </div>
     </>)}
-    <p class="small">Feet and inches as printed on each truck's page at uhaul.com and pensketruckrental.com (linked), checked {bt.checked}; millimetres converted at exactly 1 in = 25.4 mm and rounded to the nearest mm. U-Haul: “{bt.fleets['U-Haul'].caveat}” Penske prints “interior dimensions of up to …” and adds: “{bt.fleets.Penske.caveat}” So treat every figure as approximate and measure the truck you get when a load is tight.</p>
+    <p class="small">Feet and inches as printed on each truck's page at uhaul.com and pensketruckrental.com (linked), checked {bt.checked}; millimetres converted at exactly 1 in = 25.4 mm and rounded to the nearest mm. U-Haul: “{bt.fleets['U-Haul'].caveat}” Penske prints “interior dimensions of up to …” and adds: “{bt.fleets.Penske.caveat}” Budget (budgettruck.com, checked 2026-11-20): “{bt.fleets.Budget.caveat}” So treat every figure as approximate and measure the truck you get when a load is tight.</p>
+    <p class="small">* Budget prints the 16′ truck's rear door {ftin(b16.doorWin!)} wide but its inside only {ftin(b16.Win)} wide ({b16.doorWin} against {b16.Win} in), which cannot both be right for one box. Both are shown as printed, but the 16′ counts below and its planner preset leave the door out: measure the door of the truck you get. Budget's other three doors are narrower than their insides and are used as printed. Budget's 26′ gross vehicle weight is printed “up to”; its 12′ is {ftin(b12.Lin)} long inside as printed, shorter than its name.</p>
 
     <p class="small">Kilograms converted at 1 lb = 0.45359237 kg. “Volume (printed)” and “Loading space” are the fleets' own figures; “L × W × H” is the inside length × width × height above ÷ 1,728 (ft³) or in metres (m³). The two do not match: U-Haul's printed volume is {n(u10.cuft)} cu ft for the 10′ against {n(cuft(u10), 1)} ft³ from its inside size, but {n(u26.cuft)} against {n(cuft(u26), 1)} ft³ for the 26′. Neither fleet says how its volume is measured, so plan with the inside sizes and use the volume only as a rough guide. Penske's truck pages print no door opening, deck height or gross vehicle weight.</p>
 
@@ -127,7 +140,7 @@ const fleets: { name: string; upTo: boolean; trucks: Tk[]; rows: Row[] }[] = [
 
   <section class="prose">
     <h2>How many pallets and cartons fit in a box truck</h2>
-    <p>Computed with the <a href="/container-loading-calculator/">load planner</a>'s engine for each truck's printed inside size, and checked by its independent validator. For the U-Haul trucks every item must also pass the printed door opening the way it is stowed. Pallets are kept this side up (turned either way flat), one high, 50 in ({n(PH)} mm) tall when loaded; cartons may stand any way up and stack to the roof. Weight is not limited here: check your load against the max load.</p>
+    <p>Computed with the <a href="/container-loading-calculator/">load planner</a>'s engine for each truck's printed inside size, and checked by its independent validator. For the U-Haul trucks and Budget's 12′, 16′ lift gate and 26′ every item must also pass the printed door opening the way it is stowed. Pallets are kept this side up (turned either way flat), one high, 50 in ({n(PH)} mm) tall when loaded; cartons may stand any way up and stack to the roof. Weight is not limited here: check your load against the max load.</p>
     {fleets.map((fl) => <div class="tablebox">
       <table class="trucktable">
         <thead><tr><th>{fl.name}</th>{fl.trucks.map((t) => <th class="num">{t.size.replace("'", '′')}</th>)}</tr></thead>
@@ -136,7 +149,7 @@ const fleets: { name: string; upTo: boolean; trucks: Tk[]; rows: Row[] }[] = [
         </tbody>
       </table>
     </div>)}
-    <p class="small">Hand checks. 48 × 40 in pallets in the U-Haul 26′ ({u26.Lin} × {u26.Win} in): two across with the 48 in side across (96 in) in 7 rows of 40 in (280 in) = {c26.chep}; Penske's 26′ ({p26.Lin} in long) also takes 7 rows, {cp26.chep}. The U-Haul 15′ is {u15.Win} in wide, too narrow for two 48 in sides (96 in) but enough for one lane of each kind side by side (48 + 40 = 88 in): 4 pallets 40 in long in one lane (160 of {u15.Lin} in) and 3 pallets 48 in long in the other (144 in) = {c15.chep}. Penske's 12′ is {p12.Win} in wide, less than two 40 in sides, so only one lane fits: 3 pallets 48 in long (3 × 48 = 144 of {p12.Lin} in) = {cp12.chep}. Euro pallets in the U-Haul 26′ ({n(u26.L, 1)} × {n(u26.W, 1)} mm): 8 rows of two crosswise (8 × 800 = 6,400 mm, 2 × 1,200 = 2,400 mm across) plus 1 row of three lengthwise (1,200 mm long, 3 × 800 = 2,400 mm across) use 7,600 mm = {c26.euro}. 600 × 400 × 400 mm cartons in the U-Haul 26′: 13 along (7,800 mm) × 6 across (2,400 mm) × 6 high (2,400 of {n(u26.H, 1)} mm) = {n(c26.c3)}. In every truck the 48 × 40 in count equals the best set of straight lanes worked out the same way. For your own pallets and cartons, with weights, pick the truck in the <a href="/container-loading-calculator/">container loading calculator</a>.</p>
+    <p class="small">Hand checks. 48 × 40 in pallets in the U-Haul 26′ ({u26.Lin} × {u26.Win} in): two across with the 48 in side across (96 in) in 7 rows of 40 in (280 in) = {c26.chep}; Penske's 26′ ({p26.Lin} in long) also takes 7 rows, {cp26.chep}. The U-Haul 15′ is {u15.Win} in wide, too narrow for two 48 in sides (96 in) but enough for one lane of each kind side by side (48 + 40 = 88 in): 4 pallets 40 in long in one lane (160 of {u15.Lin} in) and 3 pallets 48 in long in the other (144 in) = {c15.chep}. Penske's 12′ is {p12.Win} in wide, less than two 40 in sides, so only one lane fits: 3 pallets 48 in long (3 × 48 = 144 of {p12.Lin} in) = {cp12.chep}. Euro pallets in the U-Haul 26′ ({n(u26.L, 1)} × {n(u26.W, 1)} mm): 8 rows of two crosswise (8 × 800 = 6,400 mm, 2 × 1,200 = 2,400 mm across) plus 1 row of three lengthwise (1,200 mm long, 3 × 800 = 2,400 mm across) use 7,600 mm = {c26.euro}. 600 × 400 × 400 mm cartons in the U-Haul 26′: 13 along (7,800 mm) × 6 across (2,400 mm) × 6 high (2,400 of {n(u26.H, 1)} mm) = {n(c26.c3)}. Budget: the 12′ ({b12.Win} in wide) and 16′ ({b16.Win} in) take one lane, 3 pallets in {b12.Lin} in and 4 in {b16.Lin} in; the 16′ with lift gate ({b16lg.Win} in) takes one lane of each kind (48 + 40 = 88 in), 4 + 4 = {F('budget-16lg').chep}; the 26′ ({b26.Lin} × {b26.Win} in) two across in 7 rows (280 of {b26.Lin} in) = {F('budget-26').chep}. In every truck the 48 × 40 in count equals the best set of straight lanes worked out the same way. For your own pallets and cartons, with weights, pick the truck in the <a href="/container-loading-calculator/">container loading calculator</a>.</p>
   </section>
 
   <section class="prose">
@@ -145,7 +158,7 @@ const fleets: { name: string; upTo: boolean; trucks: Tk[]; rows: Row[] }[] = [
       <li><strong>Smaller than a box truck?</strong> A Sprinter cargo van is 133 to 189 in long inside and 53 in wide between the wheel arches: see <a href="/cargo-van-dimensions/">cargo van dimensions</a>.</li>
       <li><strong>The name is roughly the inside length.</strong> U-Haul's 10′ is {ftin(u10.Lin)} inside and its 20′ is {ftin(U.find((t) => t.id === 'uhaul-20')!.Lin)}; Penske's 22′ and 26′ are “up to” {ftin(P.find((t) => t.id === 'penske-22')!.Lin)} and {ftin(p26.Lin)}. The truck itself is longer, because the cab is in front of the box. For height, U-Haul prints a clearance height of {U.map((t) => `${t.clearanceFt} ft for the ${t.size}`).join(', ')}: use that, not the inside height, for bridges, drive-throughs and parking garages.</li>
       <li><strong>The door is lower than the box.</strong> U-Haul's door openings are {U.map((t) => `${t.doorHin} in high in the ${t.size} (inside ${t.Hin} in)`).join(', ')}. Anything taller than the door has to be tipped to go in, however much room there is inside. Pick a U-Haul truck in the <a href="/container-loading-calculator/">container loading calculator</a> and every box is checked against the door; for a Penske truck, measure the door and type its width and height.</li>
-      <li><strong>Width decides pallet counts.</strong> Two 48 in sides need 96 in and two 40 in sides 80 in. The 26′ trucks and Penske's 22′ (97 in) take two pallets across either way; the U-Haul 15′ and 20′ and Penske 16′ ({u15.Win}, {u20.Win} and {p16.Win} in) take one of each side by side; the U-Haul 10′ ({u10.Win} in) and Penske 12′ ({p12.Win} in) take only one across. Because Penske's sizes are “up to”, a truck 1 in narrower can lose a whole lane: measure before you promise a count.</li>
+      <li><strong>Width decides pallet counts.</strong> Two 48 in sides need 96 in and two 40 in sides 80 in. The 26′ trucks and Penske's 22′ (97 in) take two pallets across either way; the U-Haul 15′ and 20′ and Penske 16′ ({u15.Win}, {u20.Win} and {p16.Win} in) take one of each side by side; the U-Haul 10′ ({u10.Win} in), Penske 12′ ({p12.Win} in) and Budget's 12′ and 16′ ({b12.Win} in) take only one across, while Budget's 16′ with lift gate ({b16lg.Win} in) takes one of each side by side. Because Penske's sizes are “up to”, a truck 1 in narrower can lose a whole lane: measure before you promise a count.</li>
       <li><strong>Max load is the cargo limit.</strong> For the U-Haul 15′, 20′ and 26′ the printed max load is exactly the gross vehicle weight minus the empty weight (for example {n(u26.gvwLb!)} − {n(u26.emptyLb!)} = {n(u26.gvwLb! - u26.emptyLb!)} lb); for the 10′ the printed figures give {n(u10.gvwLb! - u10.emptyLb!)} lb against a max load of {n(u10.maxLoadLb)} lb, so use the lower one. Penske prints its load capacity as “up to”. Weight can run out before space: {c26.chep} pallets of 1,000 lb each would be {n(heavy)} lb, more than the 26′ trucks' {n(u26.maxLoadLb)} lb (U-Haul) and up to {n(p26.maxLoadLb)} lb (Penske). Enter the weight of each box or pallet in the planner and the payload stops the plan.</li>
       <li><strong>Deck height and ramps.</strong> U-Haul prints the deck (floor) at {Math.min(...U.map((t) => t.deckIn!))} to {Math.max(...U.map((t) => t.deckIn!))} in above the ground ({U.map((t) => `${t.size} ${t.deckIn} in`).join(', ')}). It prints a loading ramp width for the {U.filter((t) => t.rampWin).map((t) => `${t.size} (${t.rampWin} in)`).join(', ')} and “Loading ramp: None” for the 10′. Penske prints a {n(p26.rampLb!)} lb capacity loading ramp for its {P.filter((t) => t.ramp).map((t) => t.size).join(', ')} trucks and no deck height. Plan how pallets get up to the deck before you book the truck.</li>
       <li><strong>Bigger than a box truck?</strong> A 53′ dry van is {comp.Lin} × {comp.Win} × {comp.Hin} in inside in the Hyundai Translead Composite and takes {compChep} pallets of 48 × 40 in one high: see <a href="/53-foot-trailer-dimensions/">53 ft trailer dimensions</a> and <a href="/how-many-pallets-fit-in-a-53-foot-trailer/">how many pallets fit in a 53 ft trailer</a>. To add up the cubic feet of your own items first, use the <a href="/cubic-feet-calculator/">cubic feet calculator</a>.</li>
