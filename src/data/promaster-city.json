@@ -1,6 +1,6 @@
 {
  "note": "Ram ProMaster City cargo van as Stellantis prints it in the '2027 Ram ProMaster City Cargo Van Body Builder' document on Stellantis Media (view-spec.do?id=28139 → S3 PDF 'Ram ProMaster City Views & Charts - Cargo Van – Rev2', Body Builder Instruction dated 8/4/2026; SAE J1100 codes, millimetres and inches as printed). Read twice on 2026-11-17: pages 4 and 6 from both text layers of the PDF (pdfplumber and poppler, identical), page 5 (an image-only page) from the full page image and from an enlarged crop of its rows, identical; every inch figure equals its mm figure ÷ 25.4 rounded to 0.1 in. The document prints no payload or GVWR. Planner preset (conservative): length = cargo length at beltline (L204-1, shorter than at the floor), width = wheelhouse width at floor (W201) over the whole length, height = cargo height at rear axle (H201, lower than the maximum H505), door = maximum loading width of the rear doors (W509) × rear opening height (H202). No prices.",
- "checked": "2026-11-17",
+ "checked": "2026-11-22",
  "publisher": "Stellantis (Ram)",
  "title": "2027 Ram ProMaster City Cargo Van Body Builder (Stellantis Media)",
  "page": "https://media.stellantisnorthamerica.com/view-spec.do?id=28139",

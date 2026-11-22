@@ -1,6 +1,6 @@
 {
  "note": "53' trailer figures for /53-foot-trailer-dimensions/ that are not planner presets. The three Hyundai Translead planner presets (Original, HY-Cube, Composite) stay in trailers.json. Inches as printed by each maker; mm are converted on the page (1 in = 25.4 mm). Every figure read twice: (1) headless Chromium page text, (2) a separate browser session reading the spec table cell by cell (Hyundai Translead) or a curl download parsed as HTML text (Utility, Stoughton); both reads identical.",
- "checked": "2026-10-25",
+ "checked": "2026-11-22",
  "hyundai": [
   {
    "id": "53ht-composite-xt",
@@ -216,6 +216,6 @@
    "note": "The page lists two overall heights (59⅝\" front deck height and 58 3/16\", both on a 47\" fifth wheel) without saying which deck type each belongs to, so they are not used."
   }
  ],
- "flatbedsChecked": "2026-10-25",
+ "flatbedsChecked": "2026-11-22",
  "flatbedsHowRead": "Two reads each on 2026-10-25: headless Chromium (innerText and textContent) and curl HTML; identical."
 }

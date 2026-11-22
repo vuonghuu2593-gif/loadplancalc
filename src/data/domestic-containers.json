@@ -3,7 +3,7 @@
     "publisher": "Union Pacific Railroad",
     "title": "EMP and UMAX Container Specifications",
     "url": "https://www.up.com/shipping/intermodal/emp/empcont",
-    "checked": "2026-11-06",
+    "checked": "2026-11-22",
     "reads": "Read twice: page text via curl + HTML-to-text (table rows label | value), and a separate fetch asking for every table row character for character; both gave the same figures.",
     "note": "EMP and UMAX are the rail-owned 53' domestic container fleets Union Pacific gives shippers access to. One specification is published for the fleet; the page says to contact a Union Pacific Market Analyst with specification questions."
   },

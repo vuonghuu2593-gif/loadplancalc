@@ -2,7 +2,7 @@
   "source": "National Motor Freight Traffic Association (NMFTA), Freight Classification Development Council (FCDC) Density Guidelines, ©2021, linked from nmfta.org Public Docket Files",
   "url": "https://nmfta.org/wp-content/uploads/2026/02/FCDC-Density-Guidelines-1.pdf",
   "page": "https://nmfta.org/standards/classification/public-docket-files/",
-  "checked": "2026-11-07",
+  "checked": "2026-11-22",
   "read": "pdftotext -layout and pdftotext -raw of the PDF, identical",
   "note": "The density guidelines are used in the assignment of classes where average density is representative or reflective of the distribution of densities. Furthermore, the density/class relationships set forth in the guidelines presume that there are no unusual or significant handling, stowability or liability characteristics.",
   "rows": [

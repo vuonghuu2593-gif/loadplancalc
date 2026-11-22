@@ -1,6 +1,6 @@
 {
  "note": "BNSF Railway boxcars as BNSF prints them on its own car diagrams (PDF, bnsf.com, Ways of shipping > Equipment). Feet-inch and pound figures as printed; inches = feet × 12 + inches; mm converted exactly (1 in = 25.4 mm). Every figure read twice: (1) the PDF text layer (pdftotext -layout), (2) the rendered page image of the DIMENSIONS/CAPACITIES table and the dimension lines on the side-view drawing; both reads identical. Each diagram covers one numbered car series only; other boxcars differ.",
- "checked": "2026-11-13",
+ "checked": "2026-11-22",
  "cars": [
   {
    "id": "bnsf-50",

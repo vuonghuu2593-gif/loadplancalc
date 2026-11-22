@@ -2,14 +2,14 @@
  "source": {
   "publisher": "Hapag-Lloyd",
   "note": "Hapag-Lloyd states its figures are examples; containers vary by manufacturer and series. Reference rows only: these containers are not planner presets.",
-  "checked": "2026-10-25",
+  "checked": "2026-11-22",
   "reads": "Each spec page read twice in separate headless-browser sessions (page text, and table cells read one by one); both reads gave the same figures. Load-line and booklet figures read from the PDF text (pdfplumber) and checked against the rendered page image.",
   "booklet": {
    "title": "Hapag-Lloyd Container Specification (booklet)",
    "url": "https://www.hapag-lloyd.com/content/dam/website/downloads/pdf/17038_Update_Container_Specification_engl_sRGB.pdf"
   },
-  "flatracksChecked": "2026-10-25",
-  "hardtopsChecked": "2026-11-05",
+  "flatracksChecked": "2026-11-22",
+  "hardtopsChecked": "2026-11-22",
   "hardtopReads": "Read 1: each hardtop web page's text in headless Chromium (2026-11-05; the 40' HC page's weights and roof opening were not captured). Read 2: the Hapag-Lloyd booklet pages 17, 19, 21 and 23, PDF text (pdftotext) checked against the rendered page images. Every figure used appears in the booklet row of the listed series; inside size, door, capacity and ISO codes also match the web pages."
  },
  "reefers": [

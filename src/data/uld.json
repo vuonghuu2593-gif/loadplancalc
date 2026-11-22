@@ -3,7 +3,7 @@
     "publisher": "Vietnam Airlines Cargo",
     "title": "ULD Specification",
     "url": "https://cargo.vietnamairlines.com/be/en/shipping-guide/uld-specification",
-    "checked": "2026-11-06",
+    "checked": "2026-11-22",
     "reads": "Read twice: page text via curl + HTML-to-text (www.vietnamairlines.com, which redirects to cargo.vietnamairlines.com), and a separate fetch of the cargo.vietnamairlines.com page asking for every figure verbatim; both gave the same figures.",
     "note": "The page lists the six ULD types Vietnam Airlines offers to cargo customers. Lufthansa Cargo answered 403; the Emirates SkyCargo and Cathay Cargo ULD guide URLs returned 'not found' pages; Air Canada Cargo's ULD page is rendered by script with no figures in its HTML."
   },
