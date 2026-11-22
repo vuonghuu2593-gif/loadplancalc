@@ -4,7 +4,7 @@ import LoadPlanner from '../components/LoadPlanner.astro';
 import data from '../data/containers.json';
 import { trailerPresets, reeferPresets, reefer } from '../data/trailers.js';
 import { truckPresets } from '../data/box-trucks.js';
-import { vanPresets, promasterCityPresets } from '../data/cargo-vans.js';
+import { vanPresets, promasterCityPresets, expressPresets } from '../data/cargo-vans.js';
 import { palletPresets } from '../data/pallets.js';
 import { specialPresets } from '../data/special-presets.js';
 import sp from '../data/special-containers.json';
@@ -32,7 +32,7 @@ if (mcN.join('+') !== '660+660+660+20' || mc.left[0] !== 0 || mc.runs.some((r) =
   name="Container loading calculator"
   lede={`Enter your carton sizes, weights and quantities to see how many fit in a 20', 40', 40' high cube or 45' container, with a 3D plan you can step through. For example, 600 × 400 × 400 mm cartons: <strong>660 fit in a 40' high cube</strong> (inside ${n(hc.L)} × ${n(hc.W)} × ${n(hc.H)} mm) — 30 rows along the length, each row 22 cartons: three columns of six lying 600 mm across plus one column of four standing 600 mm tall.`}
 >
-  <LoadPlanner mode="container" defaults={defaults} spacePresets={[...data.containers, ...specialPresets, ...trailerPresets, ...reeferPresets, ...truckPresets, ...vanPresets, ...promasterCityPresets]} presetLabel="Container or trailer" palletize={palletPresets} />
+  <LoadPlanner mode="container" defaults={defaults} spacePresets={[...data.containers, ...specialPresets, ...trailerPresets, ...reeferPresets, ...truckPresets, ...vanPresets, ...promasterCityPresets, ...expressPresets]} presetLabel="Container or trailer" palletize={palletPresets} />
 
   <section class="prose">
     <h2>How the calculator works</h2>

@@ -1,0 +1,22 @@
+{
+ "note": "Chevrolet Express 2500/3500 cargo van (gas engines) as GM prints it in '2023 Express Van - Cargo' (GM Upfitter, Special Service specification guide, 25 pages), page 18 'SPECIFICATIONS - GAS ENGINE', figures printed as in./mm. Read twice on 2026-11-22: poppler pdftotext -layout and pdftotext -raw of the PDF, identical. 2500 and 3500 print the same dimensions for the same wheelbase, so there is one body per wheelbase. Planner preset (conservative): length = load floor length to the front seat, width = inside width between the wheelhousings over the whole length, height = cargo area height, door = rear door opening width at beltline x rear door opening height; each figure uses the smaller of in x 25.4 and the printed mm. Payload differs by engine and series, so the preset has none. No prices.",
+ "checked": "2026-11-22",
+ "publisher": "General Motors (GM Upfitter)",
+ "title": "2023 Express Van - Cargo (GM Upfitter specification guide)",
+ "url": "https://www.gmupfitter.com/wp-content/uploads/2022/12/2023-Express-Van-Cargo.pdf",
+ "pdfPage": 18,
+ "bodies": [
+  { "id": "express-135", "name": "Chevrolet Express cargo van, 135 in wheelbase (regular)", "short": "135 in WB (regular)", "models": "G2500 Regular (CG23405), G3500 Regular (CG33405)", "wbIn": 135, "wbMm": 3433,
+    "floorToSeatIn": 126.8, "floorToSeatMm": 3219, "floorToEngineIn": 154.7, "floorToEngineMm": 3929, "wheelhouseWIn": 52.5, "wheelhouseWMm": 1333,
+    "HIn": 55.1, "HMm": 1399, "doorWIn": 53.4, "doorWMm": 1357, "doorHIn": 49.4, "doorHMm": 1255, "sideDoorWIn": 45.3, "sideDoorWMm": 1150, "floorHIn": 30.3, "floorHMm": 770,
+    "cuft": 239.4, "litres": 6780,
+    "capacity": { "LV1-V6": { "G2500": { "gvwrLb": 8600, "payloadLb": 3280 }, "G3500": { "gvwrLb": 9600, "payloadLb": 4250 } },
+                  "L8T-V8": { "G2500": { "gvwrLb": 8600, "payloadLb": 3060 }, "G3500": { "gvwrLb": 9600, "payloadLb": 4010 } } } },
+  { "id": "express-155", "name": "Chevrolet Express cargo van, 155 in wheelbase (extended)", "short": "155 in WB (extended)", "models": "G2500 Extended (CG23705), G3500 Extended (CG33705)", "wbIn": 155, "wbMm": 3941,
+    "floorToSeatIn": 146.8, "floorToSeatMm": 3727, "floorToEngineIn": 173.7, "floorToEngineMm": 4411, "wheelhouseWIn": 52.5, "wheelhouseWMm": 1333,
+    "HIn": 55.1, "HMm": 1399, "doorWIn": 53.4, "doorWMm": 1357, "doorHIn": 47.9, "doorHMm": 1218, "sideDoorWIn": 45.3, "sideDoorWMm": 1150, "floorHIn": 29.8, "floorHMm": 756,
+    "cuft": 283.6, "litres": 8032,
+    "capacity": { "LV1-V6": { "G2500": { "gvwrLb": 8600, "payloadLb": 3060 }, "G3500": { "gvwrLb": 9600, "payloadLb": 4060 } },
+                  "L8T-V8": { "G2500": { "gvwrLb": 8600, "payloadLb": 2790 }, "G3500": { "gvwrLb": 9900, "payloadLb": 4060 } } } }
+ ]
+}

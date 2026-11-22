@@ -21,3 +21,15 @@ export const promasterCityPresets = [{
   doorW: pf['W509'].mm, doorH: pf['H202'].mm, payload: null, url: pmc.url, source: 'Stellantis (Ram ProMaster City body builder document)',
   note: `Cargo length ${pf['L202-1'].in.toFixed(1)} in at the floor and ${pf['L204-1'].in.toFixed(1)} in at the beltline, ${pf['W201'].in.toFixed(1)} in between the wheel arches (${pf['W200'].in.toFixed(1)} in maximum), ${pf['H201'].in.toFixed(1)} in high at the rear axle, rear door opening ${pf['W509'].in.toFixed(1)} × ${pf['H202'].in.toFixed(1)} in, as Stellantis prints them. The plan uses the beltline length, the width between the wheel arches and the height at the rear axle over the whole space. No payload is printed in that document: enter your van's payload from its door-jamb label.`,
 }];
+
+// Chevrolet Express cargo van (express-cargo-vans.json, GM Upfitter 2023 specification guide, in./mm as printed).
+// Conservative plan size: load floor length to the front seat, width between the wheelhousings, cargo area height;
+// door = rear opening width at beltline × rear opening height; each the smaller of in × 25.4 and the printed mm.
+// Payload depends on engine and series (2500/3500), so the payload field stays empty.
+import ex from './express-cargo-vans.json';
+const lo = (i, mm) => Math.min(i * 25.4, mm);
+export const express = { ...ex, bodies: ex.bodies.map((b) => ({ ...b, P: { L: lo(b.floorToSeatIn, b.floorToSeatMm), W: lo(b.wheelhouseWIn, b.wheelhouseWMm), H: lo(b.HIn, b.HMm), doorW: lo(b.doorWIn, b.doorWMm), doorH: lo(b.doorHIn, b.doorHMm) } })) };
+export const expressPresets = express.bodies.map((b) => ({
+  id: b.id, name: `${b.name.replace('Chevrolet Express cargo van, ', 'Chevrolet Express cargo van ')}`, ...b.P, payload: null, url: ex.url, source: 'GM (2023 Express Van - Cargo specification guide)',
+  note: `Load floor ${b.floorToSeatIn} in long to the front seat (${b.floorToEngineIn} in to the engine cover), ${b.wheelhouseWIn} in between the wheelhousings, ${b.HIn} in high, rear door opening ${b.doorWIn} × ${b.doorHIn} in, as GM prints them for the 2023 model year. The plan uses the length to the front seat, the width between the wheelhousings over the whole length and the cargo area height. Payload depends on the engine and on 2500 or 3500: enter your van's payload from its door-jamb label.`,
+}));
