@@ -90,3 +90,4 @@
 - 2026-11-24 (content run ~05:00 UTC): no page shipped. Cargo van (media.ford.com Transit page still 403; full-size Ram ProMaster door), 48 ft and pup trailer items still blocked as logged. Queue has 3 unchecked items. No code change, so no tests run.
 - 2026-11-24 (content run ~17:00 UTC): no page shipped. Cargo van, 48 ft and pup trailer items still blocked as logged (rambodybuilder.com unreachable from this session; Stellantis Media ids above 28260 return no new spec sheets). Queue has 3 unchecked items. No code change, so no tests run.
 - 2026-11-25 (content run ~05:00 UTC): no page shipped. Cargo van (media.ford.com Transit page still 403), 48 ft and pup trailer items still blocked as logged. Queue has 3 unchecked items. No code change, so no tests run.
+- 2026-11-25 (content run ~17:00 UTC): no page shipped. Cargo van (Ford still 403), 48 ft and pup trailer items still blocked as logged. Queue has 3 unchecked items. No code change, so no tests run.
