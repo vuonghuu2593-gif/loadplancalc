@@ -95,3 +95,4 @@
 - 2026-11-26 (content run ~17:00 UTC): no page shipped. Cargo van (Ford 403), 48 ft and pup trailer items still blocked as logged. Queue has 3 unchecked items. No code change, so no tests run.
 - 2026-11-27 (content run ~05:00 UTC): no page shipped. Cargo van (media.ford.com and ford.com Transit pages still 403), 48 ft and pup trailer items still blocked as logged. Queue has 3 unchecked items. No code change, so no tests run.
 - 2026-11-27 (content run ~17:00 UTC): no page shipped. Cargo van (Ford 403), 48 ft and pup trailer items still blocked as logged. Queue has 3 unchecked items. No code change, so no tests run.
+- 2026-11-28 (content run ~05:00 UTC): no page shipped. Cargo van (media.ford.com Transit page still 403), 48 ft and pup trailer items still blocked as logged. Queue has 3 unchecked items. No code change, so no tests run.
